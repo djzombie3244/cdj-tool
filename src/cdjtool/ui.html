@@ -59,6 +59,7 @@ canvas.ov { height: 20px; margin-top: 4px; }
 .speed-result .speed-rows { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 8px; }
 .speed-result .speed-rows span { color: var(--muted); font-size: 13px; }
 .speed-result b { color: var(--txt); font-variant-numeric: tabular-nums; }
+.frow{margin:2px 0}.fx{padding:0 6px;min-width:0;line-height:1.4}
 </style>
 </head>
 <body>
@@ -75,7 +76,9 @@ canvas.ov { height: 20px; margin-top: 4px; }
 
   <div class="card" id="k1">
     <h2><span class="num">1</span><span data-i18n="step1"></span></h2>
-    <div class="row"><button id="bMp3" data-i18n="chooseFolder"></button><span id="infoMp3" class="path" data-i18n="notChosen"></span></div>
+    <div class="row"><button id="bMp3" data-i18n="addFolder"></button><button id="bMp3Clear" class="hidden" data-i18n="clearFolders"></button></div>
+    <div id="infoMp3" class="path" data-i18n="notChosen"></div>
+    <div id="ostrzFolder" class="warn" style="margin-top:6px;font-size:13px"></div>
   </div>
 
   <div class="card" id="k2">
@@ -114,6 +117,7 @@ canvas.ov { height: 20px; margin-top: 4px; }
   <div class="card" id="k3">
     <h2><span class="num">4</span><span data-i18n="step4"></span></h2>
     <input type="text" id="playlista" value="Tracks" maxlength="60">
+    <div id="playlistaNota" class="legend"></div>
   </div>
 
   <div class="row" style="margin:6px 0 16px">
@@ -142,6 +146,7 @@ canvas.ov { height: 20px; margin-top: 4px; }
 const TOKEN = "__TOKEN__";
 const NATIVE = __NATIVE__;
 const $ = id => document.getElementById(id);
+let foldery = [], kolejka = null, kolejkaGen = 0, kolejkaBusy = false;
 let mp3 = null, pend = null, ostatniStan = null, stanWysuwania = null, ostatniKluczPomiaru = "";
 const narysowane = new Set();
 const I18N = {
@@ -149,7 +154,7 @@ pl: {
  name:"Polski", sub:"Analiza utworów i zapis pendrive dla CDJ-2000, bez rekordbox.",
  setupTitle:"Przygotowuję składniki…", setupDesc:"Za pierwszym razem program przygotowuje potrzebne składniki. To trwa chwilę.", details:"Szczegóły",
  setupFail:"Nie udało się przygotować składników", setupInstall:"Instaluję składniki (tylko za pierwszym razem)…",
- step1:"Folder z utworami (MP3, AAC, WAV, AIFF)", chooseFolder:"Wybierz folder…", notChosen:"Nie wybrano.", step2:"Pendrive", choosePend:"Wybierz pendrive…",
+ step1:"Foldery z utworami (MP3, AAC, WAV, AIFF), można dodać kilka", addFolder:"Dodaj folder…", clearFolders:"Wyczyść listę", removeFolder:"Usuń z listy", folderDup:"Ten folder jest już na liście.", folderNested:"Ten folder zawiera się w innym folderze z listy (lub go zawiera), utwory byłyby zapisane dwa razy.", foldersSummary:"Razem: {k} folderów, {n} plików ({mb} MB). Zapisuję je po kolei, każdy jako osobna playlista.", folderOf:"Folder {i} z {n}: {name}", playlistPerFolder:"Przy kilku folderach każda playlista dostaje nazwę swojego folderu.", queueStopped:"Zatrzymano na folderze {i} z {n}. Foldery zapisane wcześniej ({done}) są już na pendrive.", chooseFolder:"Wybierz folder…", notChosen:"Nie wybrano.", step2:"Pendrive", choosePend:"Wybierz pendrive…",
  replacePioneer:"Zastąp całą dotychczasową zawartość pendrive'a (kopia folderu <b>PIONEER</b> trafi do Dokumenty → CDJ-Tool-kopie). Odznaczone: nowe utwory zostaną <b>dopisane</b> do biblioteki już zapisanej na pendrive.", copyMp3:"Kopiuj pliki audio na pendrive",
  copyOn:"Włączone: pliki MP3 zostaną skopiowane na pendrive. Pomiar szybkości uwzględni odczyt źródła i zapis na pendrive.",
  copyOff:"Bez kopiowania: folder MP3 musi być na tym samym pendrivie. Pomiar dotyczy odczytu MP3, a dokładny rozmiar plików analizy program poda przed zapisem.",
@@ -189,7 +194,7 @@ en: {
  name:"English", sub:"Track analysis and USB stick export for CDJ-2000, without rekordbox.",
  setupTitle:"Preparing components…", setupDesc:"On first launch the app prepares the components it needs. This takes a moment.", details:"Details",
  setupFail:"Could not prepare the components", setupInstall:"Installing components (first launch only)…",
- step1:"Folder with tracks (MP3, AAC, WAV, AIFF)", chooseFolder:"Choose folder…", notChosen:"Not selected.", step2:"USB stick", choosePend:"Choose USB stick…",
+ step1:"Folders with tracks (MP3, AAC, WAV, AIFF), you can add several", addFolder:"Add folder…", clearFolders:"Clear list", removeFolder:"Remove from list", folderDup:"This folder is already in the list.", folderNested:"This folder is inside another folder in the list (or contains it); tracks would be written twice.", foldersSummary:"Total: {k} folders, {n} files ({mb} MB). They are written one by one, each as its own playlist.", folderOf:"Folder {i} of {n}: {name}", playlistPerFolder:"With several folders, each playlist is named after its folder.", queueStopped:"Stopped at folder {i} of {n}. The folders written earlier ({done}) are already on the stick.", chooseFolder:"Choose folder…", notChosen:"Not selected.", step2:"USB stick", choosePend:"Choose USB stick…",
  replacePioneer:"Replace everything currently on the USB stick (a copy of the <b>PIONEER</b> folder goes to Documents → CDJ-Tool-kopie). Unchecked: new tracks are <b>added</b> to the library already on the stick.", copyMp3:"Copy audio files to the USB stick",
  copyOn:"On: MP3 files are copied to the USB stick. The speed check covers reading the source and writing to the stick.",
  copyOff:"No copying: the MP3 folder must be on the same USB stick. The speed check covers reading MP3s; the exact size of the analysis files is shown before writing.",
@@ -229,7 +234,7 @@ de: {
  name:"Deutsch", sub:"Titelanalyse und USB-Export für CDJ-2000, ohne rekordbox.",
  setupTitle:"Komponenten werden vorbereitet…", setupDesc:"Beim ersten Start bereitet die App die nötigen Komponenten vor. Das dauert einen Moment.", details:"Details",
  setupFail:"Komponenten konnten nicht vorbereitet werden", setupInstall:"Komponenten werden installiert (nur beim ersten Start)…",
- step1:"Ordner mit Titeln (MP3, AAC, WAV, AIFF)", chooseFolder:"Ordner wählen…", notChosen:"Nicht ausgewählt.", step2:"USB-Stick", choosePend:"USB-Stick wählen…",
+ step1:"Ordner mit Titeln (MP3, AAC, WAV, AIFF), mehrere möglich", addFolder:"Ordner hinzufügen…", clearFolders:"Liste leeren", removeFolder:"Aus der Liste entfernen", folderDup:"Dieser Ordner steht bereits in der Liste.", folderNested:"Dieser Ordner liegt in einem anderen Ordner der Liste (oder enthält ihn); Titel würden doppelt geschrieben.", foldersSummary:"Gesamt: {k} Ordner, {n} Dateien ({mb} MB). Sie werden nacheinander geschrieben, jeder als eigene Playlist.", folderOf:"Ordner {i} von {n}: {name}", playlistPerFolder:"Bei mehreren Ordnern heißt jede Playlist wie ihr Ordner.", queueStopped:"Bei Ordner {i} von {n} angehalten. Die zuvor geschriebenen Ordner ({done}) sind bereits auf dem Stick.", chooseFolder:"Ordner wählen…", notChosen:"Nicht ausgewählt.", step2:"USB-Stick", choosePend:"USB-Stick wählen…",
  replacePioneer:"Gesamten bisherigen Inhalt des USB-Sticks ersetzen (Kopie des Ordners <b>PIONEER</b> unter Dokumente → CDJ-Tool-kopie). Nicht angehakt: neue Titel werden der vorhandenen Bibliothek auf dem Stick <b>hinzugefügt</b>.", copyMp3:"Audiodateien auf den USB-Stick kopieren",
  copyOn:"Ein: MP3-Dateien werden auf den Stick kopiert. Die Geschwindigkeitsprüfung berücksichtigt Lesen der Quelle und Schreiben auf den Stick.",
  copyOff:"Ohne Kopieren: Der MP3-Ordner muss auf demselben Stick liegen. Geprüft wird das Lesen der MP3s; die genaue Größe der Analysedateien wird vor dem Schreiben angezeigt.",
@@ -269,7 +274,7 @@ fr: {
  name:"Français", sub:"Analyse des morceaux et export sur clé USB pour CDJ-2000, sans rekordbox.",
  setupTitle:"Préparation des composants…", setupDesc:"Au premier lancement, l'application prépare les composants nécessaires. Cela prend un instant.", details:"Détails",
  setupFail:"Impossible de préparer les composants", setupInstall:"Installation des composants (premier lancement uniquement)…",
- step1:"Dossier des morceaux (MP3, AAC, WAV, AIFF)", chooseFolder:"Choisir un dossier…", notChosen:"Non sélectionné.", step2:"Clé USB", choosePend:"Choisir la clé USB…",
+ step1:"Dossiers de morceaux (MP3, AAC, WAV, AIFF), plusieurs possibles", addFolder:"Ajouter un dossier…", clearFolders:"Vider la liste", removeFolder:"Retirer de la liste", folderDup:"Ce dossier est déjà dans la liste.", folderNested:"Ce dossier est dans un autre dossier de la liste (ou le contient) ; les morceaux seraient écrits deux fois.", foldersSummary:"Total : {k} dossiers, {n} fichiers ({mb} Mo). Ils sont écrits un par un, chacun comme playlist séparée.", folderOf:"Dossier {i} sur {n} : {name}", playlistPerFolder:"Avec plusieurs dossiers, chaque playlist porte le nom de son dossier.", queueStopped:"Arrêt au dossier {i} sur {n}. Les dossiers écrits avant ({done}) sont déjà sur la clé.", chooseFolder:"Choisir un dossier…", notChosen:"Non sélectionné.", step2:"Clé USB", choosePend:"Choisir la clé USB…",
  replacePioneer:"Remplacer tout le contenu actuel de la clé USB (une copie du dossier <b>PIONEER</b> va dans Documents → CDJ-Tool-kopie). Décoché : les nouveaux morceaux sont <b>ajoutés</b> à la bibliothèque déjà présente sur la clé.", copyMp3:"Copier les fichiers audio sur la clé USB",
  copyOn:"Activé : les fichiers MP3 sont copiés sur la clé. Le test de vitesse inclut la lecture de la source et l'écriture sur la clé.",
  copyOff:"Sans copie : le dossier MP3 doit se trouver sur la même clé. Le test porte sur la lecture des MP3 ; la taille exacte des fichiers d'analyse est indiquée avant l'écriture.",
@@ -309,7 +314,7 @@ es: {
  name:"Español", sub:"Análisis de pistas y exportación a memoria USB para CDJ-2000, sin rekordbox.",
  setupTitle:"Preparando componentes…", setupDesc:"En el primer inicio la aplicación prepara los componentes necesarios. Tarda un momento.", details:"Detalles",
  setupFail:"No se pudieron preparar los componentes", setupInstall:"Instalando componentes (solo en el primer inicio)…",
- step1:"Carpeta con pistas (MP3, AAC, WAV, AIFF)", chooseFolder:"Elegir carpeta…", notChosen:"Sin seleccionar.", step2:"Memoria USB", choosePend:"Elegir memoria USB…",
+ step1:"Carpetas con pistas (MP3, AAC, WAV, AIFF), puedes añadir varias", addFolder:"Añadir carpeta…", clearFolders:"Vaciar lista", removeFolder:"Quitar de la lista", folderDup:"Esta carpeta ya está en la lista.", folderNested:"Esta carpeta está dentro de otra de la lista (o la contiene); las pistas se escribirían dos veces.", foldersSummary:"Total: {k} carpetas, {n} archivos ({mb} MB). Se escriben una a una, cada una como playlist propia.", folderOf:"Carpeta {i} de {n}: {name}", playlistPerFolder:"Con varias carpetas, cada playlist lleva el nombre de su carpeta.", queueStopped:"Detenido en la carpeta {i} de {n}. Las carpetas escritas antes ({done}) ya están en la memoria.", chooseFolder:"Elegir carpeta…", notChosen:"Sin seleccionar.", step2:"Memoria USB", choosePend:"Elegir memoria USB…",
  replacePioneer:"Reemplazar todo el contenido actual de la memoria USB (una copia de la carpeta <b>PIONEER</b> va a Documentos → CDJ-Tool-kopie). Sin marcar: las pistas nuevas se <b>añaden</b> a la biblioteca que ya hay en la memoria.", copyMp3:"Copiar los archivos de audio a la memoria USB",
  copyOn:"Activado: los archivos MP3 se copian a la memoria. La prueba de velocidad incluye la lectura del origen y la escritura en la memoria.",
  copyOff:"Sin copiar: la carpeta MP3 debe estar en la misma memoria. La prueba mide la lectura de los MP3; el tamaño exacto de los archivos de análisis se muestra antes de escribir.",
@@ -349,7 +354,7 @@ it: {
  name:"Italiano", sub:"Analisi dei brani ed esportazione su chiavetta USB per CDJ-2000, senza rekordbox.",
  setupTitle:"Preparazione dei componenti…", setupDesc:"Al primo avvio l'app prepara i componenti necessari. Ci vuole un momento.", details:"Dettagli",
  setupFail:"Impossibile preparare i componenti", setupInstall:"Installazione dei componenti (solo al primo avvio)…",
- step1:"Cartella con i brani (MP3, AAC, WAV, AIFF)", chooseFolder:"Scegli cartella…", notChosen:"Non selezionata.", step2:"Chiavetta USB", choosePend:"Scegli chiavetta USB…",
+ step1:"Cartelle con i brani (MP3, AAC, WAV, AIFF), puoi aggiungerne più di una", addFolder:"Aggiungi cartella…", clearFolders:"Svuota elenco", removeFolder:"Rimuovi dall'elenco", folderDup:"Questa cartella è già nell'elenco.", folderNested:"Questa cartella è dentro un'altra dell'elenco (o la contiene); i brani verrebbero scritti due volte.", foldersSummary:"Totale: {k} cartelle, {n} file ({mb} MB). Vengono scritte una alla volta, ciascuna come playlist separata.", folderOf:"Cartella {i} di {n}: {name}", playlistPerFolder:"Con più cartelle, ogni playlist prende il nome della sua cartella.", queueStopped:"Fermato alla cartella {i} di {n}. Le cartelle scritte prima ({done}) sono già sulla chiavetta.", chooseFolder:"Scegli cartella…", notChosen:"Non selezionata.", step2:"Chiavetta USB", choosePend:"Scegli chiavetta USB…",
  replacePioneer:"Sostituisci tutto il contenuto attuale della chiavetta USB (una copia della cartella <b>PIONEER</b> va in Documenti → CDJ-Tool-kopie). Non spuntato: i nuovi brani vengono <b>aggiunti</b> alla libreria già presente sulla chiavetta.", copyMp3:"Copia i file audio sulla chiavetta USB",
  copyOn:"Attivo: i file MP3 vengono copiati sulla chiavetta. Il test di velocità include la lettura della sorgente e la scrittura sulla chiavetta.",
  copyOff:"Senza copia: la cartella MP3 deve trovarsi sulla stessa chiavetta. Il test misura la lettura degli MP3; la dimensione esatta dei file di analisi viene mostrata prima della scrittura.",
@@ -394,6 +399,10 @@ function t(key, v) {
   if (v) s = s.replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : m));
   return s;
 }
+function stopNota() {
+  if (!kolejka || kolejka.lista.length < 2) return "";
+  return `<p class="warn" style="font-size:13px;margin:8px 0 0">${esc(t("queueStopped", { i: kolejka.i + 1, n: kolejka.lista.length, done: kolejka.i }))}</p>`;
+}
 function trEtap(x) {
   if (!x) return "";
   let m;
@@ -418,7 +427,7 @@ function applyLang() {
   if (sel && !sel.options.length) Object.keys(I18N).forEach(k => { const o = document.createElement("option"); o.value = k; o.textContent = I18N[k].name; sel.appendChild(o); });
   if (sel) sel.value = LANG;
   opisKopiowania();
-  if (mp3) ustawMp3(mp3);
+  rysujFoldery();
   if (pend) ustawPendrive(pend);
   if (formatInfo) opisFormatu();
   if (ostatniStan) odswiez();
@@ -486,19 +495,47 @@ function odswiezPrzycisk() {
   const pomiarGotowy = b && b.stan === "gotowe" && mp3 && pend &&
     b.folder_mp3 === mp3.sciezka && b.pendrive === pend.sciezka &&
     Boolean(b.kopiuj_mp3) === $("cKopiuj").checked;
-  $("bStart").disabled = !(mp3 && mp3.liczba > 0 && pend && gotowe && pomiarGotowy && !trwa);
+  const kol = kolejkaAktywna();
+  $("bStart").disabled = !(mp3 && mp3.liczba > 0 && pend && gotowe && pomiarGotowy && !trwa && !kol);
   $("bPredkosc").disabled = !(mp3 && mp3.liczba > 0 && pend && gotowe && !trwa && (!b || b.stan !== "trwa"));
-  $("bMp3").disabled = trwa; $("bPend").disabled = trwa;
+  $("bMp3").disabled = trwa || kol; $("bPend").disabled = trwa || kol; $("bMp3Clear").disabled = trwa || kol;
+  document.querySelectorAll(".fx").forEach(b => { b.disabled = trwa || kol; });
   $("bFormatInfo").disabled = !(pend && !trwa);
 }
 
+const kolejkaAktywna = () => !!(kolejka && !kolejka.koniec && !kolejka.przerwana);
+function przelicz() {
+  mp3 = foldery.length ? { sciezka: foldery[0].sciezka, liczba: foldery.reduce((a, f) => a + f.liczba, 0),
+    rozmiar_mb: foldery.reduce((a, f) => a + f.rozmiar_mb, 0) } : null;
+}
+function rysujFoldery() {
+  przelicz();
+  const el = $("infoMp3");
+  if (!foldery.length) { el.textContent = t("notChosen"); }
+  else {
+    el.innerHTML = foldery.map((f, i) => `<div class="frow"><button class="fx" data-i="${i}" title="${esc(t("removeFolder"))}" aria-label="${esc(t("removeFolder"))}">✕</button> ${esc(f.sciezka)} <span class="ok">(${esc(t("found", { n: f.liczba, mb: f.rozmiar_mb }))})</span></div>`).join("") +
+      (foldery.length > 1 ? `<div class="legend" style="margin-top:4px"><b>${esc(t("foldersSummary", { k: foldery.length, n: mp3.liczba, mb: mp3.rozmiar_mb }))}</b></div>` : "");
+    el.querySelectorAll(".fx").forEach(b => { b.onclick = () => { if (kolejkaAktywna()) return; foldery.splice(+b.dataset.i, 1); $("ostrzFolder").textContent = ""; ostatniKluczPomiaru = ""; rysujFoldery(); }; });
+  }
+  $("bMp3Clear").classList.toggle("hidden", foldery.length < 2);
+  $("playlista").disabled = foldery.length > 1;
+  $("playlistaNota").textContent = foldery.length > 1 ? t("playlistPerFolder") : "";
+  if (pend) ustawPendrive(pend); else odswiezPrzycisk();
+}
 function ustawMp3(r) {
-  if (!r.sciezka) return;
-  mp3 = r;
-  $("infoMp3").innerHTML = esc(r.sciezka) + "<br>" +
-    (r.liczba > 0 ? `<span class="ok">${esc(t("found", { n: r.liczba, mb: r.rozmiar_mb }))}</span>`
-                  : `<span class="err">${esc(t("noMp3"))}</span>`);
-  odswiezPrzycisk();
+  if (!r || !r.sciezka) return;
+  const o = $("ostrzFolder"); o.textContent = "";
+  const norm = x => x.replace(/\/+$/, "");
+  const nowa = norm(r.sciezka);
+  if (r.liczba <= 0) { o.textContent = t("noMp3"); return; }
+  for (const f of foldery) {
+    const ist = norm(f.sciezka);
+    if (ist === nowa) { o.textContent = t("folderDup"); return; }
+    if (nowa.startsWith(ist + "/") || ist.startsWith(nowa + "/")) { o.textContent = t("folderNested"); return; }
+  }
+  foldery.push(r);
+  ostatniKluczPomiaru = "";
+  rysujFoldery();
 }
 function opisKopiowania() {
   $("kopiujOpis").textContent = t($("cKopiuj").checked ? "copyOn" : "copyOff");
@@ -524,6 +561,7 @@ window.cdjFolderSelected = async (co, sciezka) => {
   const r = await api("/api/wybierz", { co, sciezka });
   if (co === "mp3") ustawMp3(r); else ustawPendrive(r);
 };
+$("bMp3Clear").onclick = () => { if (kolejkaAktywna()) return; foldery = []; $("ostrzFolder").textContent = ""; rysujFoldery(); };
 $("bMp3").onclick = async () => {
   if (NATIVE) return wybierzFolderNative("mp3");
   ustawMp3(await api("/api/wybierz", { co: "mp3" }));
@@ -538,12 +576,22 @@ $("bPredkosc").onclick = async () => {
   const r = await api("/api/predkosc", { folder_mp3: mp3.sciezka, pendrive: pend.sciezka, kopiuj_mp3: kopiuj });
   if (r.blad) $("wynikPredkosci").innerHTML = `<div class="speed-lead err">${esc(t("speedFail"))}</div><div class="speed-detail">${esc(r.blad)}</div>`;
 };
+async function startFolderu(i) {
+  kolejkaGen++;
+  const f = kolejka.lista[i], wiele = kolejka.lista.length > 1;
+  const nazwa = wiele ? (f.sciezka.replace(/\/+$/, "").split("/").pop() || "Tracks").slice(0, 60) : $("playlista").value;
+  const r = await api("/api/start", { folder_mp3: f.sciezka, folder_pomiaru: kolejka.pomiar, pendrive: pend.sciezka, playlista: nazwa,
+    kopiuj_mp3: $("cKopiuj").checked, zastap_pioneer: i === 0 && $("cZastap").checked });
+  if (r.blad) { alert(r.blad); kolejka.przerwana = true; return false; }
+  return true;
+}
 $("bStart").onclick = async () => {
   stanWysuwania = null;
   narysowane.clear(); $("lista").innerHTML = ""; $("wyniki").classList.add("hidden"); $("koniec").classList.add("hidden");
-  const r = await api("/api/start", { folder_mp3: mp3.sciezka, pendrive: pend.sciezka, playlista: $("playlista").value,
-    kopiuj_mp3: $("cKopiuj").checked, zastap_pioneer: $("cZastap").checked });
-  if (r.blad) alert(r.blad);
+  kolejka = { lista: foldery.slice(), i: 0, lacznie: 0, kopia: null, pomiar: mp3.sciezka, koniec: false, przerwana: false };
+  odswiezPrzycisk();
+  await startFolderu(0);
+  odswiezPrzycisk();
 };
 $("bAnuluj").onclick = async () => {
   if (confirm(t("confirmCancel"))) await api("/api/anuluj", {});
@@ -595,7 +643,9 @@ async function dodajUtwor(u) {
 
 async function odswiez() {
   let s;
+  const gen = kolejkaGen;
   try { s = await api("/api/status"); } catch (e) { return; }
+  if (gen !== kolejkaGen) return;
   ostatniStan = s;
   const st = s.setup;
   const kart = $("setup");
@@ -635,20 +685,38 @@ async function odswiez() {
   $("bAnuluj").classList.toggle("hidden", !trwa);
   if (j.stan && j.stan !== "brak") {
     $("postep").classList.remove("hidden");
-    $("etap").textContent = trEtap(j.etap);
+    $("etap").textContent = (kolejka && kolejka.lista.length > 1 ? t("folderOf", { i: kolejka.i + 1, n: kolejka.lista.length, name: kolejka.lista[kolejka.i].sciezka.replace(/\/+$/, "").split("/").pop() }) + " · " : "") + trEtap(j.etap);
     $("pasek").style.width = Math.round((j.postep || 0) * 100) + "%";
     $("eta").textContent = j.stan === "trwa" ? opisCzasu(j) : "";
     let ostrzezenia = (j.bledy || []).map(b => `<span class="warn">${esc(t("skipped", { name: b.nazwa, text: b.tekst }))}</span>`);
     if ((j.bledow_razem || 0) > ostrzezenia.length) ostrzezenia.push(`<span class="warn">${esc(t("skippedTotal", { n: j.bledow_razem, m: ostrzezenia.length }))}</span>`);
     $("postepOpis").innerHTML = ostrzezenia.join("<br>");
     $("log").textContent = (j.log || []).join("\n");
-    (j.utwory || []).forEach(u => { if (!narysowane.has(u.i)) { narysowane.add(u.i); $("wyniki").classList.remove("hidden"); dodajUtwor(u); } });
+    const nowe = [];
+    (j.utwory || []).forEach(u => { const kl = (kolejka ? kolejka.i : 0) + ":" + u.i; if (!narysowane.has(kl)) { narysowane.add(kl); $("wyniki").classList.remove("hidden"); nowe.push(dodajUtwor(u)); } });
+    if (kolejka && !kolejkaBusy && !kolejka.koniec && !kolejka.przerwana) {
+      if (j.stan === "gotowe") {
+        kolejkaBusy = true;
+        try {
+          await Promise.all(nowe);
+          kolejka.lacznie += (j.sukcesy || j.utwory.length || 0);
+          kolejka.kopia = kolejka.kopia || j.kopia;
+          if (kolejka.i + 1 < kolejka.lista.length) {
+            kolejka.i++;
+            await startFolderu(kolejka.i);
+          } else { kolejka.koniec = true; }
+        } finally { kolejkaBusy = false; }
+        return odswiez();
+      } else if (j.stan === "blad" || j.stan === "anulowano") { kolejka.przerwana = true; }
+    }
     if (j.sukcesy > 50) $("wyniki").querySelector("h2").textContent = t("results50");
   }
   const k = $("koniec");
-  if (j.stan === "gotowe") {
+  if (j.stan === "gotowe" && kolejkaAktywna()) {
+    k.classList.add("hidden");
+  } else if (j.stan === "gotowe") {
     k.classList.remove("hidden");
-    let html = `<h2 class="ok">${esc(t("doneTitle", { n: j.sukcesy || j.utwory.length }))}</h2><p style="margin:0 0 8px">${esc(t("doneEject"))}</p>`;
+    let html = `<h2 class="ok">${esc(t("doneTitle", { n: kolejka && kolejka.lista.length > 1 ? kolejka.lacznie : (j.sukcesy || j.utwory.length) }))}</h2><p style="margin:0 0 8px">${esc(t("doneEject"))}</p>`;
     if (j.kopia) html += `<p class="m" style="color:var(--muted);font-size:13px;margin:0 0 8px">${esc(t("backupOf"))} ${esc(j.kopia)}</p>`;
     if ((j.stare_pliki || []).length) html += `<p class="warn" style="font-size:13px;margin:0 0 8px">${esc(t("oldFiles", { list: j.stare_pliki.join(", ") }))}</p>`;
     const wysuwanie = stanWysuwania;
@@ -675,9 +743,9 @@ async function odswiez() {
       odswiez();
     };
   } else if (j.stan === "blad") {
-    k.classList.remove("hidden"); k.innerHTML = `<h2 class="err">${esc(t("errTitle"))}</h2><p style="margin:0">${esc(j.blad || "")}</p>`;
+    k.classList.remove("hidden"); k.innerHTML = `<h2 class="err">${esc(t("errTitle"))}</h2><p style="margin:0">${esc(j.blad || "")}</p>` + stopNota();
   } else if (j.stan === "anulowano") {
-    k.classList.remove("hidden"); k.innerHTML = `<h2 class="warn">${esc(t("canceledTitle"))}</h2><p style="margin:0">${esc(t("canceledDesc"))}</p>`;
+    k.classList.remove("hidden"); k.innerHTML = `<h2 class="warn">${esc(t("canceledTitle"))}</h2><p style="margin:0">${esc(t("canceledDesc"))}</p>` + stopNota();
   }
   const klucz = mp3 && pend ? [mp3.sciezka, pend.sciezka, $("cKopiuj").checked].join("|") : "";
   if (klucz && !pomiarPasuje && b.stan !== "trwa" && !trwa && st.stan === "gotowe" && mp3.liczba > 0 && klucz !== ostatniKluczPomiaru) {

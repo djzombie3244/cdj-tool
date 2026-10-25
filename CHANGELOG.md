@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1 - 2026
+
+- Several source folders: add as many folders as you like; they are written one after another, each as its own playlist (named after the folder) into the same library.
+
 ## 1.0.0 - 2026
 
 First public release.

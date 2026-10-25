@@ -664,7 +664,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                      "zastap_pioneer": bool(dane.get("zastap_pioneer", False))}
                 benchmark = STAN["benchmark"]
                 if (benchmark.get("stan") != "gotowe" or
-                        benchmark.get("folder_mp3") != a["folder_mp3"] or
+                        benchmark.get("folder_mp3") != str(dane.get("folder_pomiaru") or a["folder_mp3"]) or
                         benchmark.get("pendrive") != a["pendrive"] or
                         bool(benchmark.get("kopiuj_mp3")) != a["kopiuj_mp3"]):
                     return self._wyslij(409, {"blad": "Najpierw zmierz szybkość ponownie dla wybranego trybu kopiowania."})
