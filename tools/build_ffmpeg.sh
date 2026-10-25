@@ -3,6 +3,7 @@
 # FFmpeg 7.1 source archive. Works offline if you already have the archive.
 #
 #   tools/build_ffmpeg.sh <ffmpeg-7.1-source.tar.xz> <output-binary>
+#   CDJ_FFMPEG_ARCH=x86_64 tools/build_ffmpeg.sh ...   (cross-build for Intel Macs on Apple Silicon)
 set -euo pipefail
 TAR="${1:?usage: build_ffmpeg.sh ffmpeg-7.1-source.tar.xz output-binary}"
 OUT="${2:?usage: build_ffmpeg.sh ffmpeg-7.1-source.tar.xz output-binary}"
@@ -14,7 +15,11 @@ B="$(mktemp -d /tmp/cdj-ffmpeg.XXXXXX)"
 trap 'rm -rf "$B"' EXIT
 tar -xf "$TAR" -C "$B"
 cd "$B"/ffmpeg-7.1
-./configure --disable-everything --disable-autodetect --disable-network --disable-shared \
+XARGS=""
+if [ "${CDJ_FFMPEG_ARCH:-}" = "x86_64" ]; then
+  XARGS="--enable-cross-compile --arch=x86_64 --target-os=darwin --disable-x86asm --cc=\"clang -arch x86_64 -mmacosx-version-min=10.15\""
+fi
+eval ./configure $XARGS --disable-everything --disable-autodetect --disable-network --disable-shared \
  --enable-static --enable-ffmpeg --disable-ffplay --disable-ffprobe --disable-doc \
  --enable-demuxer=mp3,ffmetadata,wav,aiff,mov,aac \
  --enable-decoder=mp3float,mp3,aac,pcm_s16le,pcm_s16be,pcm_s24le,pcm_s24be \

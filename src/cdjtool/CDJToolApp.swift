@@ -46,7 +46,12 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
         let framework = contents.appendingPathComponent("Frameworks/Python3Bundled.framework/Versions/3.9")
         let python = framework.appendingPathComponent("bin/python3.9")
         let packages = resources.appendingPathComponent("python/site-packages")
-        let ffmpeg = packages.appendingPathComponent("imageio_ffmpeg/binaries/ffmpeg-macos-aarch64-v7.1")
+        #if arch(x86_64)
+        let ffmpegName = "ffmpeg-macos-x86_64-v7.1"
+        #else
+        let ffmpegName = "ffmpeg-macos-aarch64-v7.1"
+        #endif
+        let ffmpeg = packages.appendingPathComponent("imageio_ffmpeg/binaries/" + ffmpegName)
 
         let support = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/CDJ-Tool")

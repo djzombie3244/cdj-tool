@@ -4,7 +4,8 @@
 #
 #   tools/build_installer.sh [--app "/path/CDJ Tool.app"] [--version 1.0.0] [--out dist]
 #
-# Environment: CDJ_SIGN_IDENTITY  Developer ID identity to sign with (default: ad-hoc signature).
+# Environment: CDJ_ARCH (arm64 default, or x86_64 for the Intel build), CDJ_MIN_MACOS (default 14.0),
+#              CDJ_SIGN_IDENTITY  Developer ID identity to sign with (default: ad-hoc signature).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -13,6 +14,9 @@ APP_IN="$HOME/Applications/CDJ Tool.app"
 VERSION="$(grep -m1 '^## ' "$ROOT/CHANGELOG.md" | sed -E 's/^## ([0-9][0-9.]*).*/\1/')"
 OUT="$ROOT/dist"
 AUTHOR="Wiktor Bakowicz"
+ARCH="${CDJ_ARCH:-arm64}"
+MINOS="${CDJ_MIN_MACOS:-14.0}"
+if [ "$ARCH" = "x86_64" ]; then FFNAME="ffmpeg-macos-x86_64-v7.1"; SUF="-intel"; RUN=(arch -x86_64); else FFNAME="ffmpeg-macos-aarch64-v7.1"; SUF=""; RUN=(); fi
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -65,12 +69,12 @@ setkey CFBundleVersion "$VERSION"
 setkey NSHumanReadableCopyright "\"© 2026 $AUTHOR. MIT License.\""
 setkey CFBundleGetInfoString "\"CDJ Tool $VERSION, © 2026 $AUTHOR\""
 setkey LSApplicationCategoryType "public.app-category.music"
-setkey LSMinimumSystemVersion "14.0"
+setkey LSMinimumSystemVersion "$MINOS"
 
 echo "==> Checking the bundled ffmpeg"
-FF="$APP/Contents/Resources/python/site-packages/imageio_ffmpeg/binaries/ffmpeg-macos-aarch64-v7.1"
+FF="$APP/Contents/Resources/python/site-packages/imageio_ffmpeg/binaries/$FFNAME"
 [ -x "$FF" ] || die "ffmpeg not found in the bundle"
-FMTS="$("$FF" -hide_banner -demuxers 2>/dev/null || true)"
+FMTS="$(${RUN[@]+"${RUN[@]}"} "$FF" -hide_banner -demuxers 2>/dev/null || true)"
 for d in " wav " " aiff " "mov,mp4" " mp3 "; do
   echo "$FMTS" | grep -q -- "$d" || die "The bundled ffmpeg lacks the '$d' demuxer. Run tools/build_ffmpeg.sh first."
 done
@@ -144,7 +148,7 @@ assert len(lib["utwory"]) == 1
 print("self-test OK, detected BPM %.2f" % t["bpm"])
 PYEOF
 env -i HOME="$HOME" PATH="/usr/bin:/bin" PYTHONHOME="$FWK" PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 CDJ_FFMPEG="$FF" \
-  "$FWK/bin/python3.9" "$SELFTEST" "$RES" "$RES/python/site-packages" || die "Self-test failed"
+  ${RUN[@]+"${RUN[@]}"} "$FWK/bin/python3.9" "$SELFTEST" "$RES" "$RES/python/site-packages" || die "Self-test failed"
 
 echo "==> Creating the DMG and ZIP"
 mkdir -p "$OUT"
@@ -171,15 +175,16 @@ open "$DEST/CDJ Tool.app"
 EOS
 chmod +x "$STAGE/Install CDJ Tool.command"
 
-DMG="$OUT/CDJ-Tool-$VERSION.dmg"
+DMG="$OUT/CDJ-Tool-$VERSION$SUF.dmg"
 rm -f "$DMG"
 hdiutil create -volname "CDJ Tool $VERSION" -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null
-ZIP="$OUT/CDJ-Tool-$VERSION.zip"
+ZIP="$OUT/CDJ-Tool-$VERSION$SUF.zip"
 rm -f "$ZIP"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
-( cd "$OUT" && shasum -a 256 "CDJ-Tool-$VERSION.dmg" "CDJ-Tool-$VERSION.zip" > SHA256SUMS.txt )
+( cd "$OUT" && if [ "$ARCH" = "x86_64" ]; then OP=">>"; else OP=">"; fi
+  eval shasum -a 256 \"CDJ-Tool-$VERSION$SUF.dmg\" \"CDJ-Tool-$VERSION$SUF.zip\" $OP SHA256SUMS.txt )
 
 echo
 echo "Done / Gotowe:"
-ls -lh "$OUT"/CDJ-Tool-"$VERSION".* "$OUT"/SHA256SUMS.txt
+ls -lh "$OUT"/CDJ-Tool-"$VERSION"*"$SUF".* "$OUT"/SHA256SUMS.txt
 cat "$OUT/SHA256SUMS.txt"
