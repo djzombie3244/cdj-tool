@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CDJ Tool</title>
+<style>
+:root {
+  --bg: #f4f5f7; --card: #ffffff; --txt: #1c1f24; --muted: #6b7280; --line: #e3e6ea;
+  --acc: #2a7de1; --acc-txt: #ffffff; --ok: #1f9d55; --warn: #b7791f; --err: #c53030; --wave: #2a7de1; --low: #ff9f1c;
+  --canvas: #0d0f12;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14161a; --card: #1d2026; --txt: #e8eaed; --muted: #9aa1ab; --line: #2b3038;
+          --acc: #4a94f0; --ok: #3ecf8e; --warn: #e0a84a; --err: #f06565; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--txt);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 28px 20px 60px; }
+h1 { font-size: 24px; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 22px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 14px; }
+.card h2 { font-size: 15px; margin: 0 0 10px; letter-spacing: .01em; }
+.num { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; background: var(--acc); color: var(--acc-txt);
+  align-items: center; justify-content: center; font-size: 12px; margin-right: 8px; }
+button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--card);
+  color: var(--txt); padding: 8px 14px; }
+button:hover:not(:disabled) { border-color: var(--acc); }
+button.primary { background: var(--acc); color: var(--acc-txt); border-color: var(--acc); font-weight: 600; padding: 11px 20px; }
+button:disabled { opacity: .45; cursor: default; }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.path { color: var(--muted); font-size: 13px; word-break: break-all; }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.warn { color: var(--warn); } .err { color: var(--err); } .ok { color: var(--ok); }
+label.chk { display: flex; gap: 8px; align-items: flex-start; margin-top: 8px; }
+input[type=text] { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); color: var(--txt); width: 100%; max-width: 340px; }
+.bar { height: 10px; background: var(--line); border-radius: 999px; overflow: hidden; margin: 10px 0 6px; }
+.bar > div { height: 100%; width: 0; background: var(--acc); transition: width .3s; }
+.hidden { display: none !important; }
+details { margin-top: 8px; color: var(--muted); font-size: 13px; }
+pre { white-space: pre-wrap; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+  max-height: 160px; overflow: auto; font-size: 12px; }
+.tr { border-top: 1px solid var(--line); padding: 8px 0; }
+.tr:first-child { border-top: 0; }
+.tr .t { font-weight: 600; } .tr .m { color: var(--muted); font-size: 13px; }
+canvas { width: 100%; height: 72px; background: var(--canvas); border-radius: 8px; margin-top: 5px; display: block; }
+canvas.ov { height: 20px; margin-top: 4px; }
+.legend { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.eject-result { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-weight: 600; }
+.eject-result.ok { color: var(--ok); border-color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.eject-result.err { color: var(--err); border-color: var(--err); background: color-mix(in srgb, var(--err) 10%, transparent); }
+.eject-result.wait { color: var(--muted); }
+.stats b { font-variant-numeric: tabular-nums; }
+.speed-result { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.speed-result .speed-lead { font-size: 17px; font-weight: 700; }
+.speed-result .speed-detail { color: var(--muted); font-size: 13px; margin-top: 4px; }
+.speed-result .speed-rows { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 8px; }
+.speed-result .speed-rows span { color: var(--muted); font-size: 13px; }
+.speed-result b { color: var(--txt); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+  <div class="row" style="justify-content:space-between"><h1>CDJ Tool</h1>
+  <label class="legend">🌐 <select id="lang" aria-label="Language"></select></label></div>
+  <p class="sub" data-i18n="sub"></p>
+
+  <div id="setup" class="card hidden">
+    <h2 id="setupTytul" data-i18n="setupTitle"></h2>
+    <p class="m" id="setupOpis" style="margin:0;color:var(--muted)" data-i18n="setupDesc"></p>
+    <details open><summary data-i18n="details"></summary><pre id="setupLog"></pre></details>
+  </div>
+
+  <div class="card" id="k1">
+    <h2><span class="num">1</span><span data-i18n="step1"></span></h2>
+    <div class="row"><button id="bMp3" data-i18n="chooseFolder"></button><span id="infoMp3" class="path" data-i18n="notChosen"></span></div>
+  </div>
+
+  <div class="card" id="k2">
+    <h2><span class="num">2</span><span data-i18n="step2"></span></h2>
+    <div class="row"><button id="bPend" data-i18n="choosePend"></button><span id="infoPend" class="path" data-i18n="notChosen"></span></div>
+    <div id="ostrzPend" class="warn" style="margin-top:6px;font-size:13px"></div>
+    <label class="chk"><input type="checkbox" id="cZastap">
+      <span data-i18n-html="replacePioneer"></span></label>
+    <label class="chk"><input type="checkbox" id="cKopiuj" checked>
+      <span data-i18n="copyMp3"></span></label>
+    <div id="kopiujOpis" class="legend"></div>
+    <details id="formatBox">
+      <summary data-i18n="fmtSummary"></summary>
+      <p class="legend" data-i18n-html="fmtIntro"></p>
+      <div class="row"><button id="bFormatInfo" disabled data-i18n="fmtPrepare"></button></div>
+      <div id="formatPanel" class="hidden speed-result">
+        <div id="formatOpis" class="speed-detail" style="color:var(--txt)"></div>
+        <label class="chk" style="display:block;margin-top:8px"><span data-i18n="fmtNewName"></span>
+          <input type="text" id="formatNazwa" value="CDJ" maxlength="11"></label>
+        <label class="chk" style="display:block"><span data-i18n="fmtConfirm"></span> <b id="formatWymagana"></b>
+          <input type="text" id="formatPotw" autocomplete="off"></label>
+        <div class="row" style="margin-top:10px"><button id="bFormatuj" class="primary" disabled data-i18n="fmtDo"></button>
+          <button id="bFormatAnuluj" data-i18n="cancel"></button></div>
+        <div id="formatWynik" class="legend" style="margin-top:8px"></div>
+      </div>
+    </details>
+  </div>
+
+  <div class="card" id="kPredkosc">
+    <h2><span class="num">3</span><span data-i18n="step3"></span></h2>
+    <p class="legend" data-i18n-html="speedIntro"></p>
+    <div class="row"><button id="bPredkosc" disabled data-i18n="speedBtn"></button></div>
+    <div id="wynikPredkosci" class="speed-result"></div>
+  </div>
+
+  <div class="card" id="k3">
+    <h2><span class="num">4</span><span data-i18n="step4"></span></h2>
+    <input type="text" id="playlista" value="Tracks" maxlength="60">
+  </div>
+
+  <div class="row" style="margin:6px 0 16px">
+    <button class="primary" id="bStart" disabled data-i18n="start"></button>
+    <button id="bAnuluj" class="hidden" data-i18n="cancel"></button>
+  </div>
+
+  <div class="card hidden" id="postep">
+    <h2 id="etap"></h2>
+    <div class="bar"><div id="pasek"></div></div>
+    <div class="legend" id="eta" style="font-weight:600"></div>
+    <div class="legend" id="postepOpis"></div>
+    <details><summary data-i18n="logTitle"></summary><pre id="log"></pre></details>
+  </div>
+
+  <div class="card hidden" id="koniec"></div>
+
+  <div class="card hidden" id="wyniki"><h2 id="wynikiTytul" data-i18n="results"></h2><div id="lista"></div>
+    <div class="legend" data-i18n="resultsLegend"></div></div>
+
+  <p class="legend" style="text-align:center">CDJ Tool · © 2026 Wiktor Bakowicz</p>
+  <p style="text-align:center"><button id="bZakoncz" data-i18n="quit"></button></p>
+</main>
+
+<script>
+const TOKEN = "__TOKEN__";
+const NATIVE = __NATIVE__;
+const $ = id => document.getElementById(id);
+let mp3 = null, pend = null, ostatniStan = null, stanWysuwania = null, ostatniKluczPomiaru = "";
+const narysowane = new Set();
+const I18N = {
+pl: {
+ name:"Polski", sub:"Analiza utworów i zapis pendrive dla CDJ-2000, bez rekordbox.",
+ setupTitle:"Przygotowuję składniki…", setupDesc:"Za pierwszym razem program przygotowuje potrzebne składniki. To trwa chwilę.", details:"Szczegóły",
+ setupFail:"Nie udało się przygotować składników", setupInstall:"Instaluję składniki (tylko za pierwszym razem)…",
+ step1:"Folder z utworami (MP3, AAC, WAV, AIFF)", chooseFolder:"Wybierz folder…", notChosen:"Nie wybrano.", step2:"Pendrive", choosePend:"Wybierz pendrive…",
+ replacePioneer:"Zastąp całą dotychczasową zawartość pendrive'a (kopia folderu <b>PIONEER</b> trafi do Dokumenty → CDJ-Tool-kopie). Odznaczone: nowe utwory zostaną <b>dopisane</b> do biblioteki już zapisanej na pendrive.", copyMp3:"Kopiuj pliki audio na pendrive",
+ copyOn:"Włączone: pliki MP3 zostaną skopiowane na pendrive. Pomiar szybkości uwzględni odczyt źródła i zapis na pendrive.",
+ copyOff:"Bez kopiowania: folder MP3 musi być na tym samym pendrivie. Pomiar dotyczy odczytu MP3, a dokładny rozmiar plików analizy program poda przed zapisem.",
+ found:"Znaleziono {n} plików audio ({mb} MB)", noMp3:"W tym folderze ani podfolderach nie znaleziono plików MP3, AAC (.m4a), WAV ani AIFF.",
+ free:"Wolne miejsce: {mb} MB", hasPioneer:"jest folder PIONEER", warnNotUsb:"Uwaga: to nie wygląda na pendrive (brak w /Volumes). Stary folder PIONEER nie zostanie usunięty.", warnSpace:"Może zabraknąć miejsca na pliki MP3.",
+ fmtSummary:"Formatowanie pendrive pod CDJ-2000 (opcjonalne)",
+ fmtIntro:"CDJ-2000 czyta pendrive w formacie <b>FAT32</b> (tablica partycji MBR). Jeśli pendrive jest w exFAT/NTFS albo odtwarzacz go nie widzi, sformatuj go tutaj. <b class=\"err\">Formatowanie usuwa WSZYSTKIE dane z pendrive'a.</b> Działa tylko na zewnętrznych nośnikach do 2 TB.",
+ fmtPrepare:"Przygotuj formatowanie wybranego pendrive'a…", fmtNewName:"Nowa nazwa pendrive'a (do 11 znaków, A–Z, 0–9):", fmtConfirm:"Aby potwierdzić, wpisz obecną nazwę pendrive'a:",
+ fmtDo:"Sformatuj i usuń wszystkie dane", cancel:"Anuluj",
+ fmtMedia:"Wybrany nośnik: <b>{name}</b> ({disk}, {gb} GB{model}, obecny format: {fs}).<br><b class=\"err\">Wszystkie dane na tym nośniku zostaną nieodwracalnie usunięte.</b> Powstanie jedna partycja FAT32 (MBR).",
+ fmtWorking:"Formatuję… (kilka–kilkanaście sekund, nie odłączaj pendrive'a)", fmtFail:"Nie udało się sformatować: {e}", fmtOk:"Gotowe: pendrive sformatowany jako {name} (FAT32).",
+ step3:"Szybkość urządzenia",
+ speedIntro:"Aplikacja mierzy szybkość odczytu folderu z MP3 (krótki, powtarzalny test, bez zapisu na pendrive) i dobiera liczbę utworów analizowanych naraz tak, aby łączny odczyt nie przekraczał <b>80%</b> przepustowości dysku. Pamięć RAM jest pilnowana osobno: analiza zajmie najwyżej ok. 35% wolnej pamięci. Pomiar wykonuje się automatycznie po wybraniu folderu MP3 i pendrive'a.",
+ speedBtn:"Sprawdź szybkość dla wybranego trybu", speedNone:"Pomiar nie został jeszcze wykonany", speedNoneDesc:"Uruchom pomiar dla wybranego folderu i pendrive przed analizą.",
+ speedMeasuring:"Mierzę szybkość…", speedFail:"Pomiar nieudany", speedModeChanged:"Zmieniono tryb kopiowania", speedModeChangedDesc:"Wykonaj pomiar ponownie dla aktualnego ustawienia.",
+ speedLead:"Cel pracy ({mode}): {cel} MB/s", speedMax:"Maksymalna zmierzona przepustowość: <b>{v} MB/s</b>", speedUse:"Wykorzystanie: <b>80%</b>", speedPar:"Równoległe zadania: <b>{n}</b>",
+ modeCopy:"kopiowanie MP3", modeNoCopy:"bez kopiowania",
+ speedDetail:"Limit pamięci RAM dla analizy: ok. {ram} MB z {tot} MB; gdy zabraknie miejsca, aplikacja sama zmniejsza liczbę równoległych utworów. Rzeczywiste tempo zależy też od procesora ({cores} rdzeni): ponad tę liczbę zadań przyspieszenie jest już niewielkie.",
+ speedReady:"Gotowe: analiza do {n} utworów naraz", speedReadyDesc:"Limit pamięci RAM: ok. {ram} MB z {tot} MB. Tryb: {mode}.",
+ step4:"Nazwa playlisty", start:"Analizuj i zapisz na pendrive", startEtap:"Start…", logTitle:"Dziennik",
+ results:"Wyniki analizy", results50:"Wyniki analizy — pierwsze 50 podglądów",
+ resultsLegend:"Niebieski: cały dźwięk, pomarańczowy: niskie tony (stopa i bas), białe linie: siatka beatów zapisana na pendrive (pierwsze 6 s utworu). Linie powinny stać na początku uderzeń stopy.",
+ quit:"Zakończ program", quitDone:"CDJ Tool zakończony", quitDesc:"Możesz zamknąć tę kartę.",
+ confirmCancel:"Przerwać? Jeśli trwa zapis na pendrive, może on zostać niekompletny.",
+ skipped:"Pominięto {name}: {text}", skippedTotal:"Łącznie pominięto {n} plików z błędami (pokazuję pierwsze {m}).",
+ trackInfo:"pierwszy beat", beatsWord:"beatów",
+ doneTitle:"Gotowe: zapisano {n} utworów", doneEject:"Wysuń pendrive i włóż go do CDJ-2000.", backupOf:"Kopia poprzedniej biblioteki:",
+ oldFiles:"Na pendrive są stare pliki z rekordbox ({list}). CDJ-2000 ich nie używa, ale lepiej je usunąć.",
+ eject:"Wysuń pendrive", ejected:"Pendrive wysunięty", ejectRetry:"Spróbuj wysunąć ponownie", ejecting:"Wysuwam pendrive…",
+ ejectOk:"Pendrive został bezpiecznie wysunięty. Możesz go teraz odłączyć.", ejectFail:"Nie udało się wysunąć pendrive’a. Nie odłączaj go jeszcze. {e}", ejectFail2:"Nie udało się potwierdzić wysunięcia pendrive’a. Nie odłączaj go jeszcze. {e}", tryAgain:"Spróbuj ponownie.",
+ errTitle:"Wystąpił błąd", canceledTitle:"Anulowano", canceledDesc:"Jeśli zapis na pendrive już się rozpoczął, uruchom go ponownie, aby uzyskać komplet plików.",
+ etaEstimating:"Szacuję czas do końca…", etaAnalysis:"Do końca analizy: ok. {t}", etaAnalysisThen:" (potem kopiowanie MP3 — jego czas pokażę po starcie)", etaCopy:"Do końca zapisu na pendrive: ok. {t}", etaFinishing:"Kończę zapis na pendrive…", elapsed:"Upłynęło: {t}", min:"min", sec:"s",
+ e_start:"Start…", e_an:"Analizuję {i} z {n}: {name}", e_done_an:"Przeanalizowano {i} z {n} utworów...", e_db:"Przygotowuję bazę danych...", e_backup:"Robię kopię zapasową dotychczasowego folderu PIONEER...",
+ e_write:"Zapisuję pliki na pendrive...", e_copy:"Kopiuję plik {i} z {n}...", e_flush:"Kończę zapis (opróżniam bufory pendrive'a)...", e_ready:"Gotowe", e_parallel:"Analizuję {n} utworów równolegle (do {w} naraz, limit pamięci RAM ok. {ram} MB)..."
+},
+en: {
+ name:"English", sub:"Track analysis and USB stick export for CDJ-2000, without rekordbox.",
+ setupTitle:"Preparing components…", setupDesc:"On first launch the app prepares the components it needs. This takes a moment.", details:"Details",
+ setupFail:"Could not prepare the components", setupInstall:"Installing components (first launch only)…",
+ step1:"Folder with tracks (MP3, AAC, WAV, AIFF)", chooseFolder:"Choose folder…", notChosen:"Not selected.", step2:"USB stick", choosePend:"Choose USB stick…",
+ replacePioneer:"Replace everything currently on the USB stick (a copy of the <b>PIONEER</b> folder goes to Documents → CDJ-Tool-kopie). Unchecked: new tracks are <b>added</b> to the library already on the stick.", copyMp3:"Copy audio files to the USB stick",
+ copyOn:"On: MP3 files are copied to the USB stick. The speed check covers reading the source and writing to the stick.",
+ copyOff:"No copying: the MP3 folder must be on the same USB stick. The speed check covers reading MP3s; the exact size of the analysis files is shown before writing.",
+ found:"Found {n} audio files ({mb} MB)", noMp3:"No MP3, AAC (.m4a), WAV or AIFF files found in this folder or its subfolders.",
+ free:"Free space: {mb} MB", hasPioneer:"PIONEER folder present", warnNotUsb:"Note: this does not look like a USB stick (not in /Volumes). The old PIONEER folder will not be removed.", warnSpace:"There may not be enough space for the MP3 files.",
+ fmtSummary:"Format the USB stick for CDJ-2000 (optional)",
+ fmtIntro:"The CDJ-2000 reads USB sticks formatted as <b>FAT32</b> (MBR partition table). If your stick is exFAT/NTFS or the player does not see it, format it here. <b class=\"err\">Formatting erases ALL data on the stick.</b> Works only on external drives up to 2 TB.",
+ fmtPrepare:"Prepare formatting of the selected stick…", fmtNewName:"New stick name (up to 11 characters, A–Z, 0–9):", fmtConfirm:"To confirm, type the current name of the stick:",
+ fmtDo:"Format and erase all data", cancel:"Cancel",
+ fmtMedia:"Selected drive: <b>{name}</b> ({disk}, {gb} GB{model}, current format: {fs}).<br><b class=\"err\">All data on this drive will be permanently erased.</b> One FAT32 partition (MBR) will be created.",
+ fmtWorking:"Formatting… (a few seconds, do not unplug the stick)", fmtFail:"Formatting failed: {e}", fmtOk:"Done: the stick was formatted as {name} (FAT32).",
+ step3:"Device speed",
+ speedIntro:"The app measures the read speed of the MP3 folder (a short, repeatable test that does not write to the stick) and picks how many tracks to analyze at once so the total read stays under <b>80%</b> of the disk throughput. RAM is limited separately: analysis uses at most about 35% of free memory. The check runs automatically after you choose the MP3 folder and the stick.",
+ speedBtn:"Check speed for the selected mode", speedNone:"No measurement yet", speedNoneDesc:"Run the measurement for the selected folder and stick before analysis.",
+ speedMeasuring:"Measuring speed…", speedFail:"Measurement failed", speedModeChanged:"Copy mode changed", speedModeChangedDesc:"Run the measurement again for the current setting.",
+ speedLead:"Working target ({mode}): {cel} MB/s", speedMax:"Maximum measured throughput: <b>{v} MB/s</b>", speedUse:"Utilisation: <b>80%</b>", speedPar:"Parallel tasks: <b>{n}</b>",
+ modeCopy:"copying MP3", modeNoCopy:"no copying",
+ speedDetail:"RAM limit for analysis: about {ram} MB of {tot} MB; if memory runs short the app reduces the number of parallel tracks by itself. Real speed also depends on the CPU ({cores} cores): beyond that many tasks the gain is small.",
+ speedReady:"Ready: analyzing up to {n} tracks at once", speedReadyDesc:"RAM limit: about {ram} MB of {tot} MB. Mode: {mode}.",
+ step4:"Playlist name", start:"Analyze and write to USB stick", startEtap:"Start…", logTitle:"Log",
+ results:"Analysis results", results50:"Analysis results — first 50 previews",
+ resultsLegend:"Blue: full sound, orange: low frequencies (kick and bass), white lines: the beat grid written to the stick (first 6 s of the track). Lines should sit at the start of the kick hits.",
+ quit:"Quit", quitDone:"CDJ Tool has quit", quitDesc:"You can close this tab.",
+ confirmCancel:"Cancel? If writing to the stick has started, it may be left incomplete.",
+ skipped:"Skipped {name}: {text}", skippedTotal:"{n} files with errors were skipped in total (showing the first {m}).",
+ trackInfo:"first beat", beatsWord:"beats",
+ doneTitle:"Done: {n} tracks written", doneEject:"Eject the USB stick and put it into the CDJ-2000.", backupOf:"Backup of the previous library:",
+ oldFiles:"The stick contains old rekordbox files ({list}). The CDJ-2000 does not use them, but it is better to delete them.",
+ eject:"Eject USB stick", ejected:"USB stick ejected", ejectRetry:"Try ejecting again", ejecting:"Ejecting…",
+ ejectOk:"The USB stick was ejected safely. You can unplug it now.", ejectFail:"Could not eject the USB stick. Do not unplug it yet. {e}", ejectFail2:"Could not confirm the eject. Do not unplug the stick yet. {e}", tryAgain:"Try again.",
+ errTitle:"An error occurred", canceledTitle:"Cancelled", canceledDesc:"If writing to the stick had already started, run it again to get a complete set of files.",
+ etaEstimating:"Estimating time remaining…", etaAnalysis:"Analysis finishes in about {t}", etaAnalysisThen:" (then MP3 copying — its time appears once it starts)", etaCopy:"Writing to the stick finishes in about {t}", etaFinishing:"Finishing the write to the stick…", elapsed:"Elapsed: {t}", min:"min", sec:"s",
+ e_start:"Start…", e_an:"Analyzing {i} of {n}: {name}", e_done_an:"Analyzed {i} of {n} tracks...", e_db:"Preparing the database...", e_backup:"Backing up the existing PIONEER folder...",
+ e_write:"Writing files to the USB stick...", e_copy:"Copying file {i} of {n}...", e_flush:"Finishing (flushing the stick's buffers)...", e_ready:"Done", e_parallel:"Analyzing {n} tracks in parallel (up to {w} at once, RAM limit about {ram} MB)..."
+},
+de: {
+ name:"Deutsch", sub:"Titelanalyse und USB-Export für CDJ-2000, ohne rekordbox.",
+ setupTitle:"Komponenten werden vorbereitet…", setupDesc:"Beim ersten Start bereitet die App die nötigen Komponenten vor. Das dauert einen Moment.", details:"Details",
+ setupFail:"Komponenten konnten nicht vorbereitet werden", setupInstall:"Komponenten werden installiert (nur beim ersten Start)…",
+ step1:"Ordner mit Titeln (MP3, AAC, WAV, AIFF)", chooseFolder:"Ordner wählen…", notChosen:"Nicht ausgewählt.", step2:"USB-Stick", choosePend:"USB-Stick wählen…",
+ replacePioneer:"Gesamten bisherigen Inhalt des USB-Sticks ersetzen (Kopie des Ordners <b>PIONEER</b> unter Dokumente → CDJ-Tool-kopie). Nicht angehakt: neue Titel werden der vorhandenen Bibliothek auf dem Stick <b>hinzugefügt</b>.", copyMp3:"Audiodateien auf den USB-Stick kopieren",
+ copyOn:"Ein: MP3-Dateien werden auf den Stick kopiert. Die Geschwindigkeitsprüfung berücksichtigt Lesen der Quelle und Schreiben auf den Stick.",
+ copyOff:"Ohne Kopieren: Der MP3-Ordner muss auf demselben Stick liegen. Geprüft wird das Lesen der MP3s; die genaue Größe der Analysedateien wird vor dem Schreiben angezeigt.",
+ found:"{n} Audiodateien gefunden ({mb} MB)", noMp3:"In diesem Ordner und seinen Unterordnern wurden keine MP3-, AAC- (.m4a), WAV- oder AIFF-Dateien gefunden.",
+ free:"Freier Speicher: {mb} MB", hasPioneer:"Ordner PIONEER vorhanden", warnNotUsb:"Hinweis: Das sieht nicht nach einem USB-Stick aus (nicht in /Volumes). Der alte Ordner PIONEER wird nicht entfernt.", warnSpace:"Möglicherweise reicht der Platz für die MP3-Dateien nicht.",
+ fmtSummary:"USB-Stick für CDJ-2000 formatieren (optional)",
+ fmtIntro:"Der CDJ-2000 liest USB-Sticks im Format <b>FAT32</b> (MBR-Partitionstabelle). Ist der Stick exFAT/NTFS oder erkennt der Player ihn nicht, formatieren Sie ihn hier. <b class=\"err\">Beim Formatieren werden ALLE Daten auf dem Stick gelöscht.</b> Funktioniert nur bei externen Laufwerken bis 2 TB.",
+ fmtPrepare:"Formatierung des gewählten Sticks vorbereiten…", fmtNewName:"Neuer Name des Sticks (bis 11 Zeichen, A–Z, 0–9):", fmtConfirm:"Zur Bestätigung den aktuellen Namen des Sticks eingeben:",
+ fmtDo:"Formatieren und alle Daten löschen", cancel:"Abbrechen",
+ fmtMedia:"Gewähltes Laufwerk: <b>{name}</b> ({disk}, {gb} GB{model}, aktuelles Format: {fs}).<br><b class=\"err\">Alle Daten auf diesem Laufwerk werden unwiderruflich gelöscht.</b> Es entsteht eine FAT32-Partition (MBR).",
+ fmtWorking:"Formatiere… (einige Sekunden, Stick nicht abziehen)", fmtFail:"Formatieren fehlgeschlagen: {e}", fmtOk:"Fertig: Stick als {name} formatiert (FAT32).",
+ step3:"Gerätegeschwindigkeit",
+ speedIntro:"Die App misst die Lesegeschwindigkeit des MP3-Ordners (kurzer, wiederholbarer Test ohne Schreiben auf den Stick) und wählt die Zahl gleichzeitig analysierter Titel so, dass das gesamte Lesen unter <b>80 %</b> des Datendurchsatzes bleibt. Der Arbeitsspeicher wird separat begrenzt: Die Analyse nutzt höchstens etwa 35 % des freien Speichers. Die Messung läuft automatisch nach Auswahl von MP3-Ordner und Stick.",
+ speedBtn:"Geschwindigkeit für den gewählten Modus prüfen", speedNone:"Noch keine Messung", speedNoneDesc:"Starten Sie die Messung für den gewählten Ordner und Stick vor der Analyse.",
+ speedMeasuring:"Messe Geschwindigkeit…", speedFail:"Messung fehlgeschlagen", speedModeChanged:"Kopiermodus geändert", speedModeChangedDesc:"Messung für die aktuelle Einstellung erneut ausführen.",
+ speedLead:"Arbeitsziel ({mode}): {cel} MB/s", speedMax:"Maximal gemessener Durchsatz: <b>{v} MB/s</b>", speedUse:"Auslastung: <b>80 %</b>", speedPar:"Parallele Aufgaben: <b>{n}</b>",
+ modeCopy:"MP3 kopieren", modeNoCopy:"ohne Kopieren",
+ speedDetail:"RAM-Limit für die Analyse: etwa {ram} MB von {tot} MB; wird der Speicher knapp, reduziert die App die Zahl paralleler Titel selbst. Die tatsächliche Geschwindigkeit hängt auch von der CPU ({cores} Kerne) ab: darüber hinaus ist der Gewinn gering.",
+ speedReady:"Bereit: Analyse von bis zu {n} Titeln gleichzeitig", speedReadyDesc:"RAM-Limit: etwa {ram} MB von {tot} MB. Modus: {mode}.",
+ step4:"Name der Playlist", start:"Analysieren und auf USB-Stick schreiben", startEtap:"Start…", logTitle:"Protokoll",
+ results:"Analyseergebnisse", results50:"Analyseergebnisse — erste 50 Vorschauen",
+ resultsLegend:"Blau: gesamter Klang, orange: tiefe Frequenzen (Kick und Bass), weiße Linien: auf den Stick geschriebenes Beatgrid (erste 6 s des Titels). Die Linien sollten am Anfang der Kick-Schläge stehen.",
+ quit:"Programm beenden", quitDone:"CDJ Tool wurde beendet", quitDesc:"Sie können diesen Tab schließen.",
+ confirmCancel:"Abbrechen? Wenn das Schreiben auf den Stick schon läuft, kann er unvollständig bleiben.",
+ skipped:"{name} übersprungen: {text}", skippedTotal:"Insgesamt wurden {n} Dateien mit Fehlern übersprungen (angezeigt: die ersten {m}).",
+ trackInfo:"erster Beat", beatsWord:"Beats",
+ doneTitle:"Fertig: {n} Titel geschrieben", doneEject:"USB-Stick auswerfen und in den CDJ-2000 stecken.", backupOf:"Sicherung der bisherigen Bibliothek:",
+ oldFiles:"Auf dem Stick liegen alte rekordbox-Dateien ({list}). Der CDJ-2000 nutzt sie nicht, es ist aber besser, sie zu löschen.",
+ eject:"USB-Stick auswerfen", ejected:"USB-Stick ausgeworfen", ejectRetry:"Erneut auswerfen", ejecting:"Werfe aus…",
+ ejectOk:"Der USB-Stick wurde sicher ausgeworfen. Sie können ihn jetzt abziehen.", ejectFail:"Auswerfen fehlgeschlagen. Stick noch nicht abziehen. {e}", ejectFail2:"Auswerfen konnte nicht bestätigt werden. Stick noch nicht abziehen. {e}", tryAgain:"Bitte erneut versuchen.",
+ errTitle:"Es ist ein Fehler aufgetreten", canceledTitle:"Abgebrochen", canceledDesc:"Hat das Schreiben auf den Stick schon begonnen, starten Sie es erneut, um alle Dateien zu erhalten.",
+ etaEstimating:"Restzeit wird geschätzt…", etaAnalysis:"Analyse fertig in ca. {t}", etaAnalysisThen:" (danach MP3-Kopieren — die Zeit erscheint nach dem Start)", etaCopy:"Schreiben auf den Stick fertig in ca. {t}", etaFinishing:"Schreiben auf den Stick wird abgeschlossen…", elapsed:"Vergangen: {t}", min:"Min", sec:"s",
+ e_start:"Start…", e_an:"Analysiere {i} von {n}: {name}", e_done_an:"{i} von {n} Titeln analysiert...", e_db:"Datenbank wird vorbereitet...", e_backup:"Sicherung des vorhandenen Ordners PIONEER wird erstellt...",
+ e_write:"Dateien werden auf den USB-Stick geschrieben...", e_copy:"Datei {i} von {n} wird kopiert...", e_flush:"Abschluss (Puffer des Sticks werden geleert)...", e_ready:"Fertig", e_parallel:"Analysiere {n} Titel parallel (bis zu {w} gleichzeitig, RAM-Limit etwa {ram} MB)..."
+},
+fr: {
+ name:"Français", sub:"Analyse des morceaux et export sur clé USB pour CDJ-2000, sans rekordbox.",
+ setupTitle:"Préparation des composants…", setupDesc:"Au premier lancement, l'application prépare les composants nécessaires. Cela prend un instant.", details:"Détails",
+ setupFail:"Impossible de préparer les composants", setupInstall:"Installation des composants (premier lancement uniquement)…",
+ step1:"Dossier des morceaux (MP3, AAC, WAV, AIFF)", chooseFolder:"Choisir un dossier…", notChosen:"Non sélectionné.", step2:"Clé USB", choosePend:"Choisir la clé USB…",
+ replacePioneer:"Remplacer tout le contenu actuel de la clé USB (une copie du dossier <b>PIONEER</b> va dans Documents → CDJ-Tool-kopie). Décoché : les nouveaux morceaux sont <b>ajoutés</b> à la bibliothèque déjà présente sur la clé.", copyMp3:"Copier les fichiers audio sur la clé USB",
+ copyOn:"Activé : les fichiers MP3 sont copiés sur la clé. Le test de vitesse inclut la lecture de la source et l'écriture sur la clé.",
+ copyOff:"Sans copie : le dossier MP3 doit se trouver sur la même clé. Le test porte sur la lecture des MP3 ; la taille exacte des fichiers d'analyse est indiquée avant l'écriture.",
+ found:"{n} fichiers audio trouvés ({mb} Mo)", noMp3:"Aucun fichier MP3, AAC (.m4a), WAV ou AIFF trouvé dans ce dossier ni ses sous-dossiers.",
+ free:"Espace libre : {mb} Mo", hasPioneer:"dossier PIONEER présent", warnNotUsb:"Attention : cela ne ressemble pas à une clé USB (absent de /Volumes). L'ancien dossier PIONEER ne sera pas supprimé.", warnSpace:"L'espace peut manquer pour les fichiers MP3.",
+ fmtSummary:"Formater la clé USB pour CDJ-2000 (facultatif)",
+ fmtIntro:"Le CDJ-2000 lit les clés formatées en <b>FAT32</b> (table de partitions MBR). Si votre clé est en exFAT/NTFS ou si le lecteur ne la voit pas, formatez-la ici. <b class=\"err\">Le formatage efface TOUTES les données de la clé.</b> Fonctionne uniquement sur les disques externes jusqu'à 2 To.",
+ fmtPrepare:"Préparer le formatage de la clé sélectionnée…", fmtNewName:"Nouveau nom de la clé (11 caractères max., A–Z, 0–9) :", fmtConfirm:"Pour confirmer, saisissez le nom actuel de la clé :",
+ fmtDo:"Formater et effacer toutes les données", cancel:"Annuler",
+ fmtMedia:"Disque sélectionné : <b>{name}</b> ({disk}, {gb} Go{model}, format actuel : {fs}).<br><b class=\"err\">Toutes les données de ce disque seront définitivement effacées.</b> Une partition FAT32 (MBR) sera créée.",
+ fmtWorking:"Formatage… (quelques secondes, ne débranchez pas la clé)", fmtFail:"Échec du formatage : {e}", fmtOk:"Terminé : clé formatée sous le nom {name} (FAT32).",
+ step3:"Vitesse du périphérique",
+ speedIntro:"L'application mesure la vitesse de lecture du dossier MP3 (test court et reproductible, sans écriture sur la clé) et choisit le nombre de morceaux analysés en parallèle afin que la lecture totale reste sous <b>80 %</b> du débit du disque. La mémoire RAM est limitée séparément : l'analyse utilise au plus environ 35 % de la mémoire libre. Le test se lance automatiquement après le choix du dossier MP3 et de la clé.",
+ speedBtn:"Tester la vitesse pour le mode choisi", speedNone:"Aucune mesure pour l'instant", speedNoneDesc:"Lancez la mesure pour le dossier et la clé choisis avant l'analyse.",
+ speedMeasuring:"Mesure de la vitesse…", speedFail:"Échec de la mesure", speedModeChanged:"Mode de copie modifié", speedModeChangedDesc:"Relancez la mesure pour le réglage actuel.",
+ speedLead:"Objectif de travail ({mode}) : {cel} Mo/s", speedMax:"Débit maximal mesuré : <b>{v} Mo/s</b>", speedUse:"Utilisation : <b>80 %</b>", speedPar:"Tâches parallèles : <b>{n}</b>",
+ modeCopy:"copie des MP3", modeNoCopy:"sans copie",
+ speedDetail:"Limite de RAM pour l'analyse : environ {ram} Mo sur {tot} Mo ; si la mémoire manque, l'application réduit seule le nombre de morceaux en parallèle. La vitesse réelle dépend aussi du processeur ({cores} cœurs) : au-delà, le gain est faible.",
+ speedReady:"Prêt : analyse de {n} morceaux maximum en parallèle", speedReadyDesc:"Limite de RAM : environ {ram} Mo sur {tot} Mo. Mode : {mode}.",
+ step4:"Nom de la playlist", start:"Analyser et écrire sur la clé USB", startEtap:"Début…", logTitle:"Journal",
+ results:"Résultats de l'analyse", results50:"Résultats de l'analyse — 50 premiers aperçus",
+ resultsLegend:"Bleu : tout le son, orange : basses fréquences (grosse caisse et basse), lignes blanches : grille de battements écrite sur la clé (6 premières secondes). Les lignes doivent se trouver au début des coups de grosse caisse.",
+ quit:"Quitter", quitDone:"CDJ Tool est fermé", quitDesc:"Vous pouvez fermer cet onglet.",
+ confirmCancel:"Annuler ? Si l'écriture sur la clé a commencé, elle peut rester incomplète.",
+ skipped:"{name} ignoré : {text}", skippedTotal:"{n} fichiers en erreur ont été ignorés au total (affichage des {m} premiers).",
+ trackInfo:"premier temps", beatsWord:"temps",
+ doneTitle:"Terminé : {n} morceaux écrits", doneEject:"Éjectez la clé USB et insérez-la dans le CDJ-2000.", backupOf:"Sauvegarde de la bibliothèque précédente :",
+ oldFiles:"La clé contient d'anciens fichiers rekordbox ({list}). Le CDJ-2000 ne les utilise pas, mais il vaut mieux les supprimer.",
+ eject:"Éjecter la clé USB", ejected:"Clé USB éjectée", ejectRetry:"Réessayer l'éjection", ejecting:"Éjection…",
+ ejectOk:"La clé USB a été éjectée en toute sécurité. Vous pouvez la débrancher.", ejectFail:"Impossible d'éjecter la clé USB. Ne la débranchez pas encore. {e}", ejectFail2:"Impossible de confirmer l'éjection. Ne débranchez pas encore la clé. {e}", tryAgain:"Réessayez.",
+ errTitle:"Une erreur s'est produite", canceledTitle:"Annulé", canceledDesc:"Si l'écriture sur la clé avait déjà commencé, relancez-la pour obtenir tous les fichiers.",
+ etaEstimating:"Estimation du temps restant…", etaAnalysis:"Fin de l'analyse dans environ {t}", etaAnalysisThen:" (puis copie des MP3 — sa durée s'affichera à son démarrage)", etaCopy:"Fin de l'écriture sur la clé dans environ {t}", etaFinishing:"Finalisation de l'écriture sur la clé…", elapsed:"Écoulé : {t}", min:"min", sec:"s",
+ e_start:"Début…", e_an:"Analyse {i} sur {n} : {name}", e_done_an:"{i} morceaux analysés sur {n}...", e_db:"Préparation de la base de données...", e_backup:"Sauvegarde du dossier PIONEER existant...",
+ e_write:"Écriture des fichiers sur la clé USB...", e_copy:"Copie du fichier {i} sur {n}...", e_flush:"Finalisation (vidage des tampons de la clé)...", e_ready:"Terminé", e_parallel:"Analyse de {n} morceaux en parallèle (jusqu'à {w} à la fois, limite de RAM environ {ram} Mo)..."
+},
+es: {
+ name:"Español", sub:"Análisis de pistas y exportación a memoria USB para CDJ-2000, sin rekordbox.",
+ setupTitle:"Preparando componentes…", setupDesc:"En el primer inicio la aplicación prepara los componentes necesarios. Tarda un momento.", details:"Detalles",
+ setupFail:"No se pudieron preparar los componentes", setupInstall:"Instalando componentes (solo en el primer inicio)…",
+ step1:"Carpeta con pistas (MP3, AAC, WAV, AIFF)", chooseFolder:"Elegir carpeta…", notChosen:"Sin seleccionar.", step2:"Memoria USB", choosePend:"Elegir memoria USB…",
+ replacePioneer:"Reemplazar todo el contenido actual de la memoria USB (una copia de la carpeta <b>PIONEER</b> va a Documentos → CDJ-Tool-kopie). Sin marcar: las pistas nuevas se <b>añaden</b> a la biblioteca que ya hay en la memoria.", copyMp3:"Copiar los archivos de audio a la memoria USB",
+ copyOn:"Activado: los archivos MP3 se copian a la memoria. La prueba de velocidad incluye la lectura del origen y la escritura en la memoria.",
+ copyOff:"Sin copiar: la carpeta MP3 debe estar en la misma memoria. La prueba mide la lectura de los MP3; el tamaño exacto de los archivos de análisis se muestra antes de escribir.",
+ found:"Se encontraron {n} archivos de audio ({mb} MB)", noMp3:"No se encontraron archivos MP3, AAC (.m4a), WAV ni AIFF en esta carpeta ni en sus subcarpetas.",
+ free:"Espacio libre: {mb} MB", hasPioneer:"hay carpeta PIONEER", warnNotUsb:"Aviso: no parece una memoria USB (no está en /Volumes). La carpeta PIONEER antigua no se eliminará.", warnSpace:"Puede faltar espacio para los archivos MP3.",
+ fmtSummary:"Formatear la memoria USB para CDJ-2000 (opcional)",
+ fmtIntro:"El CDJ-2000 lee memorias formateadas en <b>FAT32</b> (tabla de particiones MBR). Si la memoria está en exFAT/NTFS o el reproductor no la ve, fórmatela aquí. <b class=\"err\">Formatear borra TODOS los datos de la memoria.</b> Solo funciona con unidades externas de hasta 2 TB.",
+ fmtPrepare:"Preparar el formateo de la memoria seleccionada…", fmtNewName:"Nuevo nombre de la memoria (hasta 11 caracteres, A–Z, 0–9):", fmtConfirm:"Para confirmar, escribe el nombre actual de la memoria:",
+ fmtDo:"Formatear y borrar todos los datos", cancel:"Cancelar",
+ fmtMedia:"Unidad seleccionada: <b>{name}</b> ({disk}, {gb} GB{model}, formato actual: {fs}).<br><b class=\"err\">Todos los datos de esta unidad se borrarán de forma irreversible.</b> Se creará una partición FAT32 (MBR).",
+ fmtWorking:"Formateando… (unos segundos, no desconectes la memoria)", fmtFail:"No se pudo formatear: {e}", fmtOk:"Listo: memoria formateada como {name} (FAT32).",
+ step3:"Velocidad del dispositivo",
+ speedIntro:"La aplicación mide la velocidad de lectura de la carpeta MP3 (prueba corta y repetible, sin escribir en la memoria) y elige cuántas pistas analizar a la vez para que la lectura total no supere el <b>80 %</b> del rendimiento del disco. La memoria RAM se limita aparte: el análisis usa como máximo un 35 % de la memoria libre. La prueba se ejecuta sola al elegir la carpeta MP3 y la memoria.",
+ speedBtn:"Comprobar la velocidad para el modo elegido", speedNone:"Aún no hay medición", speedNoneDesc:"Ejecuta la medición para la carpeta y la memoria elegidas antes del análisis.",
+ speedMeasuring:"Midiendo la velocidad…", speedFail:"La medición falló", speedModeChanged:"Modo de copia cambiado", speedModeChangedDesc:"Vuelve a medir para el ajuste actual.",
+ speedLead:"Objetivo de trabajo ({mode}): {cel} MB/s", speedMax:"Rendimiento máximo medido: <b>{v} MB/s</b>", speedUse:"Aprovechamiento: <b>80 %</b>", speedPar:"Tareas en paralelo: <b>{n}</b>",
+ modeCopy:"copiar MP3", modeNoCopy:"sin copiar",
+ speedDetail:"Límite de RAM para el análisis: unos {ram} MB de {tot} MB; si falta memoria, la aplicación reduce sola el número de pistas en paralelo. La velocidad real también depende del procesador ({cores} núcleos): más allá de eso la mejora es pequeña.",
+ speedReady:"Listo: análisis de hasta {n} pistas a la vez", speedReadyDesc:"Límite de RAM: unos {ram} MB de {tot} MB. Modo: {mode}.",
+ step4:"Nombre de la lista", start:"Analizar y escribir en la memoria USB", startEtap:"Inicio…", logTitle:"Registro",
+ results:"Resultados del análisis", results50:"Resultados del análisis — primeras 50 vistas previas",
+ resultsLegend:"Azul: todo el sonido, naranja: frecuencias graves (bombo y bajo), líneas blancas: cuadrícula de tiempos escrita en la memoria (primeros 6 s). Las líneas deben estar al comienzo de los golpes de bombo.",
+ quit:"Salir", quitDone:"CDJ Tool se ha cerrado", quitDesc:"Puedes cerrar esta pestaña.",
+ confirmCancel:"¿Cancelar? Si la escritura en la memoria ya empezó, puede quedar incompleta.",
+ skipped:"Omitido {name}: {text}", skippedTotal:"En total se omitieron {n} archivos con errores (se muestran los primeros {m}).",
+ trackInfo:"primer tiempo", beatsWord:"tiempos",
+ doneTitle:"Listo: {n} pistas escritas", doneEject:"Expulsa la memoria USB e insértala en el CDJ-2000.", backupOf:"Copia de la biblioteca anterior:",
+ oldFiles:"La memoria contiene archivos antiguos de rekordbox ({list}). El CDJ-2000 no los usa, pero es mejor borrarlos.",
+ eject:"Expulsar la memoria USB", ejected:"Memoria USB expulsada", ejectRetry:"Intentar expulsar de nuevo", ejecting:"Expulsando…",
+ ejectOk:"La memoria USB se expulsó de forma segura. Ya puedes desconectarla.", ejectFail:"No se pudo expulsar la memoria USB. No la desconectes todavía. {e}", ejectFail2:"No se pudo confirmar la expulsión. No desconectes todavía la memoria. {e}", tryAgain:"Inténtalo de nuevo.",
+ errTitle:"Se produjo un error", canceledTitle:"Cancelado", canceledDesc:"Si la escritura en la memoria ya había empezado, vuelve a ejecutarla para obtener todos los archivos.",
+ etaEstimating:"Estimando el tiempo restante…", etaAnalysis:"El análisis termina en unos {t}", etaAnalysisThen:" (después se copian los MP3; su tiempo aparecerá al empezar)", etaCopy:"La escritura en la memoria termina en unos {t}", etaFinishing:"Finalizando la escritura en la memoria…", elapsed:"Transcurrido: {t}", min:"min", sec:"s",
+ e_start:"Inicio…", e_an:"Analizando {i} de {n}: {name}", e_done_an:"{i} de {n} pistas analizadas...", e_db:"Preparando la base de datos...", e_backup:"Haciendo copia de la carpeta PIONEER existente...",
+ e_write:"Escribiendo archivos en la memoria USB...", e_copy:"Copiando archivo {i} de {n}...", e_flush:"Finalizando (vaciando los búferes de la memoria)...", e_ready:"Listo", e_parallel:"Analizando {n} pistas en paralelo (hasta {w} a la vez, límite de RAM unos {ram} MB)..."
+},
+it: {
+ name:"Italiano", sub:"Analisi dei brani ed esportazione su chiavetta USB per CDJ-2000, senza rekordbox.",
+ setupTitle:"Preparazione dei componenti…", setupDesc:"Al primo avvio l'app prepara i componenti necessari. Ci vuole un momento.", details:"Dettagli",
+ setupFail:"Impossibile preparare i componenti", setupInstall:"Installazione dei componenti (solo al primo avvio)…",
+ step1:"Cartella con i brani (MP3, AAC, WAV, AIFF)", chooseFolder:"Scegli cartella…", notChosen:"Non selezionata.", step2:"Chiavetta USB", choosePend:"Scegli chiavetta USB…",
+ replacePioneer:"Sostituisci tutto il contenuto attuale della chiavetta USB (una copia della cartella <b>PIONEER</b> va in Documenti → CDJ-Tool-kopie). Non spuntato: i nuovi brani vengono <b>aggiunti</b> alla libreria già presente sulla chiavetta.", copyMp3:"Copia i file audio sulla chiavetta USB",
+ copyOn:"Attivo: i file MP3 vengono copiati sulla chiavetta. Il test di velocità include la lettura della sorgente e la scrittura sulla chiavetta.",
+ copyOff:"Senza copia: la cartella MP3 deve trovarsi sulla stessa chiavetta. Il test misura la lettura degli MP3; la dimensione esatta dei file di analisi viene mostrata prima della scrittura.",
+ found:"Trovati {n} file audio ({mb} MB)", noMp3:"Nessun file MP3, AAC (.m4a), WAV o AIFF trovato in questa cartella né nelle sottocartelle.",
+ free:"Spazio libero: {mb} MB", hasPioneer:"cartella PIONEER presente", warnNotUsb:"Attenzione: non sembra una chiavetta USB (non è in /Volumes). La vecchia cartella PIONEER non verrà rimossa.", warnSpace:"Potrebbe mancare spazio per i file MP3.",
+ fmtSummary:"Formatta la chiavetta USB per CDJ-2000 (facoltativo)",
+ fmtIntro:"Il CDJ-2000 legge chiavette formattate in <b>FAT32</b> (tabella delle partizioni MBR). Se la chiavetta è exFAT/NTFS o il lettore non la vede, formattala qui. <b class=\"err\">La formattazione cancella TUTTI i dati dalla chiavetta.</b> Funziona solo con unità esterne fino a 2 TB.",
+ fmtPrepare:"Prepara la formattazione della chiavetta selezionata…", fmtNewName:"Nuovo nome della chiavetta (fino a 11 caratteri, A–Z, 0–9):", fmtConfirm:"Per confermare, digita il nome attuale della chiavetta:",
+ fmtDo:"Formatta e cancella tutti i dati", cancel:"Annulla",
+ fmtMedia:"Unità selezionata: <b>{name}</b> ({disk}, {gb} GB{model}, formato attuale: {fs}).<br><b class=\"err\">Tutti i dati su questa unità saranno cancellati in modo irreversibile.</b> Verrà creata una partizione FAT32 (MBR).",
+ fmtWorking:"Formattazione… (alcuni secondi, non scollegare la chiavetta)", fmtFail:"Formattazione non riuscita: {e}", fmtOk:"Fatto: chiavetta formattata come {name} (FAT32).",
+ step3:"Velocità del dispositivo",
+ speedIntro:"L'app misura la velocità di lettura della cartella MP3 (test breve e ripetibile, senza scrivere sulla chiavetta) e sceglie quanti brani analizzare in parallelo in modo che la lettura totale resti sotto l'<b>80%</b> della velocità del disco. La RAM è limitata a parte: l'analisi usa al massimo circa il 35% della memoria libera. Il test parte da solo dopo la scelta della cartella MP3 e della chiavetta.",
+ speedBtn:"Controlla la velocità per la modalità scelta", speedNone:"Nessuna misurazione ancora", speedNoneDesc:"Esegui la misurazione per la cartella e la chiavetta scelte prima dell'analisi.",
+ speedMeasuring:"Misurazione della velocità…", speedFail:"Misurazione non riuscita", speedModeChanged:"Modalità di copia cambiata", speedModeChangedDesc:"Ripeti la misurazione per l'impostazione attuale.",
+ speedLead:"Obiettivo di lavoro ({mode}): {cel} MB/s", speedMax:"Velocità massima misurata: <b>{v} MB/s</b>", speedUse:"Utilizzo: <b>80%</b>", speedPar:"Attività parallele: <b>{n}</b>",
+ modeCopy:"copia degli MP3", modeNoCopy:"senza copia",
+ speedDetail:"Limite di RAM per l'analisi: circa {ram} MB su {tot} MB; se la memoria scarseggia, l'app riduce da sola il numero di brani in parallelo. La velocità reale dipende anche dal processore ({cores} core): oltre quel numero il vantaggio è minimo.",
+ speedReady:"Pronto: analisi di fino a {n} brani alla volta", speedReadyDesc:"Limite di RAM: circa {ram} MB su {tot} MB. Modalità: {mode}.",
+ step4:"Nome della playlist", start:"Analizza e scrivi sulla chiavetta USB", startEtap:"Avvio…", logTitle:"Registro",
+ results:"Risultati dell'analisi", results50:"Risultati dell'analisi — prime 50 anteprime",
+ resultsLegend:"Blu: tutto il suono, arancione: frequenze basse (cassa e basso), linee bianche: griglia dei battiti scritta sulla chiavetta (primi 6 s del brano). Le linee devono trovarsi all'inizio dei colpi di cassa.",
+ quit:"Esci", quitDone:"CDJ Tool è stato chiuso", quitDesc:"Puoi chiudere questa scheda.",
+ confirmCancel:"Annullare? Se la scrittura sulla chiavetta è già iniziata, potrebbe restare incompleta.",
+ skipped:"Saltato {name}: {text}", skippedTotal:"In totale sono stati saltati {n} file con errori (mostro i primi {m}).",
+ trackInfo:"primo battito", beatsWord:"battiti",
+ doneTitle:"Fatto: scritti {n} brani", doneEject:"Espelli la chiavetta USB e inseriscila nel CDJ-2000.", backupOf:"Backup della libreria precedente:",
+ oldFiles:"Sulla chiavetta ci sono vecchi file rekordbox ({list}). Il CDJ-2000 non li usa, ma è meglio eliminarli.",
+ eject:"Espelli la chiavetta USB", ejected:"Chiavetta USB espulsa", ejectRetry:"Riprova a espellere", ejecting:"Espulsione…",
+ ejectOk:"La chiavetta USB è stata espulsa in sicurezza. Ora puoi scollegarla.", ejectFail:"Impossibile espellere la chiavetta USB. Non scollegarla ancora. {e}", ejectFail2:"Impossibile confermare l'espulsione. Non scollegare ancora la chiavetta. {e}", tryAgain:"Riprova.",
+ errTitle:"Si è verificato un errore", canceledTitle:"Annullato", canceledDesc:"Se la scrittura sulla chiavetta era già iniziata, eseguila di nuovo per ottenere tutti i file.",
+ etaEstimating:"Stima del tempo rimanente…", etaAnalysis:"Fine dell'analisi tra circa {t}", etaAnalysisThen:" (poi la copia degli MP3 — il tempo apparirà all'avvio)", etaCopy:"Fine della scrittura sulla chiavetta tra circa {t}", etaFinishing:"Completamento della scrittura sulla chiavetta…", elapsed:"Trascorso: {t}", min:"min", sec:"s",
+ e_start:"Avvio…", e_an:"Analisi {i} di {n}: {name}", e_done_an:"Analizzati {i} brani su {n}...", e_db:"Preparazione del database...", e_backup:"Backup della cartella PIONEER esistente...",
+ e_write:"Scrittura dei file sulla chiavetta USB...", e_copy:"Copia del file {i} di {n}...", e_flush:"Completamento (svuotamento dei buffer della chiavetta)...", e_ready:"Fatto", e_parallel:"Analisi di {n} brani in parallelo (fino a {w} alla volta, limite RAM circa {ram} MB)..."
+}
+};
+
+let LANG = "pl";
+try { const s = localStorage.getItem("cdj_lang"); if (s && I18N[s]) LANG = s; else { const n = (navigator.language || "pl").slice(0, 2).toLowerCase(); if (I18N[n]) LANG = n; } } catch (e) {}
+function t(key, v) {
+  let s = (I18N[LANG] && I18N[LANG][key]) || I18N.pl[key] || key;
+  if (v) s = s.replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : m));
+  return s;
+}
+function trEtap(x) {
+  if (!x) return "";
+  let m;
+  if (x === "Start...") return t("e_start");
+  if (x === "Gotowe") return t("e_ready");
+  if (x === "Anulowano") return t("canceledTitle");
+  if ((m = x.match(/^Analizuję (\d+) z (\d+): (.*)$/))) return t("e_an", { i: m[1], n: m[2], name: m[3] });
+  if ((m = x.match(/^Przeanalizowano (\d+) z (\d+) utworów/))) return t("e_done_an", { i: m[1], n: m[2] });
+  if ((m = x.match(/^Kopiuję plik (?:MP3 )?(\d+) z (\d+)/))) return t("e_copy", { i: m[1], n: m[2] });
+  if ((m = x.match(/^Analizuję (\d+) utworów równolegle \(do (\d+) naraz, limit pamięci RAM ok\. (\d+) MB\)/))) return t("e_parallel", { n: m[1], w: m[2], ram: m[3] });
+  if (x.startsWith("Przygotowuję bazę")) return t("e_db");
+  if (x.startsWith("Robię kopię zapasową")) return t("e_backup");
+  if (x.startsWith("Zapisuję pliki na pendrive")) return t("e_write");
+  if (x.startsWith("Kończę zapis")) return t("e_flush");
+  return x;
+}
+function applyLang() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll("[data-i18n]").forEach(e => { e.textContent = t(e.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-html]").forEach(e => { e.innerHTML = t(e.dataset.i18nHtml); });
+  const sel = $("lang");
+  if (sel && !sel.options.length) Object.keys(I18N).forEach(k => { const o = document.createElement("option"); o.value = k; o.textContent = I18N[k].name; sel.appendChild(o); });
+  if (sel) sel.value = LANG;
+  opisKopiowania();
+  if (mp3) ustawMp3(mp3);
+  if (pend) ustawPendrive(pend);
+  if (formatInfo) opisFormatu();
+  if (ostatniStan) odswiez();
+}
+
+async function api(sciezka, ciało) {
+  const opcje = { headers: { "X-Token": TOKEN } };
+  if (ciało !== undefined) { opcje.method = "POST"; opcje.body = JSON.stringify(ciało); opcje.headers["Content-Type"] = "application/json"; }
+  const r = await fetch(sciezka, opcje);
+  return r.json();
+}
+function fmtCzas(s) {
+  s = Math.max(0, Math.round(s));
+  if (s < 60) return s + " " + t("sec");
+  const m = Math.floor(s / 60), r = s % 60;
+  return m + " " + t("min") + " " + String(r).padStart(2, "0") + " " + t("sec");
+}
+function opisCzasu(j) {
+  const u = j.uplynelo_s != null ? t("elapsed", { t: fmtCzas(j.uplynelo_s) }) : "";
+  let eta;
+  if (j.eta_s == null) eta = t("etaEstimating");
+  else if (j.eta_faza === "analiza") eta = t("etaAnalysis", { t: fmtCzas(j.eta_s) }) + (j.kopiuj ? t("etaAnalysisThen") : "");
+  else if (j.eta_faza === "kopiowanie") eta = t("etaCopy", { t: fmtCzas(j.eta_s) }) +
+    (j.kop_razem ? " (" + Math.round((j.kop_zrobione || 0) / 1e6) + " / " + Math.round(j.kop_razem / 1e6) + " MB)" : "");
+  else eta = t("etaFinishing");
+  return eta + (u ? " · " + u : "");
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+let formatInfo = null;
+function opisFormatu() {
+  const r = formatInfo; if (!r) return;
+  $("formatOpis").innerHTML = t("fmtMedia", { name: esc(r.nazwa), disk: esc(r.dysk), gb: r.rozmiar_gb, model: r.model ? ", " + esc(r.model) : "", fs: esc(r.system_plikow || "?") });
+}
+async function formatPrzygotuj() {
+  $("formatWynik").textContent = "";
+  const r = await api("/api/formatuj-info", { sciezka: pend.sciezka });
+  if (r.blad) { $("formatPanel").classList.remove("hidden"); $("formatOpis").innerHTML = '<span class="err">' + esc(r.blad) + "</span>"; $("bFormatuj").disabled = true; return; }
+  formatInfo = r;
+  $("formatPanel").classList.remove("hidden");
+  opisFormatu();
+  $("formatWymagana").textContent = r.nazwa; $("formatPotw").value = ""; $("bFormatuj").disabled = true;
+}
+$("bFormatInfo").onclick = formatPrzygotuj;
+$("bFormatAnuluj").onclick = () => { formatInfo = null; $("formatPanel").classList.add("hidden"); };
+$("formatPotw").oninput = () => { $("bFormatuj").disabled = !(formatInfo && $("formatPotw").value.trim() === formatInfo.nazwa); };
+$("bFormatuj").onclick = async () => {
+  if (!formatInfo) return;
+  $("bFormatuj").disabled = true; $("bFormatInfo").disabled = true;
+  $("formatWynik").textContent = t("fmtWorking");
+  const r = await api("/api/formatuj", { sciezka: formatInfo.sciezka, potwierdzenie: $("formatPotw").value.trim(), nowa_nazwa: $("formatNazwa").value });
+  if (r.blad || !r.ok) { $("formatWynik").innerHTML = '<span class="err">' + esc(t("fmtFail", { e: r.blad || "" })) + "</span>"; $("bFormatInfo").disabled = false; return; }
+  formatInfo = null;
+  $("formatWynik").innerHTML = '<span class="ok">' + esc(t("fmtOk", { name: r.nazwa })) + "</span>";
+  $("formatPanel").querySelectorAll("input").forEach(i => i.value = "");
+  ostatniKluczPomiaru = "";
+  ustawPendrive(await api("/api/wybierz", { co: "pendrive", sciezka: r.sciezka, bez_dialogu: true }));
+  $("bFormatInfo").disabled = false;
+};
+
+function odswiezPrzycisk() {
+  const gotowe = ostatniStan && ostatniStan.setup.stan === "gotowe";
+  const trwa = ostatniStan && ostatniStan.job.stan === "trwa";
+  const b = ostatniStan && ostatniStan.benchmark;
+  const pomiarGotowy = b && b.stan === "gotowe" && mp3 && pend &&
+    b.folder_mp3 === mp3.sciezka && b.pendrive === pend.sciezka &&
+    Boolean(b.kopiuj_mp3) === $("cKopiuj").checked;
+  $("bStart").disabled = !(mp3 && mp3.liczba > 0 && pend && gotowe && pomiarGotowy && !trwa);
+  $("bPredkosc").disabled = !(mp3 && mp3.liczba > 0 && pend && gotowe && !trwa && (!b || b.stan !== "trwa"));
+  $("bMp3").disabled = trwa; $("bPend").disabled = trwa;
+  $("bFormatInfo").disabled = !(pend && !trwa);
+}
+
+function ustawMp3(r) {
+  if (!r.sciezka) return;
+  mp3 = r;
+  $("infoMp3").innerHTML = esc(r.sciezka) + "<br>" +
+    (r.liczba > 0 ? `<span class="ok">${esc(t("found", { n: r.liczba, mb: r.rozmiar_mb }))}</span>`
+                  : `<span class="err">${esc(t("noMp3"))}</span>`);
+  odswiezPrzycisk();
+}
+function opisKopiowania() {
+  $("kopiujOpis").textContent = t($("cKopiuj").checked ? "copyOn" : "copyOff");
+}
+$("cKopiuj").onchange = () => { opisKopiowania(); odswiezPrzycisk(); };
+opisKopiowania();
+function ustawPendrive(r) {
+  if (!r.sciezka) return;
+  pend = r;
+  $("infoPend").innerHTML = esc(r.sciezka) + "<br>" + esc(t("free", { mb: r.wolne_mb })) +
+    (r.ma_pioneer ? ' <span class="tag">' + esc(t("hasPioneer")) + "</span>" : "");
+  const o = [];
+  if (!r.na_dysku) o.push(t("warnNotUsb"));
+  if (mp3 && r.wolne_mb < mp3.rozmiar_mb * 1.02 && $("cKopiuj").checked) o.push(t("warnSpace"));
+  $("ostrzPend").textContent = o.join(" ");
+  odswiezPrzycisk();
+}
+function wybierzFolderNative(co) {
+  window.webkit.messageHandlers.cdjChoose.postMessage(co);
+}
+window.cdjFolderCancelled = () => {};
+window.cdjFolderSelected = async (co, sciezka) => {
+  const r = await api("/api/wybierz", { co, sciezka });
+  if (co === "mp3") ustawMp3(r); else ustawPendrive(r);
+};
+$("bMp3").onclick = async () => {
+  if (NATIVE) return wybierzFolderNative("mp3");
+  ustawMp3(await api("/api/wybierz", { co: "mp3" }));
+};
+$("bPend").onclick = async () => {
+  if (NATIVE) return wybierzFolderNative("pendrive");
+  ustawPendrive(await api("/api/wybierz", { co: "pendrive" }));
+};
+$("bPredkosc").onclick = async () => {
+  const kopiuj = $("cKopiuj").checked;
+  $("wynikPredkosci").innerHTML = '<div class="speed-lead">' + esc(t("speedMeasuring")) + "</div>";
+  const r = await api("/api/predkosc", { folder_mp3: mp3.sciezka, pendrive: pend.sciezka, kopiuj_mp3: kopiuj });
+  if (r.blad) $("wynikPredkosci").innerHTML = `<div class="speed-lead err">${esc(t("speedFail"))}</div><div class="speed-detail">${esc(r.blad)}</div>`;
+};
+$("bStart").onclick = async () => {
+  stanWysuwania = null;
+  narysowane.clear(); $("lista").innerHTML = ""; $("wyniki").classList.add("hidden"); $("koniec").classList.add("hidden");
+  const r = await api("/api/start", { folder_mp3: mp3.sciezka, pendrive: pend.sciezka, playlista: $("playlista").value,
+    kopiuj_mp3: $("cKopiuj").checked, zastap_pioneer: $("cZastap").checked });
+  if (r.blad) alert(r.blad);
+};
+$("bAnuluj").onclick = async () => {
+  if (confirm(t("confirmCancel"))) await api("/api/anuluj", {});
+};
+$("bZakoncz").onclick = async () => {
+  if (NATIVE) { window.webkit.messageHandlers.cdjQuit.postMessage(""); return; }
+  await api("/api/zakoncz", {});
+  document.body.innerHTML = "<main><h1>" + esc(t("quitDone")) + "</h1><p class='sub'>" + esc(t("quitDesc")) + "</p></main>";
+};
+
+function rysuj(canvas, p) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const c = canvas.getContext("2d"); c.scale(dpr, dpr);
+  const css = getComputedStyle(document.documentElement);
+  c.fillStyle = css.getPropertyValue("--canvas"); c.fillRect(0, 0, w, h);
+  const n = p.env.length, mx = Math.max(0.05, ...p.env), mid = h / 2;
+  const wave = css.getPropertyValue("--wave"), low = css.getPropertyValue("--low");
+  for (let i = 0; i < n; i++) {
+    const x = i / n * w, bw = Math.max(1, w / n);
+    const a = p.env[i] / mx * (mid - 4), b = p.low[i] / mx * (mid - 4);
+    c.fillStyle = wave; c.fillRect(x, mid - a, bw, a * 2);
+    c.fillStyle = low; c.fillRect(x, mid - b, bw, b * 2);
+  }
+  const dl = n * p.krok;
+  c.strokeStyle = "rgba(255,255,255,.85)"; c.lineWidth = 1;
+  c.fillStyle = "rgba(255,255,255,.8)"; c.font = "10px sans-serif";
+  p.beats.forEach((t, k) => { const x = t / dl * w; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); c.fillText((k + 1), x + 3, 11); });
+}
+function rysujPrzeglad(canvas, pwav) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const c = canvas.getContext("2d"); c.scale(dpr, dpr);
+  c.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--canvas"); c.fillRect(0, 0, w, h);
+  c.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--wave");
+  pwav.forEach((v, i) => { const x = i / pwav.length * w, a = v / 31 * (h / 2 - 1); c.fillRect(x, h / 2 - a, Math.max(1, w / pwav.length), a * 2); });
+}
+async function dodajUtwor(u) {
+  const d = document.createElement("div"); d.className = "tr";
+  d.innerHTML = `<div class="t">${esc(u.tytul)} <span class="m">— ${esc(u.artysta)}</span></div>
+    <div class="m stats"><b>${u.bpm.toFixed(2)}</b> BPM · ${esc(t("trackInfo"))} <b>${u.pierwszy_ms}</b> ms · ${u.beatow} ${esc(t("beatsWord"))} · ${Math.floor(u.czas / 60)}:${String(Math.round(u.czas % 60)).padStart(2, "0")}</div>
+    <canvas class="z"></canvas><canvas class="ov"></canvas>`;
+  $("lista").appendChild(d);
+  const p = await api("/api/podglad?i=" + u.i);
+  if (p.env) { rysuj(d.querySelector(".z"), p); rysujPrzeglad(d.querySelector(".ov"), p.pwav); }
+}
+
+async function odswiez() {
+  let s;
+  try { s = await api("/api/status"); } catch (e) { return; }
+  ostatniStan = s;
+  const st = s.setup;
+  const kart = $("setup");
+  if (st.stan === "gotowe") kart.classList.add("hidden");
+  else {
+    kart.classList.remove("hidden");
+    if (st.stan === "blad") { $("setupTytul").textContent = t("setupFail"); $("setupOpis").innerHTML = '<span class="err">' + esc(st.blad || "") + "</span>"; }
+    else if (st.stan === "instalacja") $("setupTytul").textContent = t("setupInstall");
+    $("setupLog").textContent = (st.log || []).join("\n");
+  }
+  const j = s.job;
+  const b = s.benchmark || {};
+  const pomiarPasuje = mp3 && pend && b.folder_mp3 === mp3.sciezka && b.pendrive === pend.sciezka &&
+    Boolean(b.kopiuj_mp3) === $("cKopiuj").checked;
+  if (pomiarPasuje && b.stan === "trwa") {
+    $("wynikPredkosci").innerHTML = '<div class="speed-lead">' + esc(t("speedMeasuring")) + "</div>";
+  } else if (pomiarPasuje && b.stan === "gotowe") {
+    const warianty = (b.pomiary || []).map(p => p.odczyt_mb_s == null
+      ? `${p.workers}: ${p.mb_s} MB/s`
+      : p.zapis_mb_s == null
+        ? `${p.workers}: ${p.odczyt_mb_s} MB/s`
+        : `${p.workers}: ${p.odczyt_mb_s} / ${p.zapis_mb_s} MB/s → ${p.mb_s} MB/s`).join(" · ");
+    const tryb = t(b.kopiuj_mp3 ? "modeCopy" : "modeNoCopy");
+    const ramv = { ram: b.ram_budzet_mb, tot: b.ram_calk_mb, cores: b.rdzenie };
+    if (!b.maks_mb_s) {
+      $("wynikPredkosci").innerHTML = `<div class="speed-lead ok">${esc(t("speedReady", { n: b.workers }))}</div><div class="speed-detail">${esc(t("speedReadyDesc", Object.assign({ mode: tryb }, ramv)))}</div>`;
+    } else
+    $("wynikPredkosci").innerHTML = `<div class="speed-lead ok">${esc(t("speedLead", { mode: tryb, cel: b.cel_mb_s }))}</div><div class="speed-rows"><span>${t("speedMax", { v: b.maks_mb_s })}</span><span>${t("speedUse")}</span><span>${t("speedPar", { n: b.workers })}</span></div><div class="speed-detail">${esc(t("speedDetail", ramv))}</div><div class="speed-detail">${esc(warianty)}</div>`;
+  } else if (pomiarPasuje && b.stan === "blad") {
+    $("wynikPredkosci").innerHTML = `<div class="speed-lead err">${esc(t("speedFail"))}</div><div class="speed-detail">${esc(b.blad || t("tryAgain"))}</div>`;
+  } else if (b.stan === "gotowe" && mp3 && pend && b.folder_mp3 === mp3.sciezka && b.pendrive === pend.sciezka) {
+    $("wynikPredkosci").innerHTML = '<div class="speed-lead">' + esc(t("speedModeChanged")) + '</div><div class="speed-detail">' + esc(t("speedModeChangedDesc")) + "</div>";
+  } else {
+    $("wynikPredkosci").innerHTML = '<div class="speed-lead">' + esc(t("speedNone")) + '</div><div class="speed-detail">' + esc(t("speedNoneDesc")) + "</div>";
+  }
+  const trwa = j.stan === "trwa";
+  $("bAnuluj").classList.toggle("hidden", !trwa);
+  if (j.stan && j.stan !== "brak") {
+    $("postep").classList.remove("hidden");
+    $("etap").textContent = trEtap(j.etap);
+    $("pasek").style.width = Math.round((j.postep || 0) * 100) + "%";
+    $("eta").textContent = j.stan === "trwa" ? opisCzasu(j) : "";
+    let ostrzezenia = (j.bledy || []).map(b => `<span class="warn">${esc(t("skipped", { name: b.nazwa, text: b.tekst }))}</span>`);
+    if ((j.bledow_razem || 0) > ostrzezenia.length) ostrzezenia.push(`<span class="warn">${esc(t("skippedTotal", { n: j.bledow_razem, m: ostrzezenia.length }))}</span>`);
+    $("postepOpis").innerHTML = ostrzezenia.join("<br>");
+    $("log").textContent = (j.log || []).join("\n");
+    (j.utwory || []).forEach(u => { if (!narysowane.has(u.i)) { narysowane.add(u.i); $("wyniki").classList.remove("hidden"); dodajUtwor(u); } });
+    if (j.sukcesy > 50) $("wyniki").querySelector("h2").textContent = t("results50");
+  }
+  const k = $("koniec");
+  if (j.stan === "gotowe") {
+    k.classList.remove("hidden");
+    let html = `<h2 class="ok">${esc(t("doneTitle", { n: j.sukcesy || j.utwory.length }))}</h2><p style="margin:0 0 8px">${esc(t("doneEject"))}</p>`;
+    if (j.kopia) html += `<p class="m" style="color:var(--muted);font-size:13px;margin:0 0 8px">${esc(t("backupOf"))} ${esc(j.kopia)}</p>`;
+    if ((j.stare_pliki || []).length) html += `<p class="warn" style="font-size:13px;margin:0 0 8px">${esc(t("oldFiles", { list: j.stare_pliki.join(", ") }))}</p>`;
+    const wysuwanie = stanWysuwania;
+    const etykieta = wysuwanie && wysuwanie.stan === "ok" ? t("ejected")
+      : wysuwanie && wysuwanie.stan === "blad" ? t("ejectRetry") : t("eject");
+    const zablokowany = wysuwanie && wysuwanie.stan !== "blad";
+    html += `<button id="bWysun"${zablokowany ? " disabled" : ""}>${etykieta}</button>`;
+    if (wysuwanie) {
+      const klasa = wysuwanie.stan === "ok" ? "ok" : wysuwanie.stan === "blad" ? "err" : "wait";
+      html += `<div class="eject-result ${klasa}" role="status" aria-live="polite">${esc(wysuwanie.klucz ? t(wysuwanie.klucz, { e: wysuwanie.e || "" }) : wysuwanie.tekst)}</div>`;
+    }
+    k.innerHTML = html;
+    if (!zablokowany) $("bWysun").onclick = async () => {
+      stanWysuwania = { stan: "trwa", klucz: "ejecting" };
+      odswiez();
+      try {
+        const r = await api("/api/wysun", { sciezka: j.pendrive });
+        stanWysuwania = r.ok
+          ? { stan: "ok", klucz: "ejectOk" }
+          : { stan: "blad", klucz: "ejectFail", e: r.tekst || r.blad || t("tryAgain") };
+      } catch (e) {
+        stanWysuwania = { stan: "blad", klucz: "ejectFail2", e: e.message || "" };
+      }
+      odswiez();
+    };
+  } else if (j.stan === "blad") {
+    k.classList.remove("hidden"); k.innerHTML = `<h2 class="err">${esc(t("errTitle"))}</h2><p style="margin:0">${esc(j.blad || "")}</p>`;
+  } else if (j.stan === "anulowano") {
+    k.classList.remove("hidden"); k.innerHTML = `<h2 class="warn">${esc(t("canceledTitle"))}</h2><p style="margin:0">${esc(t("canceledDesc"))}</p>`;
+  }
+  const klucz = mp3 && pend ? [mp3.sciezka, pend.sciezka, $("cKopiuj").checked].join("|") : "";
+  if (klucz && !pomiarPasuje && b.stan !== "trwa" && !trwa && st.stan === "gotowe" && mp3.liczba > 0 && klucz !== ostatniKluczPomiaru) {
+    ostatniKluczPomiaru = klucz;
+    api("/api/predkosc", { folder_mp3: mp3.sciezka, pendrive: pend.sciezka, kopiuj_mp3: $("cKopiuj").checked }).catch(() => {});
+  }
+  odswiezPrzycisk();
+}
+$("lang").onchange = () => { LANG = $("lang").value; try { localStorage.setItem("cdj_lang", LANG); } catch (e) {} applyLang(); };
+applyLang();
+setInterval(odswiez, 800); odswiez();
+</script>
+</body>
+</html>

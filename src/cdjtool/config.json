@@ -1,0 +1,28 @@
+{
+  "audio": {
+    "sample_rate": 22050,
+    "hop_length": 64,
+    "rekordbox_offset_ms": 51.2,
+    "beat_attack_offset_ms": 8.4
+  },
+  "analysis": {
+    "bpm_min": 80,
+    "bpm_max": 200,
+    "phase_resolution": 0.5,
+    "refine_passes": 3,
+    "confidence_threshold": 0.0
+  },
+  "performance": {
+    "max_workers": 8,
+    "max_memory_mb": 500,
+    "chunk_size_mb": 32,
+    "enable_audio_cache": false,
+    "ffmpeg_timeout_sec": 300
+  },
+  "limits": {
+    "max_path_length": 255,
+    "artist_max_chars": 60,
+    "album_max_chars": 60,
+    "track_max_chars": 44
+  }
+}
