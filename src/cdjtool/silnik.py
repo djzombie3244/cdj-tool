@@ -199,7 +199,7 @@ def metadane(sciezka: str) -> Dict[str, any]:
                 r = subprocess.run(
                     [FFMPEG, "-hide_banner", "-v", "info", "-i", sciezka,
                      "-map_metadata", "0", "-f", "ffmetadata", tagi_path],
-                    capture_output=True, text=True, timeout=ffmpeg_timeout
+                    capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=ffmpeg_timeout
                 )
             except subprocess.TimeoutExpired:
                 raise ProcessTimeoutError("FFmpeg", ffmpeg_timeout)
@@ -208,8 +208,13 @@ def metadane(sciezka: str) -> Dict[str, any]:
             
             # Czytaj tagi
             try:
-                with open(tagi_path, "r", encoding="utf-8", errors="replace") as f:
-                    wyjscie_tagi = f.read()
+                with open(tagi_path, "rb") as f:
+                    surowe = f.read()
+                try:
+                    wyjscie_tagi = surowe.decode("utf-8")
+                except UnicodeDecodeError:
+                    # tagi WAV/AIFF bywaja zapisane w stronie kodowej systemu (np. polskie znaki w cp1250)
+                    wyjscie_tagi = surowe.decode("cp1250", "replace")
             except OSError:
                 wyjscie_tagi = ""
             
