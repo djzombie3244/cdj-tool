@@ -8,7 +8,7 @@ CDJ Tool analyses your tracks (BPM, beat grid, waveforms) and writes a USB stick
 (`ANLZ0000.DAT` / `.EXT`) and copies of your audio files. It is a small native macOS app that works
 completely **offline**.
 
-> **Status:** version 1.0.0. Verified on real hardware with a CDJ-2000 (non-NXS) for MP3 tracks:
+> **Status:** version 1.0.1. Verified on real hardware with a CDJ-2000 (non-NXS) for MP3 tracks:
 > database, waveforms, loading. AAC, WAV and AIFF support is newer and is still being tested on
 > hardware (see [Known limitations](#known-limitations)). Please report what works for you.
 

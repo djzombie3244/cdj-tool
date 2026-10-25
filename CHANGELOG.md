@@ -3,6 +3,10 @@
 ## 1.0.1 - 2026
 
 - Several source folders: add as many folders as you like; they are written one after another, each as its own playlist (named after the folder) into the same library.
+- BPM shows on the CDJ-2000 immediately (no own analysis by the player): the `PQT2` tag is now written to `ANLZ0000.EXT`, byte-identical to a Rekordbox export (verified on 15 tracks).
+- Beat grid: the red line (beat 1 of the bar) is placed where the main beat starts after an intro or breakdown (kick-start detection with a novelty-vote fallback). Verified on a CDJ-2000.
+- Beat times written to the millisecond like Rekordbox; empty `s4` string in track rows like Rekordbox.
+- Note: the CDJ-2000 Folder view does not use the analysis data; use All Tracks or Playlist.
 
 ## 1.0.0 - 2026
 

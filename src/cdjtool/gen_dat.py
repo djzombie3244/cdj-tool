@@ -263,27 +263,82 @@ def analizuj(y: np.ndarray) -> Dict[str, Any]:
     okres = 60.0 / bpm
     for _ in range(2):  # dosun siatke do poczatku narastania kicka
         faza = (faza + _poczatek_kicka(y, bpm, faza)) % okres
+    try:
+        takt_d = wykryj_takt(y, bpm, float(faza))
+    except Exception:
+        takt_d = 0
     return {"bpm": bpm, "pierwszy": float(faza), "confidence": float(ostrosc),
-            "reliable": True}
+            "reliable": True, "takt": int(takt_d)}
+
+
+def wykryj_takt(y: np.ndarray, bpm: float, pierwszy: float) -> int:
+    """Ktory beat siatki (kotwica: pierwszy + a*okres) jest poczatkiem taktu: indeks mod 4.
+    Beat 'raz' = miejsce, w ktorym zaczyna sie glowny beat utworu (po wstepie bez kicka);
+    gdy nie da sie go znalezc: najwieksza zmiana brzmienia (poczatki fraz)."""
+    import takt as T
+    a0, nov = T.cechy(y, SR, bpm, pierwszy)
+    if len(nov[1]) < 32:
+        return 0
+    i = T.start_bitu(y, SR, bpm, pierwszy, a0)
+    if i is not None:
+        return int((a0 + i) % 4)
+    s = sum(T.glosy(a0, nov[k]) for k in (1, 2, 4, "bas"))
+    return int(np.argmax(s))
 
 
 # ================================================================ DAT ---
-def siatka_ms(bpm: float, pierwszy_s: float, dlugosc_s: float) -> np.ndarray:
-    """Czasy beatów w ms (współrzędne Rekordbox)."""
+def siatka_ms(bpm: float, pierwszy_s: float, dlugosc_s: float, takt: int = 0):
+    """Czasy beatów w s (współrzędne Rekordbox). Zwraca tablicę czasów; numery beatów
+    w takcie (1..4) są w atrybucie .numery (beat 'raz' wg wykrytego taktu `takt`)."""
     okres = 60.0 / bpm
     t0 = pierwszy_s + OFFSET_REKORDBOX_S - ATAK_PRZED_WZROSTEM_S
+    m = 0
     while t0 - okres >= 0:
         t0 -= okres
+        m += 1
     koniec = dlugosc_s + OFFSET_REKORDBOX_S
-    return np.arange(t0, koniec - 0.05, okres)
+    czasy = np.arange(t0, koniec - 0.05, okres).view(_Siatka)
+    czasy.numery = ((np.arange(len(czasy)) - m - takt) % 4) + 1
+    return czasy
+
+
+class _Siatka(np.ndarray):
+    numery = None
+
+    def __array_finalize__(self, obj):
+        self.numery = getattr(obj, "numery", None)
+
+
+def _ms_calk(t_s: float) -> int:
+    """Czas beatu w pelnych ms (Rekordbox obcina, nie zaokragla); ulamek ms jest w PQT2."""
+    return int(np.floor(t_s * 1000.0 + 1e-6))
+
+
+def tag_pqt2(czasy_s: np.ndarray, bpm: float) -> bytes:
+    """PQT2 (rozszerzona siatka beatow, plik .EXT): naglowek 56 B + po 2 B na beat (ulamek ms w
+    mikrosekundach). Odtwarzacz uzywa jej do natychmiastowego odczytu BPM i taktow. Format odtworzony
+    z eksportu Rekordbox: suma kontrolna = suma (numer beatu + tempo + czas ms) po wszystkich beatach."""
+    n = len(czasy_s)
+    numery = getattr(czasy_s, "numery", None)
+    nr = [int(numery[i]) if numery is not None else (i % 4) + 1 for i in range(n)]
+    bpm100 = int(round(bpm * 100))
+    ms = [_ms_calk(t) for t in czasy_s]
+    ulamki = [min(999, max(0, int(round((t * 1000.0 - m) * 1000.0)))) for t, m in zip(czasy_s, ms)]
+    suma = sum(nr[i] + bpm100 + ms[i] for i in range(n)) & 0xFFFFFFFF
+    body = b"".join(struct.pack(">H", u) for u in ulamki)
+    hdr = struct.pack(">11I", 0, 0x02000002, 0,
+                      (nr[0] << 16) | bpm100, ms[0], (nr[-1] << 16) | bpm100, ms[-1], n, suma, 0, 0)
+    return b"PQT2" + struct.pack(">II", 56, 56 + len(body)) + hdr + body
 
 
 def tag_pqtz(czasy_s: np.ndarray, bpm: float) -> bytes:
     """PQTZ tag (beat grid)."""
     n = len(czasy_s)
     body = b""
+    numery = getattr(czasy_s, "numery", None)
     for i, t in enumerate(czasy_s):
-        body += struct.pack(">HHI", (i % 4) + 1, int(round(bpm * 100)), int(round(t * 1000)))
+        nr = int(numery[i]) if numery is not None else (i % 4) + 1
+        body += struct.pack(">HHI", nr, int(round(bpm * 100)), _ms_calk(t))
     return b"PQTZ" + struct.pack(">III", 24, 24 + len(body), 0) + struct.pack(">II", 0x80000, n) + body
 
 
@@ -345,13 +400,15 @@ def tag_pwv3(y, dlugosc_s):
             + struct.pack(">II", n, 0x00960000) + body)
 
 
-def zbuduj_ext(sciezka_na_pendrive, y, dlugosc_s):
+def zbuduj_ext(sciezka_na_pendrive, y, dlugosc_s, czasy_s=None, bpm=None):
     """Zbuduj plik .EXT (PPTH, PWV3, puste znaczniki cue)."""
     NAGLOWEK_PMAI = bytes.fromhex("504d41490000001c00000000" "00000001000100000001000000000000")
     raw = (sciezka_na_pendrive + "\x00").encode("utf-16-be")
     ppth = b"PPTH" + struct.pack(">III", 16, 16 + len(raw), len(raw)) + raw
     tagi = [ppth, tag_pwv3(y, dlugosc_s), PCOB_EXT_PAMIEC, PCOB_EXT_HOT,
             PCO2_EXT_PAMIEC, PCO2_EXT_HOT]
+    if czasy_s is not None and bpm:
+        tagi.append(tag_pqt2(czasy_s, bpm))
     calosc = NAGLOWEK_PMAI + b"".join(tagi)
     return calosc[:8] + struct.pack(">I", len(calosc)) + calosc[12:]
 

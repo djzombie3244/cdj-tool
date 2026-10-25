@@ -2,7 +2,6 @@ import AppKit
 import Foundation
 import WebKit
 
-@NSApplicationMain
 final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate, NSWindowDelegate {
     private var window: NSWindow!
     private var webView: WKWebView!
@@ -119,23 +118,23 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = (kind == "mp3")
         panel.prompt = "Wybierz"
-        panel.message = kind == "mp3" ? "Wskaż folder z plikami MP3" : "Wskaż cały pendrive"
+        panel.message = kind == "mp3" ? "Wskaż jeden lub kilka folderów z plikami audio (Cmd lub Shift)" : "Wskaż cały pendrive"
         let start = kind == "mp3"
             ? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Music")
             : URL(fileURLWithPath: "/Volumes", isDirectory: true)
         if FileManager.default.fileExists(atPath: start.path) { panel.directoryURL = start }
         panel.begin { [weak self] response in
             guard let self else { return }
-            guard response == .OK, let url = panel.url else {
+            guard response == .OK, !panel.urls.isEmpty else {
                 self.webView.evaluateJavaScript("window.cdjFolderCancelled && window.cdjFolderCancelled()")
                 return
             }
-            let values: [String] = [kind, url.path]
-            guard let json = try? JSONSerialization.data(withJSONObject: values),
+            let paths: [String] = panel.urls.map { $0.path }
+            guard let json = try? JSONSerialization.data(withJSONObject: [kind, paths] as [Any]),
                   let args = String(data: json, encoding: .utf8) else { return }
-            self.webView.evaluateJavaScript("window.cdjFolderSelected(\(args)[0], \(args)[1])")
+            self.webView.evaluateJavaScript("window.cdjFoldersSelected(\(args)[0], \(args)[1])")
         }
     }
 
@@ -152,3 +151,9 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
         if backend.isRunning { backend.terminate() }
     }
 }
+
+// Explicit entry point: the bundle has no main nib, so @NSApplicationMain would start without a delegate.
+let application = NSApplication.shared
+let appDelegate = CDJToolApp()
+application.delegate = appDelegate
+application.run()

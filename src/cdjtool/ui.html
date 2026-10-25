@@ -557,6 +557,12 @@ function wybierzFolderNative(co) {
   window.webkit.messageHandlers.cdjChoose.postMessage(co);
 }
 window.cdjFolderCancelled = () => {};
+window.cdjFoldersSelected = async (co, sciezki) => {
+  for (const sciezka of sciezki) {
+    const r = await api("/api/wybierz", { co, sciezka });
+    if (co === "mp3") ustawMp3(r); else ustawPendrive(r);
+  }
+};
 window.cdjFolderSelected = async (co, sciezka) => {
   const r = await api("/api/wybierz", { co, sciezka });
   if (co === "mp3") ustawMp3(r); else ustawPendrive(r);
@@ -576,11 +582,16 @@ $("bPredkosc").onclick = async () => {
   const r = await api("/api/predkosc", { folder_mp3: mp3.sciezka, pendrive: pend.sciezka, kopiuj_mp3: kopiuj });
   if (r.blad) $("wynikPredkosci").innerHTML = `<div class="speed-lead err">${esc(t("speedFail"))}</div><div class="speed-detail">${esc(r.blad)}</div>`;
 };
+function nazwaFolderu(sciezka, i) {
+  const baza = (sciezka.replace(/\/+$/, "").split("/").pop() || "Tracks").slice(0, 50);
+  const wczesniej = kolejka.lista.slice(0, i).filter(f => (f.sciezka.replace(/\/+$/, "").split("/").pop() || "Tracks").slice(0, 50) === baza).length;
+  return wczesniej ? baza + " (" + (wczesniej + 1) + ")" : baza;
+}
 async function startFolderu(i) {
   kolejkaGen++;
   const f = kolejka.lista[i], wiele = kolejka.lista.length > 1;
   const nazwa = wiele ? (f.sciezka.replace(/\/+$/, "").split("/").pop() || "Tracks").slice(0, 60) : $("playlista").value;
-  const r = await api("/api/start", { folder_mp3: f.sciezka, folder_pomiaru: kolejka.pomiar, pendrive: pend.sciezka, playlista: nazwa,
+  const r = await api("/api/start", { folder_mp3: f.sciezka, folder_pomiaru: kolejka.pomiar, pendrive: pend.sciezka, playlista: nazwa, nazwa_folderu: nazwaFolderu(f.sciezka, i),
     kopiuj_mp3: $("cKopiuj").checked, zastap_pioneer: i === 0 && $("cZastap").checked });
   if (r.blad) { alert(r.blad); kolejka.przerwana = true; return false; }
   return true;

@@ -661,7 +661,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 a = {"folder_mp3": dane["folder_mp3"], "pendrive": dane["pendrive"],
                      "playlista": str(dane.get("playlista") or "Tracks")[:60],
                      "kopiuj_mp3": bool(dane.get("kopiuj_mp3", True)),
-                     "zastap_pioneer": bool(dane.get("zastap_pioneer", False))}
+                     "zastap_pioneer": bool(dane.get("zastap_pioneer", False)),
+                     "nazwa_folderu": str(dane.get("nazwa_folderu") or "")[:60]}
                 benchmark = STAN["benchmark"]
                 if (benchmark.get("stan") != "gotowe" or
                         benchmark.get("folder_mp3") != str(dane.get("folder_pomiaru") or a["folder_mp3"]) or

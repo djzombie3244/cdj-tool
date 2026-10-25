@@ -49,7 +49,7 @@ Big-endian tagged sections. The file starts with `PMAI` (header length 28, file 
 | File | Tags written |
 |---|---|
 | `ANLZ0000.DAT` | `PPTH` (path of the audio file, UTF-16BE), `PVBR` (VBR seek table placeholder + sample count), `PQTZ` (beat grid: beat number, tempo, time in ms), `PCOB` (empty memory and hot cue lists), `PWAV` (400-byte overview waveform), `PWV2` (100-byte mini waveform) |
-| `ANLZ0000.EXT` | `PPTH`, `PWV3` (detailed waveform, **150 columns per second**, 1 byte each: 3 bits whiteness, 5 bits height), `PCOB` lists |
+| `ANLZ0000.EXT` | `PPTH`, `PWV3` (detailed waveform, **150 columns per second**, 1 byte each: 3 bits whiteness, 5 bits height), `PCOB` lists, `PQT2` (beat grid with sub-millisecond beat times; makes the BPM appear instantly, byte-identical to a Rekordbox export) |
 
 - **Verified:** a plain CDJ-2000 (not NXS) needs the `.EXT` file with `PWV3`; without it the player shows "no waveform data, analyse in rekordbox" even though `PWAV` exists.
 - For files that are not MP3 the `PVBR` sample count is the number of samples; whether the player requires anything more for AAC/WAV/AIFF is still being verified.

@@ -63,6 +63,24 @@ def sciezka_na_pendrive(meta: Dict, nazwa_pliku: str) -> str:
     return "/Contents/%s/%s/%s%s" % (bezpieczna_nazwa(artysta), bezpieczna_nazwa(album), stem[:44], ext)
 
 
+ZAREZERWOWANE_FOLDERY = {"contents", "pioneer", "system volume information", ".trashes", ".spotlight-v100", ".fseventsd"}
+
+
+def sciezka_wg_folderow(nazwa_folderu: str, nazwa_wzgledna: str) -> str:
+    """Sciezka na pendrive odwzorowujaca uklad folderow zrodlowych: /<folder>/<podfoldery>/<plik>.
+
+    Folder jest na glownym poziomie pendrive'a, wiec CDJ pokazuje go w widoku FOLDER
+    (CDJ ukrywa tam foldery Contents i PIONEER)."""
+    nazwa_wzgledna = unicodedata.normalize("NFC", nazwa_wzgledna).replace(os.sep, "/")
+    czesci = nazwa_wzgledna.split("/")
+    stem, ext = os.path.splitext(czesci[-1])
+    glowny = bezpieczna_nazwa(unicodedata.normalize("NFC", nazwa_folderu)).lstrip(".") or "Tracks"
+    if glowny.lower() in ZAREZERWOWANE_FOLDERY:
+        glowny += " (muzyka)"
+    katalogi = [glowny] + [bezpieczna_nazwa(c) for c in czesci[:-1]]
+    return "/%s/%s%s" % ("/".join(katalogi), stem[:44], ext)
+
+
 def sciezka_analizy(sciezka_utworu: str, przesuniecie: int = 0) -> str:
     """Hash ścieżki jak robi to Pioneer CDJ. przesuniecie > 0 daje kolejny wolny katalog (gdy dwa utwory trafią do tego samego)."""
     h = 0
@@ -355,17 +373,35 @@ def kopia_zapasowa(pioneer, korzen):
                 return dst
             raise
 
-    shutil.copytree(
-        pioneer,
-        os.path.join(cel, "PIONEER"),
-        ignore=shutil.ignore_patterns("._*", ".DS_Store"),
-        copy_function=kopiuj_plik_z_pominieciem_sidecar,
-    )
+    try:
+        shutil.copytree(
+            pioneer,
+            os.path.join(cel, "PIONEER"),
+            ignore=shutil.ignore_patterns("._*", ".DS_Store"),
+            copy_function=kopiuj_plik_z_pominieciem_sidecar,
+        )
+    except (shutil.Error, OSError) as e:
+        raise CDJError(
+            "backup failed: %s" % str(e)[:300],
+            user_message=("Nie można odczytać dotychczasowego folderu PIONEER z pendrive'a (kopia zapasowa się nie powiodła). "
+                          "Najczęściej oznacza to uszkodzony system plików, np. po przerwanym zapisie lub wyjęciu pendrive'a bez wysunięcia. "
+                          "Sformatuj pendrive (krok 2: Formatowanie pendrive'a) albo napraw go w Narzędziu dyskowym (Pierwsza pomoc), potem spróbuj ponownie. "
+                          "Nic nie zostało zmienione na pendrivie."),
+            code="BACKUP_FAILED",
+        ) from e
     return cel
 
 
+_T0 = time.time()
+
+
+def _t():
+    """Znacznik czasu od startu zadania (do diagnozy wolnego zapisu)."""
+    return "  [+%d s]" % (time.time() - _T0)
+
+
 # ================================================================ Analiza ---
-def _analizuj_jeden(folder, root, nr, nazwa_wzgledna, kopiuj_mp3, dzis):
+def _analizuj_jeden(folder, root, nr, nazwa_wzgledna, kopiuj_mp3, dzis, nazwa_folderu=None):
     """Analizuje pojedynczy utwór; uruchamiany równolegle w wątku roboczym."""
     sciezka = os.path.join(folder, nazwa_wzgledna)
     nazwa = os.path.basename(nazwa_wzgledna)
@@ -380,7 +416,7 @@ def _analizuj_jeden(folder, root, nr, nazwa_wzgledna, kopiuj_mp3, dzis):
         if bramka is not None:
             bramka.zajmij(szac)
         try:
-            return _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, dzis)
+            return _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, dzis, nazwa_folderu)
         finally:
             if bramka is not None:
                 bramka.zwolnij(szac)
@@ -390,7 +426,7 @@ def _analizuj_jeden(folder, root, nr, nazwa_wzgledna, kopiuj_mp3, dzis):
         raise InvalidMP3Error(nazwa, str(e))
 
 
-def _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, dzis):
+def _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, dzis, nazwa_folderu=None):
     """Wlasciwa analiza utworu; wywolywana po zajeciu miejsca w bramce pamieci."""
     try:
         y = g.wczytaj(sciezka)
@@ -405,10 +441,10 @@ def _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3,
         # Niska pewnosc BPM nie odrzuca utworu (oryginal tez nic nie odrzucal);
         # informacja trafia do zdarzenia w polu "reliable".
         
-        czasy = g.siatka_ms(bpm, pierwszy, dl)
+        czasy = g.siatka_ms(bpm, pierwszy, dl, analysis.get("takt", 0))
         
         if kopiuj_mp3:
-            pend = sciezka_na_pendrive(meta, nazwa)
+            pend = sciezka_wg_folderow(nazwa_folderu, nazwa_wzgledna) if nazwa_folderu else sciezka_na_pendrive(meta, nazwa)
         else:
             rel = os.path.relpath(sciezka, root).replace(os.sep, "/")
             pend = "/" + rel
@@ -417,7 +453,7 @@ def _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3,
         crc = zlib.crc32(pend.encode("utf-8")) & 0xFFFFFFFF
         pwav_wynik = g.tag_pwav(y, dl)
         dat = g.zbuduj_dat(pend, bpm, czasy, y, dl, meta["total_probek"], pwav_wynik=pwav_wynik)
-        ext = g.zbuduj_ext(pend, y, dl)
+        ext = g.zbuduj_ext(pend, y, dl, czasy, bpm)
         pod = podglad(y, czasy - g.OFFSET_REKORDBOX_S, pwav_wynik[1]) if nr <= 50 else None
         kat = SPOOL["katalog"]
         if kat:  # wyniki ida na dysk lokalny, zeby pamiec nie rosla z liczba utworow
@@ -492,6 +528,7 @@ def przetworz(a, emit):
 def _przetworz(a, emit):
     """a: slownik z folder_mp3, pendrive, playlista, kopiuj_mp3, zastap_pioneer."""
     folder = os.path.realpath(a["folder_mp3"])
+    nazwa_folderu = str(a.get("nazwa_folderu") or os.path.basename(folder.rstrip("/")) or "Tracks")[:60]
     root = os.path.realpath(os.path.abspath(a["pendrive"]))
     kopiuj_mp3 = bool(a.get("kopiuj_mp3", True))
     
@@ -545,7 +582,7 @@ def _przetworz(a, emit):
     errors = []
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pula:
-        futures = [pula.submit(_analizuj_jeden, folder, root, nr, rel, kopiuj_mp3, dzis)
+        futures = [pula.submit(_analizuj_jeden, folder, root, nr, rel, kopiuj_mp3, dzis, nazwa_folderu)
                    for nr, rel in enumerate(pliki, 1)]
         for future in concurrent.futures.as_completed(futures):
             try:
@@ -576,7 +613,7 @@ def _przetworz(a, emit):
             msg += f" Błędy: {errors[0].user_message if hasattr(errors[0], 'user_message') else str(errors[0])}"
         raise ValueError(msg)
 
-    emit({"typ": "etap", "tekst": "Przygotowuję bazę danych..."})
+    emit({"typ": "etap", "tekst": "Przygotowuję bazę danych..." + _t()})
     pioneer = os.path.join(root, "PIONEER")
     stary_pdb_sciezka = os.path.join(pioneer, "rekordbox", "export.pdb")
     scalaj = (not a.get("zastap_pioneer", False)) and os.path.isfile(stary_pdb_sciezka)
@@ -636,7 +673,8 @@ def _przetworz(a, emit):
         )
         napisy = dict(
             title=m["tytul"], filename=os.path.basename(u["pend"]), file_path=u["pend"],
-            analyze_path=u["analiza"], analyze_date=dzis
+            analyze_path=u["analiza"], analyze_date=dzis,
+            s4=""  # jak w eksporcie Rekordboxa (szablon mial "1")
         )
         if u["pend"] in wg_sciezki:  # ten sam plik analizowany ponownie: zachowaj id, gatunek, ocene, odtworzenia
             i = wg_sciezki[u["pend"]]
@@ -758,7 +796,7 @@ def _przetworz(a, emit):
         else:
             emit({"typ": "etap", "tekst": "Wybrany katalog nie jest pendrive'em, nie usuwam starego folderu PIONEER."})
 
-    emit({"typ": "etap", "tekst": "Zapisuję pliki na pendrive..."})
+    emit({"typ": "etap", "tekst": "Zapisuję pliki na pendrive..." + _t()})
     if root.startswith("/Volumes/"):
         # Spotlight nie ma indeksować pendrive'a: indeksowanie blokuje później jego wysunięcie
         for znacznik in (".metadata_never_index",):
@@ -823,7 +861,7 @@ def _przetworz(a, emit):
         os.fsync(fh.fileno())
     os.replace(tmp_pdb, os.path.join(pioneer, "rekordbox", "export.pdb"))
 
-    emit({"typ": "etap", "tekst": "Kończę zapis (opróżniam bufory pendrive'a)..."})
+    emit({"typ": "etap", "tekst": "Kończę zapis (opróżniam bufory pendrive'a)..." + _t()})
     try:
         os.sync()
     except AttributeError:
@@ -832,4 +870,5 @@ def _przetworz(a, emit):
     stare = [n for n in ("exportExt.pdb", "exportLibrary.db")
              if os.path.exists(os.path.join(pioneer, "rekordbox", n))]
     
+    emit({"typ": "etap", "tekst": "Koniec zapisu" + _t()})
     emit({"typ": "koniec", "ok": True, "liczba": len(utwory), "pendrive": root, "stare_pliki": stare})

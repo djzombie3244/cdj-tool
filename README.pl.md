@@ -7,7 +7,7 @@ CDJ Tool analizuje utwory (BPM, siatka beatów, waveformy) i zapisuje pendrive, 
 wczytuje tak jak eksport z rekordboxa: baza utworów (`export.pdb`), pliki analizy (`ANLZ0000.DAT` / `.EXT`)
 i kopie plików audio. To mała, natywna aplikacja na macOS, która działa całkowicie **offline**.
 
-> **Status:** wersja 1.0.0. Sprawdzona na prawdziwym sprzęcie, CDJ-2000 (nie NXS), dla utworów MP3:
+> **Status:** wersja 1.0.1. Sprawdzona na prawdziwym sprzęcie, CDJ-2000 (nie NXS), dla utworów MP3:
 > baza, waveformy, wczytywanie. Obsługa AAC, WAV i AIFF jest nowsza i nadal testowana na sprzęcie
 > (zobacz [Znane ograniczenia](#znane-ograniczenia)). Daj znać, co działa u Ciebie.
 

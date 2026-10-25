@@ -49,7 +49,7 @@ Sekcje z tagami, big endian. Plik zaczyna się od `PMAI` (długość nagłówka 
 | Plik | Zapisywane tagi |
 |---|---|
 | `ANLZ0000.DAT` | `PPTH` (ścieżka pliku audio, UTF-16BE), `PVBR` (zaślepka tabeli VBR + liczba próbek), `PQTZ` (siatka beatów: numer beatu, tempo, czas w ms), `PCOB` (puste listy cue pamięci i hot cue), `PWAV` (400-bajtowy waveform przeglądowy), `PWV2` (100-bajtowy mini waveform) |
-| `ANLZ0000.EXT` | `PPTH`, `PWV3` (waveform szczegółowy, **150 kolumn na sekundę**, po 1 bajcie: 3 bity jasności, 5 bitów wysokości), listy `PCOB` |
+| `ANLZ0000.EXT` | `PPTH`, `PWV3` (waveform szczegółowy, **150 kolumn na sekundę**, po 1 bajcie: 3 bity jasności, 5 bitów wysokości), listy `PCOB`, `PQT2` (siatka beatów z czasami w ułamkach milisekundy; dzięki niej BPM pokazuje się od razu, bajt w bajt jak w eksporcie Rekordboxa) |
 
 - **Sprawdzone:** zwykły CDJ-2000 (nie NXS) potrzebuje pliku `.EXT` z `PWV3`; bez niego odtwarzacz pokazuje „no waveform data, analyse in rekordbox”, mimo że `PWAV` istnieje.
 - Dla plików innych niż MP3 liczba próbek w `PVBR` to liczba próbek; czy odtwarzacz wymaga czegoś więcej dla AAC/WAV/AIFF, jest nadal weryfikowane.
