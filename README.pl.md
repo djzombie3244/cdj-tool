@@ -7,7 +7,7 @@ CDJ Tool analizuje utwory (BPM, siatka beatów, waveformy, punkty cue) i zapisuj
 wczytuje tak jak eksport z rekordboxa: baza utworów (`export.pdb`), pliki analizy (`ANLZ0000.DAT` / `.EXT`)
 i kopie plików audio. To mała, natywna aplikacja na macOS, która działa całkowicie **offline**.
 
-> **Status:** wersja 1.0.2. Autor testował na prawdziwym sprzęcie: CDJ-2000 (nie NXS) z [modem RaftTone](https://rafttone.com/cdj2000/),
+> **Status:** wersja 1.0.3. Autor testował na prawdziwym sprzęcie: CDJ-2000 (nie NXS) z [modem RaftTone](https://rafttone.com/cdj2000/),
 > na utworach MP3 (baza, waveformy, BPM, cue, wczytywanie). Obsługa AAC, WAV, AIFF i FLAC jest nowsza i nadal testowana
 > na sprzęcie; CDJ-2000 z oryginalnym firmware nie był jeszcze testowany przez autora
 > (zobacz [Znane ograniczenia](#znane-ograniczenia)). Daj znać, co działa u Ciebie.
@@ -28,7 +28,7 @@ Interfejs jest dostępny po polsku, angielsku, niemiecku, francusku, hiszpańsku
 
 | Odtwarzacz | Status |
 |---|---|
-| **CDJ-2000 z modem RaftTone** (oficjalne firmware 4.33 + mod) | **Główny cel, testowany przez autora** (MP3: baza, waveformy, BPM, cue, wczytywanie). Mod bierze waveform, siatkę beatów i cue z plików analizy na pendrive; utwory skopiowane ręcznie pokazują *NO WAVEFORM DATA*. CDJ Tool zapisuje właśnie te pliki. Opcjonalny FLAC (eksperymentalny, niżej). |
+| **CDJ-2000 z modem RaftTone** (oficjalne firmware 4.33 + mod) | **Główny cel, testowany przez autora** (MP3: baza, waveformy, BPM, cue, wczytywanie). Mod bierze waveform, siatkę beatów i cue z plików analizy na pendrive; utwory skopiowane ręcznie pokazują *NO WAVEFORM DATA*. CDJ Tool zapisuje właśnie te pliki. Opcjonalny FLAC (eksperymentalny, wypada gorzej niż MP3, niżej). |
 | **CDJ-2000** (oryginalny, nie NXS), oryginalne firmware | **Powinien działać** (pendrive ma tę samą strukturę co eksport z rekordboxa), ale **autor tego nie testował**. Zgłoszenia mile widziane. |
 | CDJ-2000NXS, NXS2, CDJ-900NXS2, XDJ-1000MK2 i podobne | Nie są celem i nie były testowane. Czytają tę samą klasyczną bazę, ale mogą potrzebować dodatkowych plików, których narzędzie nie zapisuje. |
 | CDJ-3000X, OPUS-QUAD, OMNIS-DUO, XDJ-AZ | **Nieobsługiwane.** Według AlphaTheta czytają tylko nowszy format *OneLibrary* (`exportLibrary.db`), którego to narzędzie nie zapisuje. |
@@ -40,7 +40,7 @@ powiązany. Budowanie i wgrywanie firmware'u opisuje strona moda; robisz to na w
 ## Funkcje
 
 - Analiza plików **MP3, AAC (.m4a), WAV i AIFF** (formaty, które gra zwykły CDJ-2000; ALAC nie jest obsługiwany i jest pomijany).
-- **Opcjonalny FLAC** (eksperymentalny): zaznacz *Włącz FLAC*, jeśli Twój CDJ-2000 ma mod RaftTone, który gra FLAC (stereo, 16 lub 24 bity, 44,1 lub 48 kHz). Zwykły CDJ-2000 nie odtworzy FLAC.
+- **Opcjonalny FLAC** (eksperymentalny): zaznacz *Włącz FLAC*, jeśli Twój CDJ-2000 ma mod RaftTone, który gra FLAC (stereo, 16 lub 24 bity, 44,1 lub 48 kHz). Zwykły CDJ-2000 nie odtworzy FLAC. W teście autora na CDJ-2000 z modem pliki FLAC się ładują i grają, ale hot cue wczytują się wolno, a odtwarzacz nie wykorzystuje wyeksportowanego BPM i siatki beatów, więc musi przeanalizować utwór sam. FLAC wypada więc gorzej niż MP3, AAC, WAV i AIFF; używaj go tylko, jeśli go potrzebujesz. Raporty z innego sprzętu są mile widziane.
 - Wykrywanie **BPM i siatki beatów**, **waveform przeglądowy i szczegółowy** (CDJ-2000 potrzebuje pliku `.EXT`, żeby pokazać waveform), automatyczne **hot cue i memory cue**.
 - **Dopisywanie do istniejącej biblioteki** na pendrive zamiast nadpisywania; playlisty, gatunki i wcześniejsza analiza zostają. Opcjonalne pełne zastąpienie (z kopią zapasową).
 - Równoległa analiza dopasowana do szybkości dysku i limitu pamięci RAM oraz szacowany czas do końca. Używa najwyżej połowy rdzeni procesora, więc Mac pozostaje chłodny i responsywny.

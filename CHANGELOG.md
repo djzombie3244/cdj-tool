@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3 - 2026
+- Fixed a bug where analysing fewer than 4 files at once could skip a track with "The weights and list don't have the same length" (or, rarely, use the wrong beat grid offset). The per-track caches added in 1.0.2 are now local to each analysis thread. Added a regression test. Libraries of 4 or more files were not affected.
+- Documented the hardware test of optional FLAC on a CDJ-2000 with the RaftTone mod: tracks load and play, but hot cues load slowly and the player does not use the exported BPM/beat grid, so FLAC performs worse than MP3. It stays optional and experimental.
+
 ## 1.0.2 - 2026
 - **Optional FLAC** (experimental) for a CDJ-2000 running the RaftTone mod, which plays FLAC (stereo, 16 or 24 bit, 44.1 or 48 kHz). Off by default, because a stock CDJ-2000 cannot play FLAC. Rebuild the bundled ffmpeg with `tools/build_ffmpeg.sh` to decode FLAC.
 - Analysis is about 12 % faster per track with byte-identical results (the same filters and histograms are no longer computed twice; verified by tests), and ffmpeg decodes with one thread so parallel tracks do not fight over the CPU.

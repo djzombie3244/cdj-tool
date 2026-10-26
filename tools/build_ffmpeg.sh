@@ -32,7 +32,9 @@ eval ./configure $XARGS --disable-everything --disable-autodetect --disable-netw
  --enable-avcodec --enable-avformat --enable-avutil > "$B/configure.log" 2>&1 \
  || { tail -20 "$B/configure.log"; exit 1; }
 make -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)" > "$B/make.log" 2>&1 || { tail -20 "$B/make.log"; exit 1; }
+rm -f "$OUT"
 cp ffmpeg "$OUT"
+if [ "$(uname -s)" = Darwin ]; then codesign --force -s - "$OUT" >/dev/null 2>&1 || true; fi
 chmod 755 "$OUT"
 echo "Built: $OUT"
 "$OUT" -hide_banner -version | head -1

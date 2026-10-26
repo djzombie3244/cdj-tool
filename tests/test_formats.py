@@ -112,3 +112,41 @@ def test_speedups_do_not_change_results(tmp_path):
     ra, rb = g.analizuj(ya), g.analizuj(yb)
     assert abs(ra["bpm"] - 128.0) < 0.5 and abs(rb["bpm"] - 140.0) < 0.5
     assert g.analizuj(ya)["bpm"] == ra["bpm"]
+
+
+def test_analysis_is_thread_safe(tmp_path):
+    """Regression: with fewer than 4 files the tracks are analysed in threads of one process, and the
+    per-track caches (sparse profile, 120 Hz filter) must not leak between those threads."""
+    import threading
+
+    _click_track(str(tmp_path / "a.wav"), 128.0, seconds=30)
+    _click_track(str(tmp_path / "b.wav"), 140.0, seconds=20)
+    ya, yb = g.wczytaj(str(tmp_path / "a.wav")), g.wczytaj(str(tmp_path / "b.wav"))
+    on_a, on_b = g._obwiednia_kicka(ya), g._obwiednia_kicka(yb)
+    assert len(on_a) != len(on_b)
+    bpms = (126.0, 128.0, 128.5, 139.0, 140.0, 141.5)
+    expected = {(k, b): _reference_profile(on, b) for k, on in (("a", on_a), ("b", on_b)) for b in bpms}
+    errors = []
+
+    def hammer(key, on):
+        try:
+            for _ in range(40):
+                for b in bpms:
+                    if g._zlozony_profil(on, b) != expected[(key, b)]:
+                        errors.append((key, b))
+        except Exception as e:  # e.g. "The weights and list don't have the same length"
+            errors.append(repr(e))
+
+    threads = [threading.Thread(target=hammer, args=("a", on_a)), threading.Thread(target=hammer, args=("b", on_b))]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert not errors, errors[:3]
+    # whole analysis in two threads gives the same result as one after the other
+    seq = {"a": g.analizuj(ya), "b": g.analizuj(yb)}
+    par = {}
+    threads = [threading.Thread(target=lambda k=k, y=y: par.__setitem__(k, g.analizuj(y))) for k, y in (("a", ya), ("b", yb))]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    for k in ("a", "b"):
+        assert par[k]["bpm"] == seq[k]["bpm"]
+        assert par[k]["pierwszy"] == seq[k]["pierwszy"]

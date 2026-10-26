@@ -7,6 +7,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 from typing import Tuple, Dict, Any
 
 import numpy as np
@@ -209,7 +210,21 @@ def _obwiednia_kicka(y: np.ndarray) -> np.ndarray:
     return on[:n * _HOP_MS].reshape(n, _HOP_MS).sum(1)
 
 
-_PROFIL = {"ref": None, "w": None, "t": None}
+# Cache'e sa lokalne dla watku: analiza kilku utworow moze isc w watkach jednego procesu
+# (przy mniej niz 4 plikach), a wspolny slownik mieszalby dane roznych utworow.
+_TL = threading.local()
+
+
+def _cache(nazwa: str, pola: dict) -> dict:
+    c = getattr(_TL, nazwa, None)
+    if c is None:
+        c = {k: None for k in pola}
+        setattr(_TL, nazwa, c)
+    return c
+
+
+def _profil() -> dict:
+    return _cache("profil", {"ref": 0, "w": 0, "t": 0})
 
 
 def _zlozony_profil(on1: np.ndarray, bpm: float):
@@ -219,27 +234,30 @@ def _zlozony_profil(on1: np.ndarray, bpm: float):
     nb = int(round(okres * 2))
     # Tylko niezerowe probki obwiedni wnosza cos do histogramu (dodanie 0.0 nic nie zmienia),
     # a petla po ~160 kandydatach BPM wola te funkcje wielokrotnie dla tej samej tablicy.
-    if _PROFIL["ref"] is not on1:
+    pr = _profil()
+    if pr["ref"] is not on1:
         nz = np.nonzero(on1)[0]
-        _PROFIL.update(ref=on1, w=on1[nz], t=(nz + 0.5) * krok_ms)
-    ph = (_PROFIL["t"] % okres) / okres
-    h = np.bincount((ph * nb).astype(int) % nb, weights=_PROFIL["w"], minlength=nb)
+        pr.update(ref=on1, w=on1[nz], t=(nz + 0.5) * krok_ms)
+    ph = (pr["t"] % okres) / okres
+    h = np.bincount((ph * nb).astype(int) % nb, weights=pr["w"], minlength=nb)
     k = 4
     hs = np.convolve(np.concatenate([h[-k:], h, h[:k]]), np.ones(2 * k + 1) / (2 * k + 1), "same")[k:-k]
     return hs.max() / (hs.mean() + 1e-12), (np.argmax(hs) + 0.5) / nb * okres / 1000.0
 
 
-_KICK120 = {"ref": None, "e": None, "c": None}
+def _kick120() -> dict:
+    return _cache("kick120", {"ref": 0, "e": 0, "c": 0})
 
 
 def _poczatek_kicka(y: np.ndarray, bpm: float, t0: float) -> float:
     """Przesuniecie (s) siatki t0+k*okres do poczatku narastania kicka (basu <120 Hz)."""
     okres = 60.0 / bpm
-    if _KICK120["ref"] is not y:  # filtr zalezy tylko od y: petla w analizuj() wola to 2x dla tego samego utworu
+    kc = _kick120()
+    if kc["ref"] is not y:  # filtr zalezy tylko od y: petla w analizuj() wola to 2x dla tego samego utworu
         sos = butter(4, 120 / (SR / 2), output="sos")
         e = np.abs(sosfiltfilt(sos, y))
-        _KICK120.update(ref=y, e=e, c=np.concatenate(([0.0], np.cumsum(e))))
-    e, c = _KICK120["e"], _KICK120["c"]
+        kc.update(ref=y, e=e, c=np.concatenate(([0.0], np.cumsum(e))))
+    e, c = kc["e"], kc["c"]
     w = int(0.003 * SR)
     ts = t0 + np.arange(0, int((len(y) / SR - t0) / okres) - 1)[::2] * okres
     offs = np.arange(-int(okres * 500), int(okres * 500))
@@ -276,7 +294,7 @@ def analizuj(y: np.ndarray) -> Dict[str, Any]:
     okres = 60.0 / bpm
     for _ in range(2):  # dosun siatke do poczatku narastania kicka
         faza = (faza + _poczatek_kicka(y, bpm, faza)) % okres
-    _KICK120.update(ref=None, e=None, c=None)
+    _kick120().update(ref=None, e=None, c=None)
     try:
         takt_d = wykryj_takt(y, bpm, float(faza))
     except Exception:
@@ -287,8 +305,8 @@ def analizuj(y: np.ndarray) -> Dict[str, Any]:
         wynik.update(_takt_z_sieci(y, bpm, float(faza), takt_d))
     except Exception as e:  # noqa: BLE001  # bez sieci zostaje algorytm zapasowy
         wynik["siec_blad"] = "%s: %s" % (type(e).__name__, e)
-    _PROFIL.update(ref=None, w=None, t=None)  # zwolnij pamiec podreczna filtrow/profilu tego utworu
-    _KICK120.update(ref=None, e=None, c=None)
+    _profil().update(ref=None, w=None, t=None)  # zwolnij pamiec podreczna filtrow/profilu tego utworu
+    _kick120().update(ref=None, e=None, c=None)
     return wynik
 
 

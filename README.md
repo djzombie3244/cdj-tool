@@ -7,7 +7,7 @@ CDJ Tool analyses your tracks (BPM, beat grid, waveforms, cue points) and writes
 loads like a rekordbox export: track database (`export.pdb`), analysis files (`ANLZ0000.DAT` / `.EXT`) and copies of
 your audio files. It is a small native macOS app that works completely **offline**.
 
-> **Status:** version 1.0.2. Tested by the author on real hardware: a CDJ-2000 (non-NXS) running the
+> **Status:** version 1.0.3. Tested by the author on real hardware: a CDJ-2000 (non-NXS) running the
 > [RaftTone mod](https://rafttone.com/cdj2000/), with MP3 tracks (database, waveforms, BPM, cues, loading).
 > AAC, WAV, AIFF and FLAC support is newer and still being tested on hardware; a CDJ-2000 with stock firmware has
 > not been tested by the author yet (see [Known limitations](#known-limitations)). Please report what works for you.
@@ -28,7 +28,7 @@ The interface is available in Polish, English, German, French, Spanish and Itali
 
 | Player | Status |
 |---|---|
-| **CDJ-2000 with the RaftTone mod** (official firmware 4.33 + mod) | **Main target, tested by the author** (MP3: database, waveforms, BPM, cues, loading). The mod takes waveform, beat grid and cues from the analysis files on the stick; tracks copied by hand show *NO WAVEFORM DATA*. CDJ Tool writes exactly those files. Optional FLAC (experimental, see below). |
+| **CDJ-2000 with the RaftTone mod** (official firmware 4.33 + mod) | **Main target, tested by the author** (MP3: database, waveforms, BPM, cues, loading). The mod takes waveform, beat grid and cues from the analysis files on the stick; tracks copied by hand show *NO WAVEFORM DATA*. CDJ Tool writes exactly those files. Optional FLAC (experimental, works worse than MP3, see below). |
 | **CDJ-2000** (original, not NXS), stock firmware | **Intended to work** (the stick has the same structure as a rekordbox export) but **not tested by the author**. Reports welcome. |
 | CDJ-2000NXS, NXS2, CDJ-900NXS2, XDJ-1000MK2 and similar | Not a target and not tested. They read the same classic database but may need extra files this tool does not write. |
 | CDJ-3000X, OPUS-QUAD, OMNIS-DUO, XDJ-AZ | **Not supported.** AlphaTheta says they read only the newer *OneLibrary* format (`exportLibrary.db`), which this tool does not write. |
@@ -40,7 +40,7 @@ affiliated with it. Follow the mod's own page for building and flashing the firm
 ## Features
 
 - Analysis of **MP3, AAC (.m4a), WAV and AIFF** files (the formats a stock CDJ-2000 plays; ALAC is not supported and is skipped).
-- **Optional FLAC** (experimental): tick *Include FLAC* if your CDJ-2000 runs the RaftTone mod, which plays FLAC (stereo, 16 or 24 bit, 44.1 or 48 kHz). A stock CDJ-2000 cannot play FLAC.
+- **Optional FLAC** (experimental): tick *Include FLAC* if your CDJ-2000 runs the RaftTone mod, which plays FLAC (stereo, 16 or 24 bit, 44.1 or 48 kHz). A stock CDJ-2000 cannot play FLAC. In the author's test on a CDJ-2000 with the mod, FLAC tracks load and play, but hot cues load slowly and the player does not use the exported BPM and beat grid, so it has to analyse the track itself. FLAC therefore performs worse than MP3, AAC, WAV and AIFF; use it only if you need it. Reports from other hardware are welcome.
 - **BPM and beat grid** detection, **overview and detailed waveforms** (the CDJ-2000 needs the `.EXT` file to show waveforms), automatic **hot cues and memory cues**.
 - **Adds to an existing library** on the stick instead of overwriting it; playlists, genres and earlier analysis are kept. Optional full replace (with a backup).
 - Parallel analysis tuned to your disk speed and a RAM limit; time-remaining estimate. It uses at most half of your CPU cores, so the Mac stays cool and responsive.
