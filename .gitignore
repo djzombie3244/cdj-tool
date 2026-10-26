@@ -15,3 +15,7 @@ build/
 *.aiff
 *.dmg
 Applications/
+
+# local debugging scripts and logs
+dev-local/
+*.command

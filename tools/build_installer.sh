@@ -46,12 +46,22 @@ echo "==> Copying the app bundle"
 ditto "$APP_IN" "$APP"
 
 echo "==> Installing sources from src/cdjtool"
-for f in app.py silnik.py pdb_writer.py gen_dat.py takt.py audio_stream.py exceptions.py logging_config.py worker.py ui.html config.json AppIcon.png; do
+for f in app.py silnik.py pdb_writer.py gen_dat.py takt.py beatthis.py cue.py audio_stream.py exceptions.py logging_config.py worker.py ui.html config.json AppIcon.png; do
   [ -f "$SRC/$f" ] || die "Missing source file: $f"
   cp "$SRC/$f" "$RES/$f"
 done
 rm -rf "$RES/wzorzec"
 cp -R "$SRC/wzorzec" "$RES/wzorzec"
+
+echo "==> Beat This! model and ONNX Runtime (universal2, runs on Apple Silicon and Intel)"
+bash "$ROOT/tools/fetch_models.sh" >/dev/null || die "Could not fetch the model/ONNX Runtime (needs internet once)"
+mkdir -p "$RES/models"
+cp "$ROOT/build/models/beat_this.onnx" "$ROOT/build/models/mel-filterbank.bin" "$RES/models/"
+mkdir -p "$RES/Licenses"
+cp "$ROOT"/licenses/* "$RES/Licenses/"   # ONNX Runtime and Beat This! (MIT requires the notice to travel with the app)
+SP="$RES/python/site-packages"
+rm -rf "$SP"/onnxruntime "$SP"/onnxruntime-*
+unzip -q -o "$(ls "$ROOT"/build/ort/onnxruntime-1.19.2-cp39-cp39-macosx_11_0_universal2.whl)" -d "$SP"
 
 echo "==> Cleaning"
 find "$APP" -name "__pycache__" -type d -prune -exec rm -rf {} + 2>/dev/null || true
@@ -145,7 +155,9 @@ t = [e for e in ev if e.get("typ") == "utwor"][0]
 assert abs(t["bpm"] - bpm) < 0.5, t["bpm"]
 lib = pdb_writer.czytaj_biblioteke(open(os.path.join(usb, "PIONEER", "rekordbox", "export.pdb"), "rb").read())
 assert len(lib["utwory"]) == 1
-print("self-test OK, detected BPM %.2f" % t["bpm"])
+import beatthis
+assert beatthis.dostepny(), "Beat This! model not usable: %s" % beatthis.blad()
+print("self-test OK, detected BPM %.2f, Beat This! available" % t["bpm"])
 PYEOF
 env -i HOME="$HOME" PATH="/usr/bin:/bin" PYTHONHOME="$FWK" PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 CDJ_FFMPEG="$FF" \
   ${RUN[@]+"${RUN[@]}"} "$FWK/bin/python3.9" "$SELFTEST" "$RES" "$RES/python/site-packages" || die "Self-test failed"

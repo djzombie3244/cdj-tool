@@ -1,7 +1,24 @@
 # Changelog
 
-## 1.0.1 - 2026
+## Unreleased
+- **Optional FLAC** (experimental) for a CDJ-2000 running the RaftTone mod, which plays FLAC (stereo, 16 or 24 bit, 44.1 or 48 kHz). Off by default, because a stock CDJ-2000 cannot play FLAC. Rebuild the bundled ffmpeg with `tools/build_ffmpeg.sh` to decode FLAC.
+- Analysis is about 12 % faster per track with byte-identical results (the same filters and histograms are no longer computed twice; verified by tests), and ffmpeg decodes with one thread so parallel tracks do not fight over the CPU.
+- Analysis runs in separate processes but uses at most half of the CPU cores, so the Mac stays cooler and responsive.
+- Fixed the **Cancel** button (a proper confirmation dialog instead of the system one that the app window blocked).
+- Waveform previews load in one batch request and are smaller.
+- Formatting the stick: when it fails, the app now explains what to try (reconnect, format in Disk Utility, the stick may be faulty). After a successful format the old results list is cleared.
+- Fixed language switching: the track info line and the format result are now translated when you change the language.
+- Docs: screenshots (English and Polish) added to both READMEs.
+- Docs: compatibility table (which players work, OneLibrary-only players are not supported), RaftTone mod section, licenses in plain words. License texts of ONNX Runtime and Beat This! are now shipped with the app. Added `SECURITY.md`, `CODE_OF_CONDUCT.md`, tests for FLAC and for the speed-ups.
 
+## 1.0.1 - 2026
+- Analysis cache: tracks analysed before (same file, size and date) are not analysed again, so re-exports and adding a few tracks to a large library take seconds. Cache is capped at 2 GB.
+- Analysis runs at lower priority, so the Mac stays responsive during long runs.
+- The main CUE and hot cue A sit at the start of the sound (like the CDJ Auto Cue), and Hot Cue Auto Load is off, so hot cues are only marked until you call them.
+- Beat grid and the red line: the bar phase (which beat is beat 1) is now voted from the Beat This! neural network (CPJKU, ISMIR 2024, MIT; runs offline through ONNX Runtime), falling back to the old heuristic when the model is unavailable. Checked against Rekordbox on 15 tracks.
+- HOT CUE and Memory Cue are generated automatically (start of the groove, drop, break, outro on 8-bar phrase boundaries) and written as PCOB (DAT and EXT) and PCO2 (EXT).
+- Colour waveform: `PWV5` (detail) and `PWV4` (preview) are now written to `ANLZ0000.EXT` (low/mid/high bands as R/G/B, fitted to a Rekordbox export of 15 tracks), so the small overview waveform is no longer blue only.
+- Faster analysis: the neural network now listens to the strongest ~30 s bass section of a track instead of the whole file (widening to 2, 4 sections or the whole track when the vote is unclear) (same bar phase on all 15 test tracks, falling back to the full track when the vote is unclear), about 4x faster overall. Added a "Mix in" memory cue 16 bars before the first drop.
 - Several source folders: add as many folders as you like; they are written one after another, each as its own playlist (named after the folder) into the same library.
 - BPM shows on the CDJ-2000 immediately (no own analysis by the player): the `PQT2` tag is now written to `ANLZ0000.EXT`, byte-identical to a Rekordbox export (verified on 15 tracks).
 - Beat grid: the red line (beat 1 of the bar) is placed where the main beat starts after an intro or breakdown (kick-start detection with a novelty-vote fallback). Verified on a CDJ-2000.

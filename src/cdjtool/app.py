@@ -15,8 +15,16 @@ import time
 import urllib.parse
 import webbrowser
 import concurrent.futures
-import fcntl
 import tempfile
+
+WIN = sys.platform == "win32"
+if WIN:
+    os.environ.setdefault("PYTHONUTF8", "1")
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import winplat
+    winplat.install_no_window_patch()
+else:
+    import fcntl
 
 KAT = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True  # do not modify the (signed) app bundle at run time
@@ -26,9 +34,17 @@ PORT = int(os.environ.get("CDJ_PORT", "0" if NATIVE else "8766"))
 TOKEN = secrets.token_urlsafe(18)
 DEV = os.environ.get("CDJ_DEV") == "1"
 OSASCRIPT = os.environ.get("CDJ_OSASCRIPT", "osascript")
-SUPPORT = os.path.expanduser("~/Library/Application Support/CDJ-Tool")
+SUPPORT = winplat.support_dir() if WIN else os.path.expanduser("~/Library/Application Support/CDJ-Tool")
 VENV = os.path.join(SUPPORT, "venv")
 VENV_PY = os.path.join(VENV, "bin", "python3")
+if WIN:
+    os.makedirs(SUPPORT, exist_ok=True)
+
+
+def jest_wolumin(sciezka):
+    """Czy ścieżka to korzeń pendrive'a (macOS: /Volumes/X, Windows: litera dysku)."""
+    s = str(sciezka or "")
+    return winplat.jest_pendrive(s) if WIN else s.startswith("/Volumes/")
 
 LOCK = threading.Lock()
 STAN = {
@@ -49,6 +65,8 @@ def dodaj_log(lista, linia, limit=80):
 
 
 def python_roboczy():
+    if BUNDLED and WIN:
+        return os.environ["CDJ_PYTHON"]
     if BUNDLED:
         return os.path.join(os.path.dirname(KAT), "Frameworks", "Python3Bundled.framework",
                             "Versions", "3.9", "bin", "python3.9")
@@ -76,14 +94,15 @@ def przygotuj():
             env = dict(os.environ)
             env.pop("PYTHONPATH", None)
             probe_code = ("import os, sys; sys.path.insert(0, os.environ['CDJ_SITE_PACKAGES']); "
-                          "import numpy, scipy, imageio_ffmpeg")
+                          + ("import numpy, scipy" if WIN else "import numpy, scipy, imageio_ffmpeg"))
             probe = subprocess.run([python_roboczy(), "-c", probe_code],
-                                   capture_output=True, text=True, env=env)
+                                   capture_output=True, text=True, env=env,
+                                   **({"encoding": "utf-8", "errors": "replace"} if WIN else {}))
             if probe.returncode != 0:
                 raise RuntimeError("Nie udało się uruchomić dołączonych bibliotek: " +
                                    (probe.stderr or probe.stdout).strip())
             ffmpeg = FFMPEG["sciezka"]
-            if not ffmpeg or not os.path.isfile(ffmpeg) or not os.access(ffmpeg, os.X_OK):
+            if not ffmpeg or not os.path.isfile(ffmpeg) or (not WIN and not os.access(ffmpeg, os.X_OK)):
                 raise RuntimeError("W pakiecie brakuje programu FFmpeg.")
             sprawdzenie = subprocess.run([ffmpeg, "-version"], capture_output=True)
             if sprawdzenie.returncode != 0:
@@ -143,6 +162,8 @@ def przygotuj():
 
 # ------------------------------------------------------------ wybor folderu -
 def wybierz_folder(komunikat, start=None):
+    if WIN:
+        return winplat.wybierz_folder(komunikat, start, korzen_komputer=(start == "/Volumes"))
     domyslny = ""
     if start and os.path.isdir(start):
         domyslny = ' default location (POSIX file "%s" as alias)' % start.replace('"', "")
@@ -159,16 +180,23 @@ ROZSZERZENIA_AUDIO = (".mp3", ".m4a", ".aac", ".wav", ".aif", ".aiff")
 
 
 def info_mp3(sciezka):
-    pliki = []
+    """Liczy pliki audio; FLAC osobno (gra tylko z modem CDJ-2000), bo wlacza go opcja w interfejsie."""
+    pliki, flac = [], []
     for dp, dn, fn in os.walk(sciezka):
         dn[:] = sorted(d for d in dn if not d.startswith(".") and d != "PIONEER")
         for nazwa in fn:
             pelna = os.path.join(dp, nazwa)
-            if nazwa.lower().endswith(ROZSZERZENIA_AUDIO) and not nazwa.startswith(".") and not os.path.islink(pelna):
+            if nazwa.startswith(".") or os.path.islink(pelna):
+                continue
+            if nazwa.lower().endswith(ROZSZERZENIA_AUDIO):
                 pliki.append(os.path.relpath(pelna, sciezka))
+            elif nazwa.lower().endswith(".flac"):
+                flac.append(os.path.relpath(pelna, sciezka))
     pliki.sort()
     rozmiar = sum(os.path.getsize(os.path.join(sciezka, f)) for f in pliki)
+    rozmiar_flac = sum(os.path.getsize(os.path.join(sciezka, f)) for f in flac)
     return {"sciezka": sciezka, "liczba": len(pliki), "rozmiar_mb": round(rozmiar / 1e6, 1),
+            "flac": len(flac), "flac_mb": round(rozmiar_flac / 1e6, 1),
             "przyklady": pliki[:4]}
 
 
@@ -176,12 +204,12 @@ def info_pendrive(sciezka):
     du = shutil.disk_usage(sciezka)
     return {"sciezka": sciezka, "nazwa": os.path.basename(sciezka) or sciezka,
             "wolne_mb": round(du.free / 1e6), "ma_pioneer": os.path.isdir(os.path.join(sciezka, "PIONEER")),
-            "na_dysku": sciezka.startswith("/Volumes/")}
+            "na_dysku": jest_wolumin(sciezka)}
 
 
 def _odczytaj_fragment(pliku, offset, limit):
     """Czyta wyznaczony fragment bez cache macOS, żeby pomiar dotyczył nośnika."""
-    fd = os.open(pliku, os.O_RDONLY)
+    fd = os.open(pliku, os.O_RDONLY | getattr(os, 'O_BINARY', 0))
     try:
         if sys.platform == "darwin":
             try:
@@ -206,7 +234,7 @@ def _odczytaj_fragment(pliku, offset, limit):
 
 def _zapisz_fragment(pliku, offset, limit):
     """Zapisuje niezerowane bloki próbne na docelowym urządzeniu."""
-    fd = os.open(pliku, os.O_WRONLY)
+    fd = os.open(pliku, os.O_WRONLY | getattr(os, 'O_BINARY', 0))
     dane = b"\0" * (1024 * 1024)
     try:
         if sys.platform == "darwin":
@@ -232,8 +260,8 @@ def _zapisz_fragment(pliku, offset, limit):
 
 def _kopiuj_fragment(wejscie, wyjscie, offset, limit):
     """Czyta próbkę z dysku źródłowego i równocześnie zapisuje ją na celu."""
-    src = os.open(wejscie, os.O_RDONLY)
-    dst = os.open(wyjscie, os.O_WRONLY)
+    src = os.open(wejscie, os.O_RDONLY | getattr(os, 'O_BINARY', 0))
+    dst = os.open(wyjscie, os.O_WRONLY | getattr(os, 'O_BINARY', 0))
     try:
         if sys.platform == "darwin":
             for fd in (src, dst):
@@ -276,6 +304,11 @@ MAKS_ZADAN = 256  # twardy sufit liczby rownoleglych zadan (RAM i tak ogranicza 
 
 def ram_mb_app():
     """(calkowity, dostepny) RAM w MB; tylko do informacji w interfejsie."""
+    if WIN:
+        try:
+            return winplat.ram_mb()
+        except Exception:  # noqa: BLE001
+            return 4096.0, 2048.0
     try:
         calk = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e6
         if sys.platform == "darwin":
@@ -307,7 +340,7 @@ def zmierz_predkosc(folder_mp3, pendrive, kopiuj_mp3):
     for dp, dn, fn in os.walk(folder_mp3):
         dn[:] = [d for d in dn if not d.startswith(".") and d != "PIONEER"]
         for nazwa in fn:
-            if nazwa.lower().endswith(ROZSZERZENIA_AUDIO) and not nazwa.startswith("."):
+            if nazwa.lower().endswith(ROZSZERZENIA_AUDIO + (".flac",)) and not nazwa.startswith("."):
                 sciezka = os.path.join(dp, nazwa)
                 if os.path.isfile(sciezka) and not os.path.islink(sciezka):
                     kandydaci.append((os.path.getsize(sciezka), sciezka))
@@ -379,6 +412,8 @@ def ocen_pendrive_do_formatu(info_wolumen, info_dysk, sciezka):
 
 
 def info_formatowania(sciezka):
+    if WIN:
+        return winplat.info_formatowania(sciezka)
     wol = _plist(sciezka)
     cały = wol.get("ParentWholeDisk") or wol.get("DeviceIdentifier")
     dysk = _plist(cały)
@@ -387,6 +422,8 @@ def info_formatowania(sciezka):
 
 def formatuj_pendrive(sciezka, nowa_nazwa):
     """FAT32 + tablica MBR: układ, który czyta CDJ-2000. Kasuje CAŁY dysk."""
+    if WIN:
+        return winplat.formatuj_pendrive(sciezka, nowa_nazwa)
     opis = info_formatowania(sciezka)
     nazwa = re.sub(r"[^A-Z0-9_ -]", "", (nowa_nazwa or "CDJ").upper())[:11].strip() or "CDJ"
     r = subprocess.run(["diskutil", "eraseDisk", "FAT32", nazwa, "MBR", "/dev/" + opis["dysk"]],
@@ -401,6 +438,8 @@ def wysun_pendrive(sciezka, uruchom=None, czekaj=time.sleep):
     """Wysuwa pendrive. Spotlight (mds) potrafi chwilę trzymać świeżo zapisany wolumin,
     więc: sync, kilka prób zwykłego wysunięcia, a na końcu odmontowanie wymuszone
     (po sync zapis jest już na nośniku)."""
+    if WIN:
+        return winplat.wysun_pendrive(sciezka, czekaj)
     uruchom = uruchom or (lambda *c: subprocess.run(list(c), capture_output=True, text=True))
     try:
         os.sync()
@@ -480,7 +519,7 @@ def biegnie_zadanie(a):
         cmd.extend([os.path.join(KAT, "worker.py"), json.dumps(a)])
         p = subprocess.Popen(cmd,
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, env=env,
-                             cwd=KAT)
+                             cwd=KAT, **({"encoding": "utf-8", "errors": "replace"} if WIN else {}))
         PROC["p"] = p
         for linia in p.stdout:
             linia = linia.rstrip("\n")
@@ -630,8 +669,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     job["log"] = list(job.get("log", []))[-30:]
                 return self._wyslij(200, {"setup": STAN["setup"], "job": job, "benchmark": benchmark})
         if url.path == "/api/podglad":
-            i = int(urllib.parse.parse_qs(url.query).get("i", ["0"])[0])
-            return self._wyslij(200, PODGLADY.get(i) or {})
+            raw = urllib.parse.parse_qs(url.query).get("i", ["0"])[0]
+            # Obsługa batch: "i=1,2,3" zwraca listę podglądów
+            if "," in raw:
+                ids = [int(x) for x in raw.split(",") if x.strip().isdigit()]
+                wyniki = []
+                for i in ids:
+                    p = PODGLADY.get(i)
+                    if p is not None:
+                        wyniki.append(dict(p, i=i))
+                return self._wyslij(200, wyniki)
+            i = int(raw)
+            p = PODGLADY.get(i)
+            return self._wyslij(200, dict(p, i=i) if p else {})
         return self._wyslij(404, {"blad": "nie znaleziono"})
 
     def do_POST(self):
@@ -650,7 +700,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     p = dane.get("sciezka") if NATIVE else wybierz_folder(
                         "Wybierz folder z utworami MP3", os.path.expanduser("~/Music"))
                     return self._wyslij(200, {"sciezka": None} if not p else info_mp3(p))
-                if dane.get("bez_dialogu") and str(dane.get("sciezka", "")).startswith("/Volumes/") \
+                if dane.get("bez_dialogu") and jest_wolumin(dane.get("sciezka", "")) \
                         and os.path.isdir(dane["sciezka"]):
                     p = dane["sciezka"]
                 else:
@@ -662,6 +712,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                      "playlista": str(dane.get("playlista") or "Tracks")[:60],
                      "kopiuj_mp3": bool(dane.get("kopiuj_mp3", True)),
                      "zastap_pioneer": bool(dane.get("zastap_pioneer", False)),
+                     "flac": bool(dane.get("flac", False)),
                      "nazwa_folderu": str(dane.get("nazwa_folderu") or "")[:60]}
                 benchmark = STAN["benchmark"]
                 if (benchmark.get("stan") != "gotowe" or
@@ -706,7 +757,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._wyslij(200, formatuj_pendrive(p, dane.get("nowa_nazwa", "CDJ")))
             if sciezka == "/api/wysun":
                 p = os.path.abspath(dane.get("sciezka", ""))
-                if not p.startswith("/Volumes/") or not os.path.isdir(p):
+                if not jest_wolumin(p) or not os.path.isdir(p):
                     return self._wyslij(400, {"blad": "To nie jest pendrive."})
                 ok, tekst = wysun_pendrive(p)
                 return self._wyslij(200, {"ok": ok, "tekst": tekst})
@@ -739,7 +790,9 @@ def main():
     global PORT
     if not NATIVE and port_zajety():
         if not os.environ.get("CDJ_NO_BROWSER"):
-            webbrowser.open("http://127.0.0.1:%d/" % PORT)
+            u = "http://127.0.0.1:%d/" % PORT
+            if not (WIN and winplat.otworz_okno(u)):
+                webbrowser.open(u)
         return
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     PORT = srv.server_address[1]
@@ -751,7 +804,10 @@ def main():
     elif os.environ.get("CDJ_NO_BROWSER"):
         print("TOKEN", TOKEN, flush=True)
     else:
-        webbrowser.open(url)
+        if WIN and os.environ.get("CDJ_WINDOW", "1") == "1" and winplat.otworz_okno(url):
+            pass
+        else:
+            webbrowser.open(url)
     srv.serve_forever()
 
 

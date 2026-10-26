@@ -1,22 +1,49 @@
 # CDJ Tool
 
-**Przygotuj pendrive dla odtwarzaczy Pioneer CDJ-2000 na Macu, bez rekordboxa.**
+**Przygotuj pendrive dla Pioneer CDJ-2000 (oryginalnego, nie NXS) na Macu, bez rekordboxa. Zrobiony do pracy razem z [modem firmware CDJ-2000 od RaftTone](https://rafttone.com/cdj2000/).**
 🇬🇧 [English version](README.md)
 
-CDJ Tool analizuje utwory (BPM, siatka beatów, waveformy) i zapisuje pendrive, który zwykły **CDJ-2000**
+CDJ Tool analizuje utwory (BPM, siatka beatów, waveformy, punkty cue) i zapisuje pendrive, który **CDJ-2000**
 wczytuje tak jak eksport z rekordboxa: baza utworów (`export.pdb`), pliki analizy (`ANLZ0000.DAT` / `.EXT`)
 i kopie plików audio. To mała, natywna aplikacja na macOS, która działa całkowicie **offline**.
 
-> **Status:** wersja 1.0.1. Sprawdzona na prawdziwym sprzęcie, CDJ-2000 (nie NXS), dla utworów MP3:
-> baza, waveformy, wczytywanie. Obsługa AAC, WAV i AIFF jest nowsza i nadal testowana na sprzęcie
+> **Status:** wersja 1.0.1. Autor testował na prawdziwym sprzęcie: CDJ-2000 (nie NXS) z [modem RaftTone](https://rafttone.com/cdj2000/),
+> na utworach MP3 (baza, waveformy, BPM, cue, wczytywanie). Obsługa AAC, WAV, AIFF i FLAC jest nowsza i nadal testowana
+> na sprzęcie; CDJ-2000 z oryginalnym firmware nie był jeszcze testowany przez autora
 > (zobacz [Znane ograniczenia](#znane-ograniczenia)). Daj znać, co działa u Ciebie.
+
+## Zrzuty ekranu
+
+| Wybór folderu i pendrive'a | Formatowanie pendrive'a (opcjonalne) |
+|---|---|
+| ![Ekran główny](docs/screenshots/pl-main.jpg) | ![Formatowanie](docs/screenshots/pl-format.jpg) |
+
+| Analiza i kopiowanie | Wyniki: BPM, siatka beatów, waveformy |
+|---|---|
+| ![Postęp](docs/screenshots/pl-progress.jpg) | ![Wyniki](docs/screenshots/pl-results.jpg) |
+
+Interfejs jest dostępny po polsku, angielsku, niemiecku, francusku, hiszpańsku i włosku.
+
+## Z jakimi odtwarzaczami działa?
+
+| Odtwarzacz | Status |
+|---|---|
+| **CDJ-2000 z modem RaftTone** (oficjalne firmware 4.33 + mod) | **Główny cel, testowany przez autora** (MP3: baza, waveformy, BPM, cue, wczytywanie). Mod bierze waveform, siatkę beatów i cue z plików analizy na pendrive; utwory skopiowane ręcznie pokazują *NO WAVEFORM DATA*. CDJ Tool zapisuje właśnie te pliki. Opcjonalny FLAC (eksperymentalny, niżej). |
+| **CDJ-2000** (oryginalny, nie NXS), oryginalne firmware | **Powinien działać** (pendrive ma tę samą strukturę co eksport z rekordboxa), ale **autor tego nie testował**. Zgłoszenia mile widziane. |
+| CDJ-2000NXS, NXS2, CDJ-900NXS2, XDJ-1000MK2 i podobne | Nie są celem i nie były testowane. Czytają tę samą klasyczną bazę, ale mogą potrzebować dodatkowych plików, których narzędzie nie zapisuje. |
+| CDJ-3000X, OPUS-QUAD, OMNIS-DUO, XDJ-AZ | **Nieobsługiwane.** Według AlphaTheta czytają tylko nowszy format *OneLibrary* (`exportLibrary.db`), którego to narzędzie nie zapisuje. |
+| CDJ-3000 | Nietestowany (firmware 3.30 woli OneLibrary). |
+
+Mod RaftTone to osobny projekt. CDJ Tool jest niezależny, nie zawiera firmware'u ani kodu moda i nie jest z nim
+powiązany. Budowanie i wgrywanie firmware'u opisuje strona moda; robisz to na własne ryzyko.
 
 ## Funkcje
 
-- Analiza plików **MP3, AAC (.m4a), WAV i AIFF** (formaty, które gra CDJ-2000; FLAC i ALAC odtwarzacz nie obsługuje, więc są pomijane).
-- Wykrywanie **BPM i siatki beatów**, **waveform przeglądowy i szczegółowy** (CDJ-2000 potrzebuje pliku `.EXT`, żeby pokazać waveform).
+- Analiza plików **MP3, AAC (.m4a), WAV i AIFF** (formaty, które gra zwykły CDJ-2000; ALAC nie jest obsługiwany i jest pomijany).
+- **Opcjonalny FLAC** (eksperymentalny): zaznacz *Włącz FLAC*, jeśli Twój CDJ-2000 ma mod RaftTone, który gra FLAC (stereo, 16 lub 24 bity, 44,1 lub 48 kHz). Zwykły CDJ-2000 nie odtworzy FLAC.
+- Wykrywanie **BPM i siatki beatów**, **waveform przeglądowy i szczegółowy** (CDJ-2000 potrzebuje pliku `.EXT`, żeby pokazać waveform), automatyczne **hot cue i memory cue**.
 - **Dopisywanie do istniejącej biblioteki** na pendrive zamiast nadpisywania; playlisty, gatunki i wcześniejsza analiza zostają. Opcjonalne pełne zastąpienie (z kopią zapasową).
-- Równoległa analiza dopasowana do szybkości dysku (maksymalnie 80 % zmierzonej przepustowości) z limitem pamięci RAM oraz szacowanym czasem do końca.
+- Równoległa analiza dopasowana do szybkości dysku i limitu pamięci RAM oraz szacowany czas do końca. Używa najwyżej połowy rdzeni procesora, więc Mac pozostaje chłodny i responsywny.
 - Opcjonalne **formatowanie pendrive do FAT32 (MBR)** pod CDJ-2000.
 - Niezawodny przycisk **wysuwania**.
 - Interfejs w **6 językach**: Polski, English, Deutsch, Français, Español, Italiano.
@@ -47,11 +74,15 @@ skopiowany do `Dokumenty/CDJ-Tool-kopie`).
 
 ## Znane ograniczenia
 
-- Siatka beatów jest liczona heurystycznie (początek uderzenia stopy + histogram tempa). Dobrze radzi sobie
-  z większością utworów four-on-the-floor, ale **nie jest identyczna z rekordboxem**; zawsze sprawdź ją na odtwarzaczu.
+- Siatka beatów to stałe tempo znalezione przez początek uderzenia stopy i histogram tempa; to, który beat otwiera
+  takt, jest ustalane głosowaniem sieci neuronowej Beat This!. Dobrze radzi sobie z większością utworów
+  four-on-the-floor, ale **nie jest identyczna z rekordboxem**; zawsze sprawdź ją na odtwarzaczu, zwłaszcza zanim
+  zaufasz SYNC lub beat jump z moda.
 - Utwory ze zmiennym tempem i bez wyraźnej stopy nie są obsługiwane dobrze.
 - Zapis bazy obsługuje około 10 000 utworów na pendrive; większe zbiory trzeba podzielić.
-- Sprawdzone tylko na CDJ-2000. Inne modele (NXS, NXS2, CDJ-3000) mogą wymagać dodatkowych plików, których to narzędzie nie zapisuje.
+- Testowane tylko na CDJ-2000 z modem RaftTone. Inne odtwarzacze: zobacz tabelę wyżej.
+- Widok *Folder* na CDJ-2000 nie korzysta z danych analizy (eksport z rekordboxa zachowuje się tak samo);
+  używaj *All Tracks* lub *Playlist*.
 - 24-bitowe pliki WAV z nagłówkiem `WAVE_FORMAT_EXTENSIBLE` mogą nie wczytać się na CDJ-2000; użyj zwykłego PCM.
 - Aplikacja jest podpisana ad-hoc, nie notaryzowana.
 
@@ -70,15 +101,24 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
+## Licencja po ludzku
+
+CDJ Tool to wolne oprogramowanie na licencji **MIT**: każdy może go używać, kopiować, zmieniać i udostępniać, także
+komercyjnie, byle zachować informację o prawach autorskich. Składniki dołączone do aplikacji (Python, NumPy, SciPy,
+ONNX Runtime, model Beat This!, FFmpeg) mają własne, wolne licencje. Wszystkie teksty licencji są w aplikacji
+(folder `Licenses`) i wymienione w [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Nie musisz nic robić ani za nic płacić.
+
 ## Zastrzeżenie
 
-CDJ Tool to niezależny, nieoficjalny projekt. **Nie jest powiązany z firmami Pioneer DJ i AlphaTheta ani z zespołem
-rekordbox, nie jest przez nie wspierany ani zatwierdzony.** *Pioneer DJ*, *CDJ* i *rekordbox* są znakami towarowymi
+CDJ Tool to niezależny, nieoficjalny projekt. **Nie jest powiązany z firmami Pioneer DJ, AlphaTheta ani RaftTone, ani
+z zespołem rekordbox, nie jest przez nie wspierany ani zatwierdzony.** *Pioneer DJ*, *CDJ* i *rekordbox* są znakami towarowymi
 ich właścicieli i występują tu wyłącznie dla opisu zgodności. Narzędzie zapisuje pliki w formacie poznanym w ramach
 badań nad interoperacyjnością; używasz go na własne ryzyko, **testuj na pendrive, który możesz wyczyścić**.
 Oprogramowanie jest dostarczane „tak jak jest”, bez gwarancji (zobacz [LICENSE](LICENSE)).
 
-## Autor
+## Autor i podziękowania
 
-© 2026 **Wiktor Bakowicz**. Licencja [MIT](LICENSE). Składniki osób trzecich: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+© 2026 **Wiktor Bakowicz**. Licencja [MIT](LICENSE).
+Wykrywanie fazy taktu korzysta z **Beat This!** (Foscarin, Schlüter, Widmer, ISMIR 2024, MIT) przez ONNX Runtime.
+Składniki osób trzecich: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 Powstało z pomocą asystenta AI (Claude, Anthropic).

@@ -96,12 +96,22 @@ def sciezka_analizy(sciezka_utworu: str, przesuniecie: int = 0) -> str:
     return f"/PIONEER/USBANLZ/P{p:03X}/{h:08X}/ANLZ0000.DAT"
 
 
-# Formaty odtwarzane przez CDJ-2000: MP3, AAC (m4a), WAV, AIFF (FLAC/ALAC - nie).
+# Formaty odtwarzane przez zwykle CDJ-2000: MP3, AAC (m4a), WAV, AIFF (ALAC - nie).
+# FLAC gra tylko CDJ-2000 z modem rafttone.com/cdj2000 (stereo, 16/24 bit, 44,1/48 kHz), wiec jest opcjonalny.
 ROZSZERZENIA_AUDIO = (".mp3", ".m4a", ".aac", ".wav", ".aif", ".aiff")
-RODZINA_ROZSZERZEN = {".mp3": "mp3", ".m4a": "aac", ".aac": "aac", ".wav": "pcm", ".aif": "pcm", ".aiff": "pcm"}
+ROZSZERZENIE_FLAC = ".flac"
+FLAC = {"on": os.environ.get("CDJ_FLAC") == "1"}  # ustawiane z opcji w interfejsie (przetworz)
+
+
+def rozszerzenia():
+    return ROZSZERZENIA_AUDIO + ((ROZSZERZENIE_FLAC,) if FLAC["on"] else ())
+
+
+RODZINA_ROZSZERZEN = {".mp3": "mp3", ".m4a": "aac", ".aac": "aac", ".wav": "pcm", ".aif": "pcm", ".aiff": "pcm",
+                      ".flac": "flac"}
 KODEKI_PCM = {"pcm_s16le": 16, "pcm_s16be": 16, "pcm_s24le": 24, "pcm_s24be": 24}
-# wartosc pola "file type" w wierszu utworu rekordboxa (pdb): 1 MP3, 4 M4A, 11 WAV, 12 AIFF
-TYP_PLIKU = {".mp3": 1, ".m4a": 4, ".aac": 4, ".wav": 11, ".aif": 12, ".aiff": 12}
+# wartosc pola "file type" w wierszu utworu rekordboxa (pdb): 1 MP3, 4 M4A, 5 FLAC, 11 WAV, 12 AIFF
+TYP_PLIKU = {".mp3": 1, ".m4a": 4, ".aac": 4, ".flac": 5, ".wav": 11, ".aif": 12, ".aiff": 12}
 
 
 def pliki_mp3(folder: str) -> List[str]:
@@ -111,7 +121,7 @@ def pliki_mp3(folder: str) -> List[str]:
         dn[:] = sorted(d for d in dn if not d.startswith(".") and d != "PIONEER")
         for nazwa in fn:
             pelna = os.path.join(dp, nazwa)
-            if (nazwa.lower().endswith(ROZSZERZENIA_AUDIO) and not nazwa.startswith(".")
+            if (nazwa.lower().endswith(rozszerzenia()) and not nazwa.startswith(".")
                 and not os.path.islink(pelna)):
                 pliki.append(os.path.relpath(pelna, folder))
     return sorted(pliki)
@@ -126,9 +136,20 @@ MAKS_MIN_UTWORU = 45          # dluzsze utwory pomijamy (zbyt duze zuzycie pamie
 BAJTOW_NA_PROBKE = 4 * 16     # float32 x ~16 (zmierzony szczyt analizy ~14.7x dlugosci audio)
 
 
+def _na_wolumenie(root):
+    """Czy katalog jest na pendrive (macOS: /Volumes/..., Windows: litera dysku wymiennego)."""
+    if sys.platform == "win32":
+        import winplat
+        return winplat.jest_pendrive(os.path.splitdrive(os.path.abspath(root))[0] + "\\")
+    return root.startswith("/Volumes/")
+
+
 def ram_mb():
     """(calkowity, dostepny) RAM w MB; dostepny = wolny + do odzyskania. Bez zaleznosci zewnetrznych."""
     try:
+        if sys.platform == "win32":
+            import winplat
+            return winplat.ram_mb()
         if sys.platform == "darwin":
             calk = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e6
             out = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=5).stdout
@@ -231,6 +252,8 @@ def metadane(sciezka: str) -> Dict[str, any]:
         i = r.stderr
         m = re.search(r"Duration:\s*(\d+):(\d+):([\d.]+)", i)
         if not m:
+            if sciezka.lower().endswith(ROZSZERZENIE_FLAC):
+                raise InvalidMP3Error(os.path.basename(sciezka), "ten ffmpeg nie obsługuje FLAC (zbuduj go ponownie: tools/build_ffmpeg.sh)")
             raise InvalidMP3Error(os.path.basename(sciezka), "Nie można odczytać czasu trwania")
         
         dur = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
@@ -251,9 +274,21 @@ def metadane(sciezka: str) -> Dict[str, any]:
         nazwa_pliku = os.path.basename(sciezka)
         ext = os.path.splitext(nazwa_pliku)[1].lower()
         rodzina = RODZINA_ROZSZERZEN.get(ext)
-        if kodek in ("flac", "alac"):
-            raise InvalidMP3Error(nazwa_pliku, f"{kodek.upper()} nie jest obsługiwany przez CDJ-2000 (użyj MP3, AAC, WAV lub AIFF)")
-        if kodek == "mp3":
+        if kodek == "alac":
+            raise InvalidMP3Error(nazwa_pliku, "ALAC nie jest obsługiwany przez CDJ-2000 (użyj MP3, AAC, WAV lub AIFF)")
+        if kodek == "flac" and not FLAC["on"]:
+            raise InvalidMP3Error(nazwa_pliku, "FLAC gra tylko CDJ-2000 z modem (rafttone.com/cdj2000); włącz opcję FLAC albo użyj MP3, AAC, WAV lub AIFF")
+        if kodek == "flac":
+            kodek_rodzina = "flac"
+            if "stereo" not in linia_audio:
+                raise InvalidMP3Error(nazwa_pliku, "FLAC w modzie CDJ-2000: tylko stereo")
+            if re.search(r"\bs32 \(24 bit\)", linia_audio):
+                bity = 24
+            elif re.search(r"\bs16\b", linia_audio):
+                bity = 16
+            else:
+                raise InvalidMP3Error(nazwa_pliku, "FLAC w modzie CDJ-2000: tylko 16 lub 24 bity")
+        elif kodek == "mp3":
             kodek_rodzina, bity = "mp3", 16
         elif kodek == "aac":
             kodek_rodzina, bity = "aac", 16
@@ -406,6 +441,35 @@ def _t():
 
 
 # ================================================================ Analiza ---
+def _poczatek_dzwieku_ms(y, sr, prog_db=-60.0, okno_s=0.005):
+    """Pierwszy moment, w ktorym dzwiek przekracza prog (jak Auto Cue w CDJ, domyslnie -60 dB); ms lub None."""
+    import numpy as np
+    n = max(1, int(sr * okno_s))
+    ile = len(y) // n
+    if ile < 2:
+        return None
+    rms = np.sqrt(np.mean(np.square(y[: ile * n].reshape(ile, n)), axis=1))
+    idx = np.nonzero(rms > 10 ** (prog_db / 20.0))[0]
+    return int(idx[0] * n * 1000.0 / sr) if len(idx) else None
+
+
+def _cue_od_dzwieku(cue, y, g):
+    """Glowny CUE (hot A i pamiec 'Start') ustawiony na poczatku dzwieku, tam gdzie sam staje CDJ (Auto Cue):
+    inaczej odtwarzacz po zaladowaniu skacze do hot cue, a potem wraca na poczatek dzwieku."""
+    if not cue:
+        return cue
+    ms = _poczatek_dzwieku_ms(y, g.SR)
+    if ms is None:
+        return cue
+    ms += int(round(g.OFFSET_REKORDBOX_S * 1000))
+    ms = max(0, ms)
+    for klucz in ("hot", "pamiec"):
+        lista = cue.get(klucz) or []
+        if lista and lista[0][1] == "Start" and ms < lista[0][0]:
+            lista[0] = (ms, "Start")
+    return cue
+
+
 def _analizuj_jeden(folder, root, nr, nazwa_wzgledna, kopiuj_mp3, dzis, nazwa_folderu=None):
     """Analizuje pojedynczy utwór; uruchamiany równolegle w wątku roboczym."""
     sciezka = os.path.join(folder, nazwa_wzgledna)
@@ -431,7 +495,247 @@ def _analizuj_jeden(folder, root, nr, nazwa_wzgledna, kopiuj_mp3, dzis, nazwa_fo
         raise InvalidMP3Error(nazwa, str(e))
 
 
+def _init_proces(spool):
+    """Inicjalizacja procesu roboczego analizy (osobny proces zamiast watku: omija blokade GIL)."""
+    # Kazdy proces liczy jeden utwor naraz — ONNX nie potrzebuje wielowatkowosci wewnetrznej
+    os.environ["CDJ_BT_WATKI"] = "1"
+    os.environ["CDJ_BT_PAR"] = "1"
+    # Ogranicz watki wewnetrzne numpy/scipy/ONNX do 1: wiele procesow rownoleglych jest lepsze niz
+    # jeden proces wielowatkowy z GIL-em
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+    os.environ.setdefault("MKL_NUM_THREADS", "1")
+    os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+    SPOOL["katalog"] = spool
+    BRAMKA["obj"] = None
+
+
+def _zadanie_proc(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, dzis, nazwa_folderu):
+    """Uruchamiane w procesie roboczym; zwraca krotke (zawsze serializowalna), bez wyjatkow wlasnych."""
+    try:
+        u, ev = _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, dzis, nazwa_folderu)
+        return ("ok", u, ev)
+    except CDJError as e:
+        return ("blad", e.user_message, e.code)
+    except Exception as e:  # noqa: BLE001
+        return ("blad", str(e) or e.__class__.__name__, None)
+
+
+def _analizuj_jeden_proc(pula_proc, folder, root, nr, nazwa_wzgledna, kopiuj_mp3, dzis, nazwa_folderu=None):
+    """Jak _analizuj_jeden, ale obliczenia ida do puli procesow; pamiec nadal pilnuje bramka w procesie glownym."""
+    sciezka = os.path.join(folder, nazwa_wzgledna)
+    nazwa = os.path.basename(nazwa_wzgledna)
+    try:
+        meta = metadane(sciezka)
+        if meta["czas"] > MAKS_MIN_UTWORU * 60:
+            raise InvalidMP3Error(nazwa, "utwór dłuższy niż %d min jest pomijany (limit pamięci)" % MAKS_MIN_UTWORU)
+        bramka = BRAMKA["obj"]
+        szac = szacunek_bajtow(meta["czas"])
+        if bramka is not None and szac > bramka.budzet * 0.9:
+            raise InvalidMP3Error(nazwa, "za długi dla dostępnej pamięci RAM (zwolnij pamięć lub skróć utwór)")
+        if bramka is not None:
+            bramka.zajmij(szac)
+        try:
+            try:
+                wynik = pula_proc.submit(_zadanie_proc, sciezka, nazwa, nazwa_wzgledna, meta, root, nr,
+                                         kopiuj_mp3, dzis, nazwa_folderu).result()
+            except concurrent.futures.process.BrokenProcessPool:
+                # pula procesow padla (np. brak pamieci): ten utwor liczymy zwyklym watkiem
+                return _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, dzis, nazwa_folderu)
+            if wynik[0] == "ok":
+                return wynik[1], wynik[2]
+            raise CDJError(wynik[1], user_message=wynik[1], code=wynik[2])
+        finally:
+            if bramka is not None:
+                bramka.zwolnij(szac)
+    except CDJError:
+        raise
+    except Exception as e:
+        raise InvalidMP3Error(nazwa, str(e))
+
+
+# ------------------------------------------------- pamiec podreczna analiz ---
+# Utwor juz przeanalizowany (ten sam plik: sciezka, rozmiar, data zmiany; ta sama wersja analizy) nie jest liczony
+# drugi raz: gotowe DAT/EXT ida z dysku, podmieniana jest tylko sciezka na pendrive (tag PPTH).
+_CACHE = {"katalog": None, "wersja": None}
+CACHE_MAKS_BAJTOW = int(os.environ.get("CDJ_CACHE_MB", "2048")) * 1024 * 1024
+
+
+def _cache_katalog():
+    if os.environ.get("CDJ_CACHE", "1") == "0":
+        return None
+    if _CACHE["katalog"] is None:
+        if sys.platform == "win32":
+            baza = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "CDJ-Tool", "cache")
+        else:
+            baza = os.path.expanduser("~/Library/Caches/CDJ-Tool")
+        kat = os.path.join(baza, "analizy")
+        try:
+            os.makedirs(kat, exist_ok=True)
+        except OSError:
+            return None
+        _CACHE["katalog"] = kat
+    return _CACHE["katalog"]
+
+
+def _cache_wersja():
+    """Skrot kodu analizy: zmiana algorytmu automatycznie uniewaznia stare wpisy."""
+    if _CACHE["wersja"] is None:
+        import hashlib
+        h = hashlib.sha1()
+        tu = os.path.dirname(os.path.abspath(__file__))
+        for plik in ("gen_dat.py", "cue.py", "takt.py", "beatthis.py", "silnik.py", "config.json"):
+            try:
+                with open(os.path.join(tu, plik), "rb") as fh:
+                    h.update(fh.read())
+            except OSError:
+                pass
+        _CACHE["wersja"] = h.hexdigest()[:16]
+    return _CACHE["wersja"]
+
+
+def _cache_klucz(sciezka):
+    import hashlib
+    st = os.stat(sciezka)
+    txt = "%s|%d|%d|%s" % (os.path.realpath(sciezka), st.st_size, st.st_mtime_ns, _cache_wersja())
+    return hashlib.sha1(txt.encode("utf-8", "surrogateescape")).hexdigest()
+
+
+def _podmien_ppth(dane, pend):
+    """Podmienia sciezke w tagu PPTH (pierwszy tag po naglowku PMAI) i poprawia dlugosc pliku."""
+    dl_nagl = struct.unpack(">I", dane[4:8])[0]
+    assert dane[dl_nagl:dl_nagl + 4] == b"PPTH"
+    dl_tagu = struct.unpack(">I", dane[dl_nagl + 8:dl_nagl + 12])[0]
+    raw = (pend + "\x00").encode("utf-16-be")
+    ppth = b"PPTH" + struct.pack(">III", 16, 16 + len(raw), len(raw)) + raw
+    calosc = dane[:dl_nagl] + ppth + dane[dl_nagl + dl_tagu:]
+    return calosc[:8] + struct.pack(">I", len(calosc)) + calosc[12:]
+
+
+def _cache_czytaj(klucz):
+    kat = _cache_katalog()
+    if not kat:
+        return None
+    plik = os.path.join(kat, klucz + ".bin")
+    try:
+        with open(plik, "rb") as fh:
+            surowe = fh.read()
+        n = struct.unpack(">I", surowe[:4])[0]
+        info = json.loads(surowe[4:4 + n].decode("utf-8"))
+        reszta = zlib.decompress(surowe[4 + n:])
+        dat, ext = reszta[:info["dat_len"]], reszta[info["dat_len"]:]
+        os.utime(plik, None)  # LRU: swiezo uzyty wpis
+        return info, dat, ext
+    except (OSError, ValueError, KeyError, zlib.error, struct.error):
+        return None
+
+
+def _cache_zapisz(klucz, info, dat, ext):
+    kat = _cache_katalog()
+    if not kat:
+        return
+    try:
+        info = dict(info, dat_len=len(dat))
+        js = json.dumps(info).encode("utf-8")
+        tmp = os.path.join(kat, klucz + ".tmp%d" % threading.get_ident())
+        with open(tmp, "wb") as fh:
+            fh.write(struct.pack(">I", len(js)) + js + zlib.compress(dat + ext, 6))
+        os.replace(tmp, os.path.join(kat, klucz + ".bin"))
+    except OSError:
+        pass
+
+
+def _cache_przytnij():
+    """Trzyma pamiec podreczna w limicie (domyslnie 2 GB), usuwajac najdawniej uzywane wpisy."""
+    kat = _cache_katalog()
+    if not kat:
+        return
+    try:
+        wpisy = []
+        for e in os.scandir(kat):
+            if e.is_file():
+                st = e.stat()
+                wpisy.append((st.st_mtime, st.st_size, e.path))
+        suma = sum(w[1] for w in wpisy)
+        for _, rozm, sc in sorted(wpisy):
+            if suma <= CACHE_MAKS_BAJTOW:
+                break
+            try:
+                os.remove(sc)
+                suma -= rozm
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
 def _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, dzis, nazwa_folderu=None):
+    """Analiza z pamiecia podreczna: trafienie = bez dekodowania i bez sieci."""
+    try:
+        klucz = _cache_klucz(sciezka)
+    except OSError:
+        klucz = None
+    if klucz:
+        traf = _cache_czytaj(klucz)
+        if traf is not None:
+            try:
+                return _z_cache(traf, sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, nazwa_folderu)
+            except Exception:  # noqa: BLE001  # uszkodzony wpis: liczymy od nowa
+                pass
+    u, ev = _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, dzis, nazwa_folderu)
+    if klucz:
+        try:
+            if u.get("dat_plik"):
+                with open(u["dat_plik"], "rb") as fh:
+                    dat = fh.read()
+                with open(u["ext_plik"], "rb") as fh:
+                    ext = fh.read()
+            else:
+                dat, ext = u["dat"], u["ext"]
+            info = {"pend": u["pend"], "bpm": u["bpm"], "confidence": u["confidence"], "reliable": u["reliable"],
+                    "pierwszy_ms": ev["pierwszy_ms"], "beatow": ev["beatow"], "czas": ev["czas"],
+                    "podglad": ev.get("podglad")}
+            _cache_zapisz(klucz, info, dat, ext)
+        except Exception:  # noqa: BLE001  # pamiec podreczna jest dodatkiem
+            pass
+    return u, ev
+
+
+def _z_cache(traf, sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, nazwa_folderu):
+    info, dat, ext = traf
+    if kopiuj_mp3:
+        pend = sciezka_wg_folderow(nazwa_folderu, nazwa_wzgledna) if nazwa_folderu else sciezka_na_pendrive(meta, nazwa)
+    else:
+        rel = os.path.relpath(sciezka, root).replace(os.sep, "/")
+        pend = "/" + rel
+    if pend != info["pend"]:
+        dat, ext = _podmien_ppth(dat, pend), _podmien_ppth(ext, pend)
+    analiza = sciezka_analizy(pend)
+    crc = zlib.crc32(pend.encode("utf-8")) & 0xFFFFFFFF
+    kat = SPOOL["katalog"]
+    plik_dat = plik_ext = None
+    dat_len, ext_len = len(dat), len(ext)
+    if kat:
+        plik_dat = os.path.join(kat, "%d.dat" % nr)
+        plik_ext = os.path.join(kat, "%d.ext" % nr)
+        with open(plik_dat, "wb") as fh:
+            fh.write(dat)
+        with open(plik_ext, "wb") as fh:
+            fh.write(ext)
+        dat = ext = None
+    u = {"nazwa": nazwa, "meta": meta, "bpm": info["bpm"], "pend": pend, "analiza": analiza,
+         "dat": dat, "ext": ext, "dat_plik": plik_dat, "ext_plik": plik_ext, "dat_len": dat_len, "ext_len": ext_len,
+         "crc": crc, "src": sciezka, "confidence": info["confidence"], "reliable": info["reliable"]}
+    ev = {"typ": "utwor", "i": nr, "n": 0, "nazwa": nazwa_wzgledna.replace(os.sep, "/"),
+          "tytul": meta["tytul"], "artysta": meta["artysta"], "bpm": round(info["bpm"], 2),
+          "confidence": round(info["confidence"], 3), "pierwszy_ms": info["pierwszy_ms"],
+          "beatow": info["beatow"], "czas": info["czas"], "z_pamieci": True}
+    if info.get("podglad") is not None and nr <= 50:
+        ev["podglad"] = info["podglad"]
+    return u, ev
+
+
+def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, dzis, nazwa_folderu=None):
     """Wlasciwa analiza utworu; wywolywana po zajeciu miejsca w bramce pamieci."""
     try:
         y = g.wczytaj(sciezka)
@@ -457,8 +761,16 @@ def _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3,
         analiza = sciezka_analizy(pend)
         crc = zlib.crc32(pend.encode("utf-8")) & 0xFFFFFFFF
         pwav_wynik = g.tag_pwav(y, dl)
-        dat = g.zbuduj_dat(pend, bpm, czasy, y, dl, meta["total_probek"], pwav_wynik=pwav_wynik)
-        ext = g.zbuduj_ext(pend, y, dl, czasy, bpm)
+        cechy_koloru, cue = None, None
+        try:
+            cechy_koloru = g._cechy_koloru(y, dl)
+            import cue as cue_mod
+            cue = cue_mod.wyznacz(cechy_koloru, czasy, czasy.numery, dl)
+            cue = _cue_od_dzwieku(cue, y, g)
+        except Exception:  # noqa: BLE001  # cue i kolor sa dodatkami: bez nich zostaje podstawowy eksport
+            pass
+        dat = g.zbuduj_dat(pend, bpm, czasy, y, dl, meta["total_probek"], pwav_wynik=pwav_wynik, cue=cue)
+        ext = g.zbuduj_ext(pend, y, dl, czasy, bpm, cechy=cechy_koloru, cue=cue)
         pod = podglad(y, czasy - g.OFFSET_REKORDBOX_S, pwav_wynik[1]) if nr <= 50 else None
         kat = SPOOL["katalog"]
         if kat:  # wyniki ida na dysk lokalny, zeby pamiec nie rosla z liczba utworow
@@ -518,11 +830,25 @@ def _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3,
 
 
 # ================================================================ Main ---
+def _niski_priorytet():
+    """Analiza ustepuje innym programom (nice 10): komputer zostaje plynny, a wolna moc i tak idzie na analize."""
+    try:
+        if hasattr(os, "setpriority") and not os.environ.get("CDJ_NICE") == "0":
+            obecny = os.getpriority(os.PRIO_PROCESS, 0)
+            cel = int(os.environ.get("CDJ_NICE", "10"))
+            if obecny < cel:
+                os.setpriority(os.PRIO_PROCESS, 0, cel)
+    except (OSError, ValueError):
+        pass
+
+
 def przetworz(a, emit):
     """Punkt wejscia: sprzata katalog tymczasowy z wynikami analizy po zakonczeniu (takze po bledzie)."""
+    _niski_priorytet()
     try:
         _przetworz(a, emit)
     finally:
+        _cache_przytnij()
         kat = SPOOL.get("katalog")
         SPOOL["katalog"] = None
         BRAMKA["obj"] = None
@@ -531,7 +857,9 @@ def przetworz(a, emit):
 
 
 def _przetworz(a, emit):
-    """a: slownik z folder_mp3, pendrive, playlista, kopiuj_mp3, zastap_pioneer."""
+    """a: slownik z folder_mp3, pendrive, playlista, kopiuj_mp3, zastap_pioneer, flac (opcjonalnie)."""
+    FLAC["on"] = bool(a.get("flac"))
+    os.environ["CDJ_FLAC"] = "1" if FLAC["on"] else "0"  # dziedziczone przez procesy robocze
     folder = os.path.realpath(a["folder_mp3"])
     nazwa_folderu = str(a.get("nazwa_folderu") or os.path.basename(folder.rstrip("/")) or "Tracks")[:60]
     root = os.path.realpath(os.path.abspath(a["pendrive"]))
@@ -586,9 +914,33 @@ def _przetworz(a, emit):
     zakonczone = 0
     errors = []
     
+    pula_proc = None
+    if len(pliki) >= 4 and os.environ.get("CDJ_PROCESY", "1") == "1":
+        try:
+            import multiprocessing
+            # Ogranicz do max polowy rdzeni zeby nie przegrzewac
+            n_proc = max(2, min((os.cpu_count() or 4) // 2, 6, workers, len(pliki)))
+            # forkserver jest szybszy niz spawn na macOS: serwer startuje raz, kolejne procesy sa
+            # klonowane z gotowej kopii z zaladowanym Pythonem/numpy — eliminuje wielosekundowe
+            # opoznienie przy uruchamianiu kazdego zadania.
+            try:
+                ctx = multiprocessing.get_context("forkserver")
+            except Exception:
+                ctx = multiprocessing.get_context("spawn")
+            pula_proc = concurrent.futures.ProcessPoolExecutor(
+                max_workers=n_proc, mp_context=ctx,
+                initializer=_init_proces, initargs=(SPOOL["katalog"],))
+            emit({"typ": "etap", "tekst": "Analiza w %d procesach (szybsza dla dużych bibliotek)" % n_proc})
+        except Exception:  # noqa: BLE001
+            pula_proc = None
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pula:
-        futures = [pula.submit(_analizuj_jeden, folder, root, nr, rel, kopiuj_mp3, dzis, nazwa_folderu)
-                   for nr, rel in enumerate(pliki, 1)]
+        if pula_proc is not None:
+            futures = [pula.submit(_analizuj_jeden_proc, pula_proc, folder, root, nr, rel, kopiuj_mp3, dzis, nazwa_folderu)
+                       for nr, rel in enumerate(pliki, 1)]
+        else:
+            futures = [pula.submit(_analizuj_jeden, folder, root, nr, rel, kopiuj_mp3, dzis, nazwa_folderu)
+                       for nr, rel in enumerate(pliki, 1)]
         for future in concurrent.futures.as_completed(futures):
             try:
                 utwor, ev = future.result()
@@ -610,6 +962,8 @@ def _przetworz(a, emit):
             
             zakonczone += 1
             emit({"typ": "postep_analizy", "i": zakonczone, "n": len(pliki)})
+    if pula_proc is not None:
+        pula_proc.shutdown(wait=True)
     
     utwory = [utwory_wg_indeksu[i] for i in sorted(utwory_wg_indeksu)]
     if not utwory:
@@ -632,7 +986,7 @@ def _przetworz(a, emit):
                              "Nic nie zostało zmienione. Wybierz opcję zastąpienia zawartości (zrobię kopię zapasową) "
                              "albo użyj innego pendrive'a." % e)
         pdb_wzor = stary_pdb
-        if root.startswith("/Volumes/"):
+        if _na_wolumenie(root):
             try:
                 kopia_pdb = kopia_zapasowa_pdb(stary_pdb_sciezka, root)
                 emit({"typ": "kopia", "sciezka": kopia_pdb})
@@ -679,7 +1033,8 @@ def _przetworz(a, emit):
         napisy = dict(
             title=m["tytul"], filename=os.path.basename(u["pend"]), file_path=u["pend"],
             analyze_path=u["analiza"], analyze_date=dzis,
-            s4=""  # jak w eksporcie Rekordboxa (szablon mial "1")
+            s4="",  # jak w eksporcie Rekordboxa (szablon mial "1")
+            autoload="",  # Hot Cue Auto Load wylaczone: hot cue tylko zaznaczone, ladowane recznie przez CALL
         )
         if u["pend"] in wg_sciezki:  # ten sam plik analizowany ponownie: zachowaj id, gatunek, ocene, odtworzenia
             i = wg_sciezki[u["pend"]]
@@ -784,7 +1139,7 @@ def _przetworz(a, emit):
                  + ". Zapisuję pliki..."
     })
 
-    na_dysku = root.startswith("/Volumes/")
+    na_dysku = _na_wolumenie(root)
     if a.get("zastap_pioneer", False) and os.path.isdir(pioneer):
         if na_dysku:
             emit({"typ": "etap", "tekst": "Robię kopię zapasową dotychczasowego folderu PIONEER..."})
@@ -802,7 +1157,7 @@ def _przetworz(a, emit):
             emit({"typ": "etap", "tekst": "Wybrany katalog nie jest pendrive'em, nie usuwam starego folderu PIONEER."})
 
     emit({"typ": "etap", "tekst": "Zapisuję pliki na pendrive..." + _t()})
-    if root.startswith("/Volumes/"):
+    if _na_wolumenie(root):
         # Spotlight nie ma indeksować pendrive'a: indeksowanie blokuje później jego wysunięcie
         for znacznik in (".metadata_never_index",):
             try:

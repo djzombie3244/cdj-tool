@@ -5,11 +5,12 @@ import WebKit
 final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate, NSWindowDelegate {
     private var window: NSWindow!
     private var webView: WKWebView!
-    private let backend = Process()
+    private var backend: Process?
     private var outputPipe: Pipe?
     private var outputBuffer = ""
     private var backendStarted = false
     private var shuttingDown = false
+    private var restartCount = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -36,6 +37,37 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(systemDidWake),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
+
+        launchBackend()
+    }
+
+    @objc private func systemDidWake() {
+        guard !shuttingDown else { return }
+        // Po wybudzeniu sprawdź czy backend nadal działa; jeśli nie — zrestartuj
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self, !self.shuttingDown else { return }
+            if !(self.backend?.isRunning ?? false) {
+                self.restartBackend()
+            }
+        }
+    }
+
+    private func restartBackend() {
+        guard restartCount < 5 else {
+            showMessage("CDJ Tool nie mógł uruchomić składnika analizy po kilku próbach. Zamknij i otwórz aplikację ponownie.")
+            return
+        }
+        restartCount += 1
+        outputPipe?.fileHandleForReading.readabilityHandler = nil
+        outputPipe = nil
+        outputBuffer = ""
+        backendStarted = false
         launchBackend()
     }
 
@@ -57,12 +89,21 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
             .appendingPathComponent("Library/Application Support/CDJ-Tool")
         try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
         let logURL = support.appendingPathComponent("CDJ-Tool.log")
-        FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        // Przy restarcie dopisuj do loga zamiast kasować
+        if restartCount == 0 {
+            FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        }
         let logHandle = try? FileHandle(forWritingTo: logURL)
+        if restartCount > 0, let handle = logHandle {
+            handle.seekToEndOfFile()
+        }
 
-        backend.executableURL = python
-        backend.arguments = [resources.appendingPathComponent("app.py").path]
-        backend.currentDirectoryURL = resources
+        let process = Process()
+        backend = process
+
+        process.executableURL = python
+        process.arguments = [resources.appendingPathComponent("app.py").path]
+        process.currentDirectoryURL = resources
         var environment = ProcessInfo.processInfo.environment
         environment.removeValue(forKey: "PYTHONPATH")
         environment.removeValue(forKey: "PYTHONHOME")
@@ -72,25 +113,36 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
         environment["CDJ_BUNDLED"] = "1"
         environment["CDJ_SITE_PACKAGES"] = packages.path
         environment["CDJ_FFMPEG"] = ffmpeg.path
-        backend.environment = environment
-        backend.standardOutput = Pipe()
-        backend.standardError = logHandle
-        outputPipe = backend.standardOutput as? Pipe
+        process.environment = environment
+        process.standardOutput = Pipe()
+        process.standardError = logHandle
+        outputPipe = process.standardOutput as? Pipe
         outputPipe?.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty, let line = String(data: data, encoding: .utf8) else { return }
             DispatchQueue.main.async { self?.consumeBackendOutput(line) }
         }
 
-        backend.terminationHandler = { [weak self] process in
+        process.terminationHandler = { [weak self] proc in
             DispatchQueue.main.async {
                 guard let self, !self.shuttingDown else { return }
-                self.showMessage("CDJ Tool nie uruchomił składnika analizy. Szczegóły zapisano w logu aplikacji.")
+                // Jeśli backend zakończył się z kodem 0 lub -15 (SIGTERM od systemu przy usypianiu) — spróbuj restartu
+                let code = proc.terminationStatus
+                let reason = proc.terminationReason
+                if reason == .uncaughtSignal && (code == 15 || code == 9) {
+                    // Zabity przez system (uśpienie/SIGTERM) — poczekaj chwilę i zrestartuj
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                        guard let self, !self.shuttingDown else { return }
+                        self.restartBackend()
+                    }
+                } else {
+                    self.showMessage("CDJ Tool nie uruchomił składnika analizy. Szczegóły zapisano w logu aplikacji.")
+                }
             }
         }
         do {
-            try backend.run()
-            backendStarted = true
+            try process.run()
+            if restartCount == 0 { backendStarted = true }
         } catch {
             showMessage("Nie udało się uruchomić dołączonego środowiska Pythona: \(error.localizedDescription)")
         }
@@ -103,6 +155,7 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
             outputBuffer = String(outputBuffer[outputBuffer.index(after: newline)...])
             if line.hasPrefix("CDJ_URL ") {
                 backendStarted = true
+                restartCount = 0  // reset licznika po udanym starcie
                 let address = String(line.dropFirst("CDJ_URL ".count))
                 if let url = URL(string: address) { webView.load(URLRequest(url: url)) }
             }
@@ -153,7 +206,7 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
     func applicationWillTerminate(_ notification: Notification) {
         shuttingDown = true
         outputPipe?.fileHandleForReading.readabilityHandler = nil
-        if backend.isRunning { backend.terminate() }
+        if backend?.isRunning == true { backend?.terminate() }
     }
 }
 
