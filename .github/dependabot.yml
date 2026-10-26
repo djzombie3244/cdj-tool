@@ -1,9 +1,7 @@
 version: 2
+# The app bundles pinned Python 3.9 packages (see tools/build_installer.sh), so Python dependency bumps
+# are not proposed automatically. Only GitHub Actions versions are kept up to date.
 updates:
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "monthly"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

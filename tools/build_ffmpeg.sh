@@ -8,6 +8,9 @@ set -euo pipefail
 TAR="${1:?usage: build_ffmpeg.sh ffmpeg-7.1-source.tar.xz output-binary}"
 OUT="${2:?usage: build_ffmpeg.sh ffmpeg-7.1-source.tar.xz output-binary}"
 [ -f "$TAR" ] || { echo "Archive not found: $TAR"; exit 1; }
+# make both paths absolute: the script changes directory below
+TAR="$(cd "$(dirname "$TAR")" && pwd)/$(basename "$TAR")"
+case "$OUT" in /*) ;; *) OUT="$PWD/$OUT";; esac
 if ! command -v clang >/dev/null 2>&1 || ! command -v make >/dev/null 2>&1; then
   echo "Missing Xcode command line tools. Run: xcode-select --install"; exit 1
 fi
