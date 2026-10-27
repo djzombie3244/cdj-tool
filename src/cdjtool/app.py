@@ -777,13 +777,21 @@ def port_zajety():
 
 
 def pilnuj():
-    """Kończy program, gdy okno przeglądarki jest zamknięte (brak zapytań przez minutę)."""
+    """Kończy program, gdy okno przeglądarki jest zamknięte (brak zapytań przez minutę).
+
+    Po wybudzeniu komputera pierwsza kontrola może zobaczyć stare „ostatnio” sprzed uśpienia,
+    dlatego wymagamy kilku kolejnych kontroli bez zapytań (okno zdąży się odezwać)."""
+    bezczynne = 0
     while True:
         time.sleep(5)
         with LOCK:
             zajety = STAN["job"].get("stan") == "trwa" or STAN["setup"]["stan"] == "instalacja"
         if STAN["widziano"] and not zajety and time.time() - STAN["ostatnio"] > 60:
-            os._exit(0)
+            bezczynne += 1
+            if bezczynne >= 4:
+                os._exit(0)
+        else:
+            bezczynne = 0
 
 
 def main():

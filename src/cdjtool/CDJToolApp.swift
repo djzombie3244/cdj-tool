@@ -129,7 +129,11 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
                 // Jeśli backend zakończył się z kodem 0 lub -15 (SIGTERM od systemu przy usypianiu) — spróbuj restartu
                 let code = proc.terminationStatus
                 let reason = proc.terminationReason
-                if reason == .uncaughtSignal && (code == 15 || code == 9) {
+                // Wygaszenie: system zabija proces sygnałem, a wbudowany watchdog w app.py kończy go kodem 0
+                // (po obudzeniu nie zdążył dostać zapytania z okna). Oba przypadki restartujemy.
+                let zabityPrzezSystem = reason == .uncaughtSignal && (code == 15 || code == 9)
+                let watchdog = reason == .exit && code == 0 && self.backendStarted
+                if zabityPrzezSystem || watchdog {
                     // Zabity przez system (uśpienie/SIGTERM) — poczekaj chwilę i zrestartuj
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                         guard let self, !self.shuttingDown else { return }
