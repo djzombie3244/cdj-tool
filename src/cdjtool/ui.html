@@ -60,6 +60,32 @@ canvas.ov { height: 14px; margin-top: 3px; }
 .speed-result .speed-rows span { color: var(--muted); font-size: 13px; }
 .speed-result b { color: var(--txt); font-variant-numeric: tabular-nums; }
 .frow{margin:2px 0}.fx{padding:0 6px;min-width:0;line-height:1.4}
+/* NOWY-WYGLAD-START (usuwalne: usun-nowy-wyglad.command) */
+:root {
+  --bg: #f3f6fa; --card: #ffffff; --txt: #0c1624; --muted: #5b6b82; --line: #dbe3ee;
+  --acc: #1d74d6; --acc-txt: #ffffff; --ok: #15895a; --warn: #a56417; --err: #c53030; --wave: #1d74d6; --low: #e0792b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #0b1320; --card: #111d2f; --txt: #e6edf7; --muted: #8ea3bf; --line: #22324c;
+    --acc: #3fa9f5; --ok: #3ecf8e; --warn: #f0b35a; --err: #f06565; --wave: #3fa9f5; --low: #f59e4b; }
+}
+body { font-family: Manrope, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+main { max-width: 760px; }
+h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
+.card { border-radius: 14px; padding: 20px 22px; }
+.card h2 { font-size: 16px; font-weight: 700; }
+.num { width: 26px; height: 26px; background: transparent; color: var(--acc); border: 2px solid var(--acc);
+  font: 700 13px "IBM Plex Mono", ui-monospace, monospace; }
+button { border-radius: 10px; }
+button.primary { font-weight: 800; padding: 14px 26px; font-size: 16px; min-height: 52px; }
+.bar { height: 12px; }
+.bar > div { background: linear-gradient(90deg, var(--acc), var(--low)); }
+canvas { height: 56px; border-radius: 8px; }
+canvas.ov { height: 14px; }
+.tr { padding: 12px 0; }
+.tr .t { font-size: 15px; }
+.tr .m { font-variant-numeric: tabular-nums; }
+/* NOWY-WYGLAD-END */
 </style>
 </head>
 <body>
@@ -168,7 +194,7 @@ pl: {
  name:"Polski", sub:"Analiza utworów i zapis pendrive dla CDJ-2000, bez rekordbox.",
  setupTitle:"Przygotowuję składniki…", setupDesc:"Za pierwszym razem program przygotowuje potrzebne składniki. To trwa chwilę.", details:"Szczegóły",
  setupFail:"Nie udało się przygotować składników", setupInstall:"Instaluję składniki (tylko za pierwszym razem)…",
- step1:"Foldery z utworami (MP3, AAC, WAV, AIFF), można dodać kilka", addFolder:"Dodaj folder…", clearFolders:"Wyczyść listę", removeFolder:"Usuń z listy", folderDup:"Ten folder jest już na liście.", folderNested:"Ten folder zawiera się w innym folderze z listy (lub go zawiera), utwory byłyby zapisane dwa razy.", foldersSummary:"Razem: {k} folderów, {n} plików ({mb} MB). Zapisuję je po kolei, każdy jako osobna playlista.", folderOf:"Folder {i} z {n}: {name}", playlistPerFolder:"Przy kilku folderach każda playlista dostaje nazwę swojego folderu.", queueStopped:"Zatrzymano na folderze {i} z {n}. Foldery zapisane wcześniej ({done}) są już na pendrive.", chooseFolder:"Wybierz folder…", notChosen:"Nie wybrano.", step2:"Pendrive", choosePend:"Wybierz pendrive…",
+ step1:"Foldery z utworami (MP3, AAC, WAV, AIFF), można dodać kilka", addFolder:"Dodaj folder…", clearFolders:"Wyczyść listę", removeFolder:"Usuń z listy", folderDup:"Ten folder jest już na liście.", folderNested:"Ten folder zawiera się w innym folderze z listy (lub go zawiera), utwory byłyby zapisane dwa razy.", foldersSummary:"Razem: {k} folderów, {n} plików ({mb} MB). Zapisuję je po kolei, każdy jako osobna playlista.", folderOf:"Folder {i} z {n}: {name}", playlistPerFolder:"Przy kilku folderach każda playlista dostaje nazwę swojego folderu.", queueSkipped:"Pominięto foldery bez obsługiwanych plików audio: {list}.", queueStopped:"Zatrzymano na folderze {i} z {n}. Foldery zapisane wcześniej ({done}) są już na pendrive.", chooseFolder:"Wybierz folder…", notChosen:"Nie wybrano.", step2:"Pendrive", choosePend:"Wybierz pendrive…",
  replacePioneer:"Zastąp całą dotychczasową zawartość pendrive'a (kopia folderu <b>PIONEER</b> trafi do Dokumenty → CDJ-Tool-kopie). Odznaczone: nowe utwory zostaną <b>dopisane</b> do biblioteki już zapisanej na pendrive.", copyMp3:"Kopiuj pliki audio na pendrive", flacOpt:"Włącz FLAC (<b>eksperymentalne</b>, tylko dla CDJ-2000 z modem z rafttone.com/cdj2000: stereo, 16 lub 24 bity, 44,1 lub 48 kHz). Zwykły CDJ-2000 nie odtworzy FLAC.", flacFound:"W folderze jest {n} plików FLAC. Zaznacz opcję FLAC powyżej, jeśli Twój CDJ-2000 ma mod.",
  copyOn:"Włączone: pliki MP3 zostaną skopiowane na pendrive. Pomiar szybkości uwzględni odczyt źródła i zapis na pendrive.",
  copyOff:"Bez kopiowania: folder MP3 musi być na tym samym pendrivie. Pomiar dotyczy odczytu MP3, a dokładny rozmiar plików analizy program poda przed zapisem.", copyForcedDiffDisk:"Kopiowanie wymagane: folder MP3 jest na innym dysku niż pendrive. Pliki muzyczne muszą być na pendrivie, żeby CDJ je odczytał.",
@@ -208,7 +234,7 @@ en: {
  name:"English", sub:"Track analysis and USB stick export for CDJ-2000, without rekordbox.",
  setupTitle:"Preparing components…", setupDesc:"On first launch the app prepares the components it needs. This takes a moment.", details:"Details",
  setupFail:"Could not prepare the components", setupInstall:"Installing components (first launch only)…",
- step1:"Folders with tracks (MP3, AAC, WAV, AIFF), you can add several", addFolder:"Add folder…", clearFolders:"Clear list", removeFolder:"Remove from list", folderDup:"This folder is already in the list.", folderNested:"This folder is inside another folder in the list (or contains it); tracks would be written twice.", foldersSummary:"Total: {k} folders, {n} files ({mb} MB). They are written one by one, each as its own playlist.", folderOf:"Folder {i} of {n}: {name}", playlistPerFolder:"With several folders, each playlist is named after its folder.", queueStopped:"Stopped at folder {i} of {n}. The folders written earlier ({done}) are already on the stick.", chooseFolder:"Choose folder…", notChosen:"Not selected.", step2:"USB stick", choosePend:"Choose USB stick…",
+ step1:"Folders with tracks (MP3, AAC, WAV, AIFF), you can add several", addFolder:"Add folder…", clearFolders:"Clear list", removeFolder:"Remove from list", folderDup:"This folder is already in the list.", folderNested:"This folder is inside another folder in the list (or contains it); tracks would be written twice.", foldersSummary:"Total: {k} folders, {n} files ({mb} MB). They are written one by one, each as its own playlist.", folderOf:"Folder {i} of {n}: {name}", playlistPerFolder:"With several folders, each playlist is named after its folder.", queueSkipped:"Skipped folders with no supported audio files: {list}.", queueStopped:"Stopped at folder {i} of {n}. The folders written earlier ({done}) are already on the stick.", chooseFolder:"Choose folder…", notChosen:"Not selected.", step2:"USB stick", choosePend:"Choose USB stick…",
  replacePioneer:"Replace everything currently on the USB stick (a copy of the <b>PIONEER</b> folder goes to Documents → CDJ-Tool-kopie). Unchecked: new tracks are <b>added</b> to the library already on the stick.", copyMp3:"Copy audio files to the USB stick", flacOpt:"Include FLAC (<b>experimental</b>, only for a CDJ-2000 with the rafttone.com/cdj2000 mod: stereo, 16 or 24 bit, 44.1 or 48 kHz). A stock CDJ-2000 cannot play FLAC.", flacFound:"{n} FLAC files found. Tick the FLAC option above if your CDJ-2000 has the mod.",
  copyOn:"On: MP3 files are copied to the USB stick. The speed check covers reading the source and writing to the stick.",
  copyOff:"No copying: the MP3 folder must be on the same USB stick. The speed check covers reading MP3s; the exact size of the analysis files is shown before writing.", copyForcedDiffDisk:"Copying required: the music folder is on a different disk than the USB stick. Files must be on the stick for the CDJ to read them.",
@@ -248,7 +274,7 @@ de: {
  name:"Deutsch", sub:"Titelanalyse und USB-Export für CDJ-2000, ohne rekordbox.",
  setupTitle:"Komponenten werden vorbereitet…", setupDesc:"Beim ersten Start bereitet die App die nötigen Komponenten vor. Das dauert einen Moment.", details:"Details",
  setupFail:"Komponenten konnten nicht vorbereitet werden", setupInstall:"Komponenten werden installiert (nur beim ersten Start)…",
- step1:"Ordner mit Titeln (MP3, AAC, WAV, AIFF), mehrere möglich", addFolder:"Ordner hinzufügen…", clearFolders:"Liste leeren", removeFolder:"Aus der Liste entfernen", folderDup:"Dieser Ordner steht bereits in der Liste.", folderNested:"Dieser Ordner liegt in einem anderen Ordner der Liste (oder enthält ihn); Titel würden doppelt geschrieben.", foldersSummary:"Gesamt: {k} Ordner, {n} Dateien ({mb} MB). Sie werden nacheinander geschrieben, jeder als eigene Playlist.", folderOf:"Ordner {i} von {n}: {name}", playlistPerFolder:"Bei mehreren Ordnern heißt jede Playlist wie ihr Ordner.", queueStopped:"Bei Ordner {i} von {n} angehalten. Die zuvor geschriebenen Ordner ({done}) sind bereits auf dem Stick.", chooseFolder:"Ordner wählen…", notChosen:"Nicht ausgewählt.", step2:"USB-Stick", choosePend:"USB-Stick wählen…",
+ step1:"Ordner mit Titeln (MP3, AAC, WAV, AIFF), mehrere möglich", addFolder:"Ordner hinzufügen…", clearFolders:"Liste leeren", removeFolder:"Aus der Liste entfernen", folderDup:"Dieser Ordner steht bereits in der Liste.", folderNested:"Dieser Ordner liegt in einem anderen Ordner der Liste (oder enthält ihn); Titel würden doppelt geschrieben.", foldersSummary:"Gesamt: {k} Ordner, {n} Dateien ({mb} MB). Sie werden nacheinander geschrieben, jeder als eigene Playlist.", folderOf:"Ordner {i} von {n}: {name}", playlistPerFolder:"Bei mehreren Ordnern heißt jede Playlist wie ihr Ordner.", queueSkipped:"Ordner ohne unterstützte Audiodateien übersprungen: {list}.", queueStopped:"Bei Ordner {i} von {n} angehalten. Die zuvor geschriebenen Ordner ({done}) sind bereits auf dem Stick.", chooseFolder:"Ordner wählen…", notChosen:"Nicht ausgewählt.", step2:"USB-Stick", choosePend:"USB-Stick wählen…",
  replacePioneer:"Gesamten bisherigen Inhalt des USB-Sticks ersetzen (Kopie des Ordners <b>PIONEER</b> unter Dokumente → CDJ-Tool-kopie). Nicht angehakt: neue Titel werden der vorhandenen Bibliothek auf dem Stick <b>hinzugefügt</b>.", copyMp3:"Audiodateien auf den USB-Stick kopieren", flacOpt:"FLAC einbeziehen (<b>experimentell</b>, nur für CDJ-2000 mit dem Mod von rafttone.com/cdj2000: Stereo, 16 oder 24 Bit, 44,1 oder 48 kHz). Ein unmodifizierter CDJ-2000 spielt kein FLAC.", flacFound:"{n} FLAC-Dateien gefunden. Aktiviere oben die FLAC-Option, wenn dein CDJ-2000 den Mod hat.",
  copyOn:"Ein: MP3-Dateien werden auf den Stick kopiert. Die Geschwindigkeitsprüfung berücksichtigt Lesen der Quelle und Schreiben auf den Stick.",
  copyOff:"Ohne Kopieren: Der MP3-Ordner muss auf demselben Stick liegen. Geprüft wird das Lesen der MP3s; die genaue Größe der Analysedateien wird vor dem Schreiben angezeigt.", copyForcedDiffDisk:"Kopieren erforderlich: Der Musikordner befindet sich auf einem anderen Laufwerk als der USB-Stick. Die Dateien müssen auf dem Stick sein, damit der CDJ sie lesen kann.",
@@ -288,7 +314,7 @@ fr: {
  name:"Français", sub:"Analyse des morceaux et export sur clé USB pour CDJ-2000, sans rekordbox.",
  setupTitle:"Préparation des composants…", setupDesc:"Au premier lancement, l'application prépare les composants nécessaires. Cela prend un instant.", details:"Détails",
  setupFail:"Impossible de préparer les composants", setupInstall:"Installation des composants (premier lancement uniquement)…",
- step1:"Dossiers de morceaux (MP3, AAC, WAV, AIFF), plusieurs possibles", addFolder:"Ajouter un dossier…", clearFolders:"Vider la liste", removeFolder:"Retirer de la liste", folderDup:"Ce dossier est déjà dans la liste.", folderNested:"Ce dossier est dans un autre dossier de la liste (ou le contient) ; les morceaux seraient écrits deux fois.", foldersSummary:"Total : {k} dossiers, {n} fichiers ({mb} Mo). Ils sont écrits un par un, chacun comme playlist séparée.", folderOf:"Dossier {i} sur {n} : {name}", playlistPerFolder:"Avec plusieurs dossiers, chaque playlist porte le nom de son dossier.", queueStopped:"Arrêt au dossier {i} sur {n}. Les dossiers écrits avant ({done}) sont déjà sur la clé.", chooseFolder:"Choisir un dossier…", notChosen:"Non sélectionné.", step2:"Clé USB", choosePend:"Choisir la clé USB…",
+ step1:"Dossiers de morceaux (MP3, AAC, WAV, AIFF), plusieurs possibles", addFolder:"Ajouter un dossier…", clearFolders:"Vider la liste", removeFolder:"Retirer de la liste", folderDup:"Ce dossier est déjà dans la liste.", folderNested:"Ce dossier est dans un autre dossier de la liste (ou le contient) ; les morceaux seraient écrits deux fois.", foldersSummary:"Total : {k} dossiers, {n} fichiers ({mb} Mo). Ils sont écrits un par un, chacun comme playlist séparée.", folderOf:"Dossier {i} sur {n} : {name}", playlistPerFolder:"Avec plusieurs dossiers, chaque playlist porte le nom de son dossier.", queueSkipped:"Dossiers sans fichiers audio pris en charge ignorés : {list}.", queueStopped:"Arrêt au dossier {i} sur {n}. Les dossiers écrits avant ({done}) sont déjà sur la clé.", chooseFolder:"Choisir un dossier…", notChosen:"Non sélectionné.", step2:"Clé USB", choosePend:"Choisir la clé USB…",
  replacePioneer:"Remplacer tout le contenu actuel de la clé USB (une copie du dossier <b>PIONEER</b> va dans Documents → CDJ-Tool-kopie). Décoché : les nouveaux morceaux sont <b>ajoutés</b> à la bibliothèque déjà présente sur la clé.", copyMp3:"Copier les fichiers audio sur la clé USB", flacOpt:"Inclure FLAC (<b>expérimental</b>, uniquement pour un CDJ-2000 avec le mod rafttone.com/cdj2000 : stéréo, 16 ou 24 bits, 44,1 ou 48 kHz). Un CDJ-2000 d'origine ne lit pas le FLAC.", flacFound:"{n} fichiers FLAC trouvés. Cochez l'option FLAC ci-dessus si votre CDJ-2000 a le mod.",
  copyOn:"Activé : les fichiers MP3 sont copiés sur la clé. Le test de vitesse inclut la lecture de la source et l'écriture sur la clé.",
  copyOff:"Sans copie : le dossier MP3 doit se trouver sur la même clé. Le test porte sur la lecture des MP3 ; la taille exacte des fichiers d'analyse est indiquée avant l'écriture.", copyForcedDiffDisk:"Copie obligatoire : le dossier de musique est sur un disque différent de la clé USB. Les fichiers doivent être sur la clé pour que le CDJ puisse les lire.",
@@ -328,7 +354,7 @@ es: {
  name:"Español", sub:"Análisis de pistas y exportación a memoria USB para CDJ-2000, sin rekordbox.",
  setupTitle:"Preparando componentes…", setupDesc:"En el primer inicio la aplicación prepara los componentes necesarios. Tarda un momento.", details:"Detalles",
  setupFail:"No se pudieron preparar los componentes", setupInstall:"Instalando componentes (solo en el primer inicio)…",
- step1:"Carpetas con pistas (MP3, AAC, WAV, AIFF), puedes añadir varias", addFolder:"Añadir carpeta…", clearFolders:"Vaciar lista", removeFolder:"Quitar de la lista", folderDup:"Esta carpeta ya está en la lista.", folderNested:"Esta carpeta está dentro de otra de la lista (o la contiene); las pistas se escribirían dos veces.", foldersSummary:"Total: {k} carpetas, {n} archivos ({mb} MB). Se escriben una a una, cada una como playlist propia.", folderOf:"Carpeta {i} de {n}: {name}", playlistPerFolder:"Con varias carpetas, cada playlist lleva el nombre de su carpeta.", queueStopped:"Detenido en la carpeta {i} de {n}. Las carpetas escritas antes ({done}) ya están en la memoria.", chooseFolder:"Elegir carpeta…", notChosen:"Sin seleccionar.", step2:"Memoria USB", choosePend:"Elegir memoria USB…",
+ step1:"Carpetas con pistas (MP3, AAC, WAV, AIFF), puedes añadir varias", addFolder:"Añadir carpeta…", clearFolders:"Vaciar lista", removeFolder:"Quitar de la lista", folderDup:"Esta carpeta ya está en la lista.", folderNested:"Esta carpeta está dentro de otra de la lista (o la contiene); las pistas se escribirían dos veces.", foldersSummary:"Total: {k} carpetas, {n} archivos ({mb} MB). Se escriben una a una, cada una como playlist propia.", folderOf:"Carpeta {i} de {n}: {name}", playlistPerFolder:"Con varias carpetas, cada playlist lleva el nombre de su carpeta.", queueSkipped:"Se omitieron carpetas sin archivos de audio compatibles: {list}.", queueStopped:"Detenido en la carpeta {i} de {n}. Las carpetas escritas antes ({done}) ya están en la memoria.", chooseFolder:"Elegir carpeta…", notChosen:"Sin seleccionar.", step2:"Memoria USB", choosePend:"Elegir memoria USB…",
  replacePioneer:"Reemplazar todo el contenido actual de la memoria USB (una copia de la carpeta <b>PIONEER</b> va a Documentos → CDJ-Tool-kopie). Sin marcar: las pistas nuevas se <b>añaden</b> a la biblioteca que ya hay en la memoria.", copyMp3:"Copiar los archivos de audio a la memoria USB", flacOpt:"Incluir FLAC (<b>experimental</b>, solo para un CDJ-2000 con el mod de rafttone.com/cdj2000: estéreo, 16 o 24 bits, 44,1 o 48 kHz). Un CDJ-2000 de serie no reproduce FLAC.", flacFound:"Se encontraron {n} archivos FLAC. Marca la opción FLAC de arriba si tu CDJ-2000 tiene el mod.",
  copyOn:"Activado: los archivos MP3 se copian a la memoria. La prueba de velocidad incluye la lectura del origen y la escritura en la memoria.",
  copyOff:"Sin copiar: la carpeta MP3 debe estar en la misma memoria. La prueba mide la lectura de los MP3; el tamaño exacto de los archivos de análisis se muestra antes de escribir.", copyForcedDiffDisk:"Copia obligatoria: la carpeta de música está en un disco diferente al de la memoria USB. Los archivos deben estar en la memoria para que el CDJ pueda leerlos.",
@@ -368,7 +394,7 @@ it: {
  name:"Italiano", sub:"Analisi dei brani ed esportazione su chiavetta USB per CDJ-2000, senza rekordbox.",
  setupTitle:"Preparazione dei componenti…", setupDesc:"Al primo avvio l'app prepara i componenti necessari. Ci vuole un momento.", details:"Dettagli",
  setupFail:"Impossibile preparare i componenti", setupInstall:"Installazione dei componenti (solo al primo avvio)…",
- step1:"Cartelle con i brani (MP3, AAC, WAV, AIFF), puoi aggiungerne più di una", addFolder:"Aggiungi cartella…", clearFolders:"Svuota elenco", removeFolder:"Rimuovi dall'elenco", folderDup:"Questa cartella è già nell'elenco.", folderNested:"Questa cartella è dentro un'altra dell'elenco (o la contiene); i brani verrebbero scritti due volte.", foldersSummary:"Totale: {k} cartelle, {n} file ({mb} MB). Vengono scritte una alla volta, ciascuna come playlist separata.", folderOf:"Cartella {i} di {n}: {name}", playlistPerFolder:"Con più cartelle, ogni playlist prende il nome della sua cartella.", queueStopped:"Fermato alla cartella {i} di {n}. Le cartelle scritte prima ({done}) sono già sulla chiavetta.", chooseFolder:"Scegli cartella…", notChosen:"Non selezionata.", step2:"Chiavetta USB", choosePend:"Scegli chiavetta USB…",
+ step1:"Cartelle con i brani (MP3, AAC, WAV, AIFF), puoi aggiungerne più di una", addFolder:"Aggiungi cartella…", clearFolders:"Svuota elenco", removeFolder:"Rimuovi dall'elenco", folderDup:"Questa cartella è già nell'elenco.", folderNested:"Questa cartella è dentro un'altra dell'elenco (o la contiene); i brani verrebbero scritti due volte.", foldersSummary:"Totale: {k} cartelle, {n} file ({mb} MB). Vengono scritte una alla volta, ciascuna come playlist separata.", folderOf:"Cartella {i} di {n}: {name}", playlistPerFolder:"Con più cartelle, ogni playlist prende il nome della sua cartella.", queueSkipped:"Cartelle senza file audio supportati saltate: {list}.", queueStopped:"Fermato alla cartella {i} di {n}. Le cartelle scritte prima ({done}) sono già sulla chiavetta.", chooseFolder:"Scegli cartella…", notChosen:"Non selezionata.", step2:"Chiavetta USB", choosePend:"Scegli chiavetta USB…",
  replacePioneer:"Sostituisci tutto il contenuto attuale della chiavetta USB (una copia della cartella <b>PIONEER</b> va in Documenti → CDJ-Tool-kopie). Non spuntato: i nuovi brani vengono <b>aggiunti</b> alla libreria già presente sulla chiavetta.", copyMp3:"Copia i file audio sulla chiavetta USB", flacOpt:"Includi FLAC (<b>sperimentale</b>, solo per un CDJ-2000 con la mod di rafttone.com/cdj2000: stereo, 16 o 24 bit, 44,1 o 48 kHz). Un CDJ-2000 originale non riproduce FLAC.", flacFound:"Trovati {n} file FLAC. Spunta l'opzione FLAC qui sopra se il tuo CDJ-2000 ha la mod.",
  copyOn:"Attivo: i file MP3 vengono copiati sulla chiavetta. Il test di velocità include la lettura della sorgente e la scrittura sulla chiavetta.",
  copyOff:"Senza copia: la cartella MP3 deve trovarsi sulla stessa chiavetta. Il test misura la lettura degli MP3; la dimensione esatta dei file di analisi viene mostrata prima della scrittura.", copyForcedDiffDisk:"Copia obbligatoria: la cartella musicale si trova su un disco diverso dalla chiavetta USB. I file devono essere sulla chiavetta affinché il CDJ possa leggerli.",
@@ -651,7 +677,11 @@ async function startFolderu(i) {
 $("bStart").onclick = async () => {
   stanWysuwania = null;
   narysowane.clear(); $("lista").innerHTML = ""; $("wyniki").classList.add("hidden"); $("koniec").classList.add("hidden");
-  kolejka = { lista: foldery.slice(), i: 0, lacznie: 0, kopia: null, pomiar: mp3.sciezka, koniec: false, przerwana: false };
+  const nazwaF = s => s.replace(/\/+$/, "").split("/").pop() || s;
+  const doZapisu = foldery.filter(f => liczbaF(f) > 0);
+  if (!doZapisu.length) return;
+  kolejka = { lista: doZapisu, i: 0, lacznie: 0, kopia: null, pomiar: mp3.sciezka, koniec: false, przerwana: false,
+              pominiete: foldery.filter(f => liczbaF(f) === 0).map(f => nazwaF(f.sciezka)) };
   odswiezPrzycisk();
   await startFolderu(0);
   odswiezPrzycisk();
@@ -805,6 +835,14 @@ async function odswiez() {
           } else { kolejka.koniec = true; }
         } finally { kolejkaBusy = false; }
         return odswiez();
+      } else if (j.stan === "blad" && j.kod === "NO_AUDIO_FILES" && kolejka.i + 1 < kolejka.lista.length) {
+        kolejkaBusy = true;
+        try {
+          kolejka.pominiete.push(kolejka.lista[kolejka.i].sciezka.replace(/\/+$/, "").split("/").pop());
+          kolejka.i++;
+          await startFolderu(kolejka.i);
+        } finally { kolejkaBusy = false; }
+        return odswiez();
       } else if (j.stan === "blad" || j.stan === "anulowano") { kolejka.przerwana = true; }
     }
     if (j.sukcesy > 50) $("wyniki").querySelector("h2").textContent = t("results50");
@@ -815,6 +853,7 @@ async function odswiez() {
   } else if (j.stan === "gotowe") {
     k.classList.remove("hidden");
     let html = `<h2 class="ok">${esc(t("doneTitle", { n: kolejka && kolejka.lista.length > 1 ? kolejka.lacznie : (j.sukcesy || j.utwory.length) }))}</h2><p style="margin:0 0 8px">${esc(t("doneEject"))}</p>`;
+    if (kolejka && (kolejka.pominiete || []).length) html += `<p class="warn" style="font-size:13px;margin:0 0 8px">${esc(t("queueSkipped", { list: kolejka.pominiete.join(", ") }))}</p>`;
     if (j.kopia) html += `<p class="m" style="color:var(--muted);font-size:13px;margin:0 0 8px">${esc(t("backupOf"))} ${esc(j.kopia)}</p>`;
     if ((j.stare_pliki || []).length) html += `<p class="warn" style="font-size:13px;margin:0 0 8px">${esc(t("oldFiles", { list: j.stare_pliki.join(", ") }))}</p>`;
     const wysuwanie = stanWysuwania;

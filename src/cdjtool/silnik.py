@@ -26,7 +26,7 @@ import gen_dat as g
 import pdb_writer as pw
 from exceptions import (
     CDJError, FFmpegError, InvalidMP3Error, DiskSpaceError, PathTooLongError,
-    ProcessTimeoutError, BPMConfidenceError
+    ProcessTimeoutError, BPMConfidenceError, NoAudioFilesError
 )
 
 FFMPEG = os.environ.get("CDJ_FFMPEG", "ffmpeg")
@@ -883,7 +883,10 @@ def _przetworz(a, emit):
     
     pliki = pliki_mp3(folder)
     if not pliki:
-        raise ValueError("W wybranym folderze nie ma plikow MP3.")
+        tylko_flac = not FLAC["on"] and any(
+            n.lower().endswith(ROZSZERZENIE_FLAC) and not n.startswith(".")
+            for _, _, fn in os.walk(folder) for n in fn)
+        raise NoAudioFilesError(folder, tylko_flac)
     if not os.path.isdir(root):
         raise ValueError("Nie znaleziono wybranego pendrive'a.")
     

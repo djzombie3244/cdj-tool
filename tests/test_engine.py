@@ -83,3 +83,24 @@ def test_analysis_path_collisions_are_resolved(tmp_path, monkeypatch):
     paths = [s["analyze_path"] for _, s in lib["utwory"]]
     assert len(paths) == 2 and len(set(paths)) == 2
     assert real("/x", 0) != real("/x", 1)
+
+
+def test_folder_without_audio_raises_its_own_error(tmp_path):
+    """A folder with no supported audio must raise NoAudioFilesError (code NO_AUDIO_FILES),
+    so the folder queue in the UI can skip it instead of stopping."""
+    from exceptions import NoAudioFilesError
+    empty, usb = tmp_path / "Płyty skrecz sample", tmp_path / "usb"
+    empty.mkdir()
+    usb.mkdir()
+    (empty / "notes.txt").write_text("not audio")
+    (empty / "loop.flac").write_bytes(b"fLaC")
+    try:
+        _run(str(empty), str(usb), "Empty")
+    except NoAudioFilesError as e:
+        err = e
+    else:
+        pytest.fail("NoAudioFilesError was not raised")
+    assert err.code == "NO_AUDIO_FILES"
+    assert "Płyty skrecz sample" in err.user_message
+    assert "FLAC" in err.user_message  # FLAC is off, so the hint is shown
+    assert not (usb / "PIONEER").exists()  # nothing was written

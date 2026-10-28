@@ -499,7 +499,7 @@ def start_zadania(a):
         PODGLADY.clear()
         STAN["job"] = {"stan": "trwa", "etap": "Start...", "postep": 0.0, "n": 0, "utwory": [], "sukcesy": 0,
                        "bledy": [], "bledow_razem": 0,
-                       "log": [], "kopia": None, "stare_pliki": [], "blad": None,
+                       "log": [], "kopia": None, "stare_pliki": [], "blad": None, "kod": None,
                        "kopiuj": bool(a.get("kopiuj_mp3", True)), "t0": time.time()}
     threading.Thread(target=biegnie_zadanie, args=(a,), daemon=True).start()
     return True
@@ -621,6 +621,7 @@ def obsluz(job, ev):
     elif t == "blad":
         job["stan"] = "blad"
         job["blad"] = ev["tekst"]
+        job["kod"] = ev.get("kod")
 
 
 # ------------------------------------------------------------ serwer HTTP --

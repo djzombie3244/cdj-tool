@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.4 - 2026
+- Fixed CDJ Tool showing "nie uruchomił składnika analizy" after the Mac sleeps. The analysis component is now restarted automatically after a clean exit, and the idle watchdog waits for several checks before it quits, so a wake-up no longer closes it.
+- When writing several folders at once, a folder with no supported audio files (for example one holding only samples in another format) is now skipped and listed on the final screen, instead of stopping the whole queue. The message also names the folder and no longer says "MP3" only; if the folder holds FLAC files while the FLAC option is off, it says so. Added a test.
+- New look: colours taken from the app icon, larger Start button and waveform previews.
+
 ## 1.0.3 - 2026
 - Fixed a bug where analysing fewer than 4 files at once could skip a track with "The weights and list don't have the same length" (or, rarely, use the wrong beat grid offset). The per-track caches added in 1.0.2 are now local to each analysis thread. Added a regression test. Libraries of 4 or more files were not affected.
 - Documented the hardware test of optional FLAC on a CDJ-2000 with the RaftTone mod: tracks load and play, but hot cues load slowly and the player does not use the exported BPM/beat grid, so FLAC performs worse than MP3. It stays optional and experimental.

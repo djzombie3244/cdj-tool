@@ -76,3 +76,15 @@ class BPMConfidenceError(CDJError):
             user_message=f"Nie mogę wiarygodnie wyznaczyć BPM '{filename}'. Sprawdź utwór ręcznie.",
             code="LOW_BPM_CONFIDENCE"
         )
+
+
+class NoAudioFilesError(CDJError):
+    """Folder nie zawiera obsługiwanych plików audio (kolejka folderów go pomija)."""
+
+    def __init__(self, folder: str, tylko_flac: bool = False):
+        import os
+        nazwa = os.path.basename(folder.rstrip("/\\")) or folder
+        tekst = f"W folderze „{nazwa}” nie ma obsługiwanych plików audio (MP3, AAC, WAV, AIFF)."
+        if tylko_flac:
+            tekst += " Są w nim pliki FLAC: zaznacz opcję FLAC, jeśli Twój CDJ-2000 ma mod."
+        super().__init__(f"No audio files in {folder}", user_message=tekst, code="NO_AUDIO_FILES")
