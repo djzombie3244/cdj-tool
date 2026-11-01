@@ -589,12 +589,16 @@ def obsluz(job, ev):
             job["utwory"].append(ev)
     elif t == "postep_analizy":
         job["etap"] = "Przeanalizowano %d z %d utworów..." % (ev["i"], ev["n"])
+        if ev.get("w_tle") is not None:
+            job["etap"] += " · skopiowano w tle: %d" % ev["w_tle"]
         job["postep"] = ev["i"] / max(1, ev["n"]) * _waga(job)
         job["an_zrobione"] = ev["i"]
     elif t == "utwor_blad":
         job["bledow_razem"] = job.get("bledow_razem", 0) + 1
         if len(job["bledy"]) < 100:
             job["bledy"].append({"nazwa": ev["nazwa"], "tekst": ev["tekst"]})
+    elif t == "log":
+        dodaj_log(job["log"], ev["tekst"])
     elif t == "etap":
         job["etap"] = ev["tekst"]
         job["postep"] = max(job["postep"], _waga(job))
@@ -714,6 +718,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                      "kopiuj_mp3": bool(dane.get("kopiuj_mp3", True)),
                      "zastap_pioneer": bool(dane.get("zastap_pioneer", False)),
                      "flac": bool(dane.get("flac", False)),
+                     "kopiuj_w_tle": bool(dane.get("kopiuj_w_tle", True)),
+                     "nie_usypiaj": bool(dane.get("nie_usypiaj", True)),
                      "nazwa_folderu": str(dane.get("nazwa_folderu") or "")[:60]}
                 benchmark = STAN["benchmark"]
                 if (benchmark.get("stan") != "gotowe" or

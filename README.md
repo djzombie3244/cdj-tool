@@ -44,6 +44,8 @@ affiliated with it. Follow the mod's own page for building and flashing the firm
 - **BPM and beat grid** detection, **overview and detailed waveforms** (the CDJ-2000 needs the `.EXT` file to show waveforms), automatic **hot cues and memory cues**.
 - **Adds to an existing library** on the stick instead of overwriting it; playlists, genres and earlier analysis are kept. Optional full replace (with a backup).
 - Parallel analysis tuned to your disk speed and a RAM limit; time-remaining estimate. It uses at most half of your CPU cores, so the Mac stays cool and responsive.
+- Each track is copied to the stick in the background as soon as it is analysed, so writing overlaps the analysis (optional, on by default). The database is still written last, so an interrupted run leaves the previous library working.
+- Keeps the computer awake while it analyses and writes (optional, on by default; closing a laptop lid still puts it to sleep).
 - Optional **format the stick as FAT32 (MBR)** for the CDJ-2000.
 - Reliable **eject** button.
 - Interface in **6 languages**: Polski, English, Deutsch, Français, Español, Italiano.

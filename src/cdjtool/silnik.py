@@ -5,6 +5,7 @@ import datetime
 import concurrent.futures
 import json
 import os
+import queue
 import time
 import re
 import shutil
@@ -842,9 +843,94 @@ def _niski_priorytet():
         pass
 
 
+def _nie_usypiaj():
+    """Nie pozwala komputerowi zasnąć, dopóki działa ten proces; jego koniec (także przerwanie) zdejmuje blokadę."""
+    try:
+        if sys.platform == "darwin":
+            # -i: bez uśpienia przy bezczynności, -m: dysk nie zasypia, -s: system nie zasypia na zasilaczu;
+            # -w: caffeinate kończy się razem z tym procesem
+            subprocess.Popen(["/usr/bin/caffeinate", "-ims", "-w", str(os.getpid())],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        if sys.platform == "win32":
+            import ctypes
+            ES_CONTINUOUS, ES_SYSTEM_REQUIRED = 0x80000000, 0x00000001
+            return bool(ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED))
+    except Exception:  # noqa: BLE001  # to dodatek: bez niego analiza działa jak dawniej
+        pass
+    return False
+
+
+class KopiarkaTla:
+    """Kopiuje pliki audio przeanalizowanych już utworów na pendrive, gdy analiza kolejnych trwa dalej.
+
+    Jeden wątek, pliki po kolei (pendrive najlepiej znosi zapis sekwencyjny). Plik powstaje pod nazwą
+    tymczasową i dopiero kompletny zastępuje docelowy, więc przerwanie nie zostawia uciętego pliku pod
+    ścieżką, którą zna dotychczasowa biblioteka. Etap zapisu po analizie pomija pliki, które już są na
+    miejscu (ten sam rozmiar), i dokopiowuje resztę. Baza export.pdb nadal powstaje na samym końcu."""
+
+    def __init__(self, root):
+        self.root = root
+        self.kolejka = queue.Queue()
+        self.stop = threading.Event()
+        self.plikow = 0
+        self.bajtow = 0
+        self.blad = None
+        self.watek = threading.Thread(target=self._praca, name="kopiarka-tla", daemon=True)
+        self.watek.start()
+
+    def dodaj(self, u):
+        self.kolejka.put(u)
+
+    def _praca(self):
+        while True:
+            u = self.kolejka.get()
+            if u is None or self.stop.is_set():
+                return
+            try:
+                self._kopiuj(u)
+            except Exception as e:  # noqa: BLE001  # etap zapisu spróbuje jeszcze raz i wtedy zgłosi błąd
+                self.blad = e
+                return
+
+    def _kopiuj(self, u):
+        cel = os.path.join(self.root, u["pend"].lstrip("/"))
+        rozmiar = u["meta"]["rozmiar"]
+        if os.path.exists(cel) and os.path.getsize(cel) == rozmiar:
+            return
+        os.makedirs(os.path.dirname(cel), exist_ok=True)
+        tmp = cel + ".cdjpart"
+        try:
+            with open(u["src"], "rb") as fin, open(tmp, "wb") as fout:
+                while True:
+                    if self.stop.is_set():
+                        raise InterruptedError("kopiowanie w tle przerwane")
+                    blok = fin.read(4 * 1024 * 1024)
+                    if not blok:
+                        break
+                    fout.write(blok)
+            os.replace(tmp, cel)
+        except BaseException:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            raise
+        self.plikow += 1
+        self.bajtow += rozmiar
+
+    def zakoncz(self, przerwij=False):
+        if przerwij:
+            self.stop.set()
+        self.kolejka.put(None)
+        self.watek.join()
+
+
 def przetworz(a, emit):
     """Punkt wejscia: sprzata katalog tymczasowy z wynikami analizy po zakonczeniu (takze po bledzie)."""
     _niski_priorytet()
+    if a.get("nie_usypiaj", True):
+        _nie_usypiaj()
     try:
         _przetworz(a, emit)
     finally:
@@ -916,6 +1002,17 @@ def _przetworz(a, emit):
     
     zakonczone = 0
     errors = []
+
+    kopiarka = None
+    if kopiuj_mp3 and a.get("kopiuj_w_tle", True):
+        try:
+            potrzeba = sum(os.path.getsize(os.path.join(folder, p)) for p in pliki)
+            # tylko gdy na pendrive na pewno zmieszczą się wszystkie pliki z zapasem; inaczej zostaje
+            # dotychczasowa kolejność, w której brak miejsca jest wykrywany przed zapisem czegokolwiek
+            if shutil.disk_usage(root).free > potrzeba * 1.05 + 256 * 1024 * 1024:
+                kopiarka = KopiarkaTla(root)
+        except OSError:
+            kopiarka = None
     
     pula_proc = None
     if len(pliki) >= 4 and os.environ.get("CDJ_PROCESY", "1") == "1":
@@ -937,36 +1034,50 @@ def _przetworz(a, emit):
         except Exception:  # noqa: BLE001
             pula_proc = None
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pula:
-        if pula_proc is not None:
-            futures = [pula.submit(_analizuj_jeden_proc, pula_proc, folder, root, nr, rel, kopiuj_mp3, dzis, nazwa_folderu)
-                       for nr, rel in enumerate(pliki, 1)]
-        else:
-            futures = [pula.submit(_analizuj_jeden, folder, root, nr, rel, kopiuj_mp3, dzis, nazwa_folderu)
-                       for nr, rel in enumerate(pliki, 1)]
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                utwor, ev = future.result()
-                ev["n"] = len(pliki)
-                if utwor:
-                    utwory_wg_indeksu[ev["i"]] = utwor
-                emit(ev)
-            except CDJError as e:
-                emit({
-                    "typ": "utwor_blad",
-                    "nazwa": "unknown",
-                    "tekst": e.user_message,
-                    "kod": e.code
-                })
-                errors.append(e)
-            except Exception as e:
-                emit({"typ": "utwor_blad", "nazwa": "unknown", "tekst": str(e)})
-                errors.append(e)
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pula:
+            if pula_proc is not None:
+                futures = [pula.submit(_analizuj_jeden_proc, pula_proc, folder, root, nr, rel, kopiuj_mp3, dzis, nazwa_folderu)
+                           for nr, rel in enumerate(pliki, 1)]
+            else:
+                futures = [pula.submit(_analizuj_jeden, folder, root, nr, rel, kopiuj_mp3, dzis, nazwa_folderu)
+                           for nr, rel in enumerate(pliki, 1)]
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    utwor, ev = future.result()
+                    ev["n"] = len(pliki)
+                    if utwor:
+                        utwory_wg_indeksu[ev["i"]] = utwor
+                        if kopiarka is not None:
+                            kopiarka.dodaj(utwor)
+                    emit(ev)
+                except CDJError as e:
+                    emit({
+                        "typ": "utwor_blad",
+                        "nazwa": "unknown",
+                        "tekst": e.user_message,
+                        "kod": e.code
+                    })
+                    errors.append(e)
+                except Exception as e:
+                    emit({"typ": "utwor_blad", "nazwa": "unknown", "tekst": str(e)})
+                    errors.append(e)
             
-            zakonczone += 1
-            emit({"typ": "postep_analizy", "i": zakonczone, "n": len(pliki)})
+                zakonczone += 1
+                emit({"typ": "postep_analizy", "i": zakonczone, "n": len(pliki),
+                      "w_tle": kopiarka.plikow if kopiarka is not None else None})
+    except BaseException:
+        if kopiarka is not None:
+            kopiarka.zakoncz(przerwij=True)
+        raise
     if pula_proc is not None:
         pula_proc.shutdown(wait=True)
+    if kopiarka is not None:
+        emit({"typ": "etap", "tekst": "Kończę kopiowanie w tle..." + _t()})
+        kopiarka.zakoncz()
+        emit({"typ": "log", "tekst": "W tle skopiowano %d plików (%.0f MB)%s." % (
+            kopiarka.plikow, kopiarka.bajtow / 1e6,
+            "; reszta zostanie skopiowana teraz (%s)" % kopiarka.blad if kopiarka.blad else "")})
     
     utwory = [utwory_wg_indeksu[i] for i in sorted(utwory_wg_indeksu)]
     if not utwory:
@@ -1105,10 +1216,16 @@ def _przetworz(a, emit):
             rel = os.path.relpath(src, stat)
             szablony.append((src, os.path.join(pioneer, rel), os.path.getsize(src)))
     
+    def _juz_na_miejscu(u):
+        try:
+            return os.path.getsize(os.path.join(root, u["pend"].lstrip("/"))) == u["meta"]["rozmiar"]
+        except OSError:
+            return False
+
     wolne = shutil.disk_usage(root).free
     do_zapisu = dane_bajty + sum(rozmiar for _, dst, rozmiar in szablony
                                  if a.get("zastap_pioneer", False) or not os.path.exists(dst))
-    do_zapisu += sum(u["meta"]["rozmiar"] for u in utwory) if kopiuj_mp3 else 0
+    do_zapisu += sum(u["meta"]["rozmiar"] for u in utwory if not _juz_na_miejscu(u)) if kopiuj_mp3 else 0
     
     odzysk = 0
     if a.get("zastap_pioneer", False) and os.path.isdir(pioneer):
@@ -1122,7 +1239,7 @@ def _przetworz(a, emit):
         docelowe = [os.path.join(pioneer, "rekordbox", "export.pdb")]
         docelowe.extend(os.path.join(root, u["analiza"].lstrip("/")) for u in utwory)
         if kopiuj_mp3:
-            docelowe.extend(os.path.join(root, u["pend"].lstrip("/")) for u in utwory)
+            docelowe.extend(os.path.join(root, u["pend"].lstrip("/")) for u in utwory if not _juz_na_miejscu(u))
         for p in docelowe:
             try:
                 odzysk += os.path.getsize(p)

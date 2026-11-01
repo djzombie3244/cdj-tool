@@ -104,3 +104,67 @@ def test_folder_without_audio_raises_its_own_error(tmp_path):
     assert "Płyty skrecz sample" in err.user_message
     assert "FLAC" in err.user_message  # FLAC is off, so the hint is shown
     assert not (usb / "PIONEER").exists()  # nothing was written
+
+
+def _pliki_na_pendrive(usb):
+    out = {}
+    for dp, _, fn in os.walk(usb):
+        for n in fn:
+            p = os.path.join(dp, n)
+            out[os.path.relpath(p, usb)] = p
+    return out
+
+
+def test_background_copy_gives_the_same_stick(tmp_path):
+    """Copying tracks in the background while the analysis runs must give the same files on the stick
+    as copying after the analysis, and must not leave temporary files behind."""
+    src = tmp_path / "src"
+    src.mkdir()
+    _click_track(str(src / "one.wav"), 128.0, seconds=20)
+    _click_track(str(src / "two.wav"), 140.0, seconds=20)
+    stick = {}
+    for tlo in (True, False):
+        usb = tmp_path / ("usb_tlo" if tlo else "usb_po")
+        usb.mkdir()
+        events = []
+        silnik.przetworz({"folder_mp3": str(src), "pendrive": str(usb), "playlista": "T", "kopiuj_mp3": True,
+                          "zastap_pioneer": False, "kopiuj_w_tle": tlo, "nie_usypiaj": False}, events.append)
+        assert any(e.get("typ") == "koniec" and e.get("ok") for e in events)
+        logi = [e["tekst"] for e in events if e.get("typ") == "log"]
+        assert any(t.startswith("W tle skopiowano 2 plików") for t in logi) == tlo
+        pliki = _pliki_na_pendrive(usb)
+        assert not [p for p in pliki if p.endswith(".cdjpart")]
+        audio = {k: open(v, "rb").read() for k, v in pliki.items() if k.endswith(".wav")}
+        assert len(audio) == 2
+        assert sorted(audio.values()) == sorted([(src / "one.wav").read_bytes(), (src / "two.wav").read_bytes()])
+        lib = pw.czytaj_biblioteke((usb / "PIONEER" / "rekordbox" / "export.pdb").read_bytes())
+        assert len(lib["utwory"]) == 2
+        stick[tlo] = sorted(audio)
+    assert stick[True] == stick[False]
+
+
+def test_background_copier_skips_files_already_there_and_stops_cleanly(tmp_path):
+    src = tmp_path / "a.wav"
+    src.write_bytes(b"x" * 1000)
+    root = tmp_path / "usb"
+    (root / "Tracks").mkdir(parents=True)
+    gotowy = root / "Tracks" / "a.wav"
+    gotowy.write_bytes(b"y" * 1000)  # same size: treated as already copied
+    u = {"pend": "/Tracks/a.wav", "src": str(src), "meta": {"rozmiar": 1000}}
+    k = silnik.KopiarkaTla(str(root))
+    k.dodaj(u)
+    k.zakoncz()
+    assert k.plikow == 0 and k.blad is None
+    assert gotowy.read_bytes() == b"y" * 1000
+
+    u2 = {"pend": "/Tracks/b.wav", "src": str(src), "meta": {"rozmiar": 1000}}
+    k = silnik.KopiarkaTla(str(root))
+    k.zakoncz(przerwij=True)  # stopped before any work
+    k.dodaj(u2)
+    assert not (root / "Tracks" / "b.wav").exists()
+    assert not list(root.rglob("*.cdjpart"))
+
+    k = silnik.KopiarkaTla(str(root))
+    k.dodaj(u2)
+    k.zakoncz()
+    assert k.plikow == 1 and (root / "Tracks" / "b.wav").read_bytes() == b"x" * 1000

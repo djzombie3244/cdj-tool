@@ -44,6 +44,8 @@ powiązany. Budowanie i wgrywanie firmware'u opisuje strona moda; robisz to na w
 - Wykrywanie **BPM i siatki beatów**, **waveform przeglądowy i szczegółowy** (CDJ-2000 potrzebuje pliku `.EXT`, żeby pokazać waveform), automatyczne **hot cue i memory cue**.
 - **Dopisywanie do istniejącej biblioteki** na pendrive zamiast nadpisywania; playlisty, gatunki i wcześniejsza analiza zostają. Opcjonalne pełne zastąpienie (z kopią zapasową).
 - Równoległa analiza dopasowana do szybkości dysku i limitu pamięci RAM oraz szacowany czas do końca. Używa najwyżej połowy rdzeni procesora, więc Mac pozostaje chłodny i responsywny.
+- Każdy utwór trafia na pendrive w tle zaraz po analizie, więc zapis idzie równolegle z analizą (opcja, domyślnie włączona). Baza nadal jest zapisywana na końcu, więc przerwany zapis zostawia działającą poprzednią bibliotekę.
+- Komputer nie usypia się podczas analizy i zapisu (opcja, domyślnie włączona; zamknięcie klapy laptopa nadal go usypia).
 - Opcjonalne **formatowanie pendrive do FAT32 (MBR)** pod CDJ-2000.
 - Niezawodny przycisk **wysuwania**.
 - Interfejs w **6 językach**: Polski, English, Deutsch, Français, Español, Italiano.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.5 - 2026
+- **Background copy:** each track is copied to the stick as soon as its analysis finishes, while the next tracks are still being analysed. The write step at the end only copies what is left. Files are written under a temporary name and renamed when complete, and the database is still written last, so stopping a run never leaves a cut-off file under a name the previous library uses. Used only when the stick has room for all files; option *Copy each track in the background* (on by default).
+- **Keep awake:** the computer does not go to sleep while CDJ Tool analyses and writes (macOS: `caffeinate`, Windows: `SetThreadExecutionState`). The block ends with the job, also when it is cancelled. Option *Keep the computer awake* (on by default). Closing a laptop lid still puts it to sleep.
+- The free-space check no longer counts audio files that are already on the stick with the same size (they are not copied again).
+- Tests for the background copy (same files on the stick with and without it, no temporary files left).
+
 ## 1.0.4 - 2026
 - Fixed CDJ Tool showing "nie uruchomił składnika analizy" after the Mac sleeps. The analysis component is now restarted automatically after a clean exit, and the idle watchdog waits for several checks before it quits, so a wake-up no longer closes it.
 - When writing several folders at once, a folder with no supported audio files (for example one holding only samples in another format) is now skipped and listed on the final screen, instead of stopping the whole queue. The message also names the folder and no longer says "MP3" only; if the folder holds FLAC files while the FLAC option is off, it says so. Added a test.
