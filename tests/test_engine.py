@@ -168,3 +168,50 @@ def test_background_copier_skips_files_already_there_and_stops_cleanly(tmp_path)
     k.dodaj(u2)
     k.zakoncz()
     assert k.plikow == 1 and (root / "Tracks" / "b.wav").read_bytes() == b"x" * 1000
+
+
+def test_subfolders_become_playlist_folders(tmp_path):
+    """Uklad folderow zrodla -> drzewo playlist: folder z podfolderami = folder playlist (jego wlasne pliki
+    w playliscie o tej samej nazwie), folder bez podfolderow = playlista. Ponowny zapis niczego nie dubluje."""
+    root, usb = tmp_path / "Muzyka", tmp_path / "usb"
+    for d in (root / "House" / "Vocal", root / "Techno", usb):
+        d.mkdir(parents=True)
+    _click_track(str(root / "luzny.wav"), 120.0, seconds=12)
+    _click_track(str(root / "House" / "h1.wav"), 124.0, seconds=12)
+    _click_track(str(root / "House" / "Vocal" / "v1.wav"), 126.0, seconds=12)
+    _click_track(str(root / "Techno" / "t1.wav"), 132.0, seconds=12)
+
+    def drzewo():
+        lib = pw.czytaj_biblioteke((usb / "PIONEER" / "rekordbox" / "export.pdb").read_bytes())
+        tytul = {f["id"]: s["title"] or s["filename"] for f, s in lib["utwory"]}
+        wezly = {pid: (par, fold, n) for par, srt, pid, fold, n in lib["drzewo"]}
+
+        def sciezka(pid):
+            par, fold, n = wezly[pid]
+            return (sciezka(par) if par else ()) + ((n + "/") if fold else n,)
+
+        out = {}
+        for e, tid, pid in lib["wpisy"]:
+            out.setdefault("/".join(sciezka(pid)), []).append(tytul[tid])
+        return {k: sorted(v) for k, v in out.items()}, len(lib["drzewo"])
+
+    for _ in range(2):  # drugi raz: dopisanie bez dublowania wezlow i wpisow
+        silnik.przetworz({"folder_mp3": str(root), "pendrive": str(usb), "playlista": "Muzyka", "kopiuj_mp3": True,
+                          "zastap_pioneer": False, "nie_usypiaj": False, "nazwa_folderu": "Muzyka"}, lambda e: None)
+        tree, wezlow = drzewo()
+        assert tree == {
+            "Muzyka//Muzyka": ["luzny"],
+            "Muzyka//House//House": ["h1"],
+            "Muzyka//House//Vocal": ["v1"],
+            "Muzyka//Techno": ["t1"],
+        }, tree
+        assert wezlow == 6  # foldery: Muzyka, House; playlisty: Muzyka, House, Vocal, Techno
+
+    # opcja wylaczona: jedna playlista z calym folderem (dawne zachowanie)
+    usb2 = tmp_path / "usb2"
+    usb2.mkdir()
+    silnik.przetworz({"folder_mp3": str(root), "pendrive": str(usb2), "playlista": "Wszystko", "kopiuj_mp3": True,
+                      "zastap_pioneer": False, "nie_usypiaj": False, "playlisty_z_folderow": False}, lambda e: None)
+    lib = pw.czytaj_biblioteke((usb2 / "PIONEER" / "rekordbox" / "export.pdb").read_bytes())
+    assert [(fold, n) for _, _, _, fold, n in lib["drzewo"]] == [(False, "Wszystko")]
+    assert len(lib["wpisy"]) == 4

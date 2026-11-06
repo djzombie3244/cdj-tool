@@ -127,20 +127,14 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
             DispatchQueue.main.async {
                 guard let self, !self.shuttingDown else { return }
                 // Jeśli backend zakończył się z kodem 0 lub -15 (SIGTERM od systemu przy usypianiu) — spróbuj restartu
-                let code = proc.terminationStatus
-                let reason = proc.terminationReason
-                // Wygaszenie: system zabija proces sygnałem, a wbudowany watchdog w app.py kończy go kodem 0
-                // (po obudzeniu nie zdążył dostać zapytania z okna). Oba przypadki restartujemy.
-                let zabityPrzezSystem = reason == .uncaughtSignal && (code == 15 || code == 9)
-                let watchdog = reason == .exit && code == 0 && self.backendStarted
-                if zabityPrzezSystem || watchdog {
-                    // Zabity przez system (uśpienie/SIGTERM) — poczekaj chwilę i zrestartuj
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                        guard let self, !self.shuttingDown else { return }
-                        self.restartBackend()
-                    }
-                } else {
-                    self.showMessage("CDJ Tool nie uruchomił składnika analizy. Szczegóły zapisano w logu aplikacji.")
+                // Składnik analizy zakończył się, choć okno jest otwarte (np. po uśpieniu komputera).
+                // Zawsze próbujemy go uruchomić ponownie; restartBackend() po 5 nieudanych próbach
+                // z rzędu pokazuje komunikat. Licznik zeruje się po każdym udanym starcie (CDJ_URL).
+                NSLog("CDJ Tool: backend exited (reason %ld, status %d), restarting",
+                      proc.terminationReason.rawValue, proc.terminationStatus)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    guard let self, !self.shuttingDown else { return }
+                    self.restartBackend()
                 }
             }
         }

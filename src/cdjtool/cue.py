@@ -27,8 +27,42 @@ def _energie_taktow(cechy, poczatki_s, koniec_s):
     return nisko, calosc
 
 
+HOT_ILE = 6  # A-F: tyle pokazuje mod RaftTone v1.1
+
+
 def wyznacz(cechy, czasy_s, numery, dlugosc_s):
     """Zwraca {'pamiec': [(ms, nazwa)], 'hot': [(ms, nazwa)]} (czasy w osi Rekordboxa, ms)."""
+    wyn = _wyznacz(cechy, czasy_s, numery, dlugosc_s)
+    wyn["hot"] = _uzupelnij_hot(wyn, czasy_s, numery)
+    return wyn
+
+
+def _uzupelnij_hot(wyn, czasy_s, numery, ile=HOT_ILE):
+    """Komplet hot cue A-F: mod RaftTone v1.1 zawiesza player, gdy w banku D-F jest pusty slot i probuje go
+    zapisac (test na decku 2026-11-05). Brakujace punkty biora sie z memory cue i z poczatkow fraz (co 16 taktow),
+    za kazdym razem najdalszy od juz wybranych; dochodza na koncu listy, wiec wczesniejsze litery sie nie zmieniaja."""
+    hot = list(wyn.get("hot", []))[:ile]
+    czasy_s = np.asarray(czasy_s, dtype=float)
+    if len(hot) >= ile or len(czasy_s) < 2:
+        return hot
+    numery = np.asarray(numery)
+    okres_ms = float(np.median(np.diff(czasy_s))) * 1000.0
+    takty = czasy_s[numery == 1] if len(numery) == len(czasy_s) and (numery == 1).any() else czasy_s[::4]
+    kand = [(int(t), n) for t, n in wyn.get("pamiec", [])]
+    kand += [(int(round(t * 1000)), "Cue") for t in takty[::16]]
+    zajete = [t for t, _ in hot]
+    dodane = []
+    while len(hot) + len(dodane) < ile and kand:
+        odl = [min(abs(t - z) for z in zajete) for t, _ in kand]
+        i = int(np.argmax(odl))
+        if odl[i] < 4 * okres_ms:  # blizej niz takt od istniejacego punktu: nie ma juz sensownych miejsc
+            break
+        zajete.append(kand[i][0])
+        dodane.append(kand.pop(i))
+    return hot + sorted(dodane)
+
+
+def _wyznacz(cechy, czasy_s, numery, dlugosc_s):
     czasy_s = np.asarray(czasy_s, dtype=float)
     numery = np.asarray(numery)
     if len(czasy_s) == 0:
@@ -99,23 +133,27 @@ def wyznacz(cechy, czasy_s, numery, dlugosc_s):
             if m > G and all(abs(m - frazy[j]) >= MIN_ODSTEP for j, _ in wybrane):
                 pam.append((int(round(poczatki[m] * 1000)), "Mix in"))
             break
-    # hot: A = poczatek beatu, B = pierwszy drop (lub lift), C = pierwszy break, D = outro albo ostatni drop
+    # hot (najwyzej 6: A-F, tyle pokazuje mod RaftTone v1.1; zwykly CDJ-2000 ma 3 pady A-C):
     # A = zawsze pierwszy beat siatki (glowny punkt CUE: CDJ ustawia sie tam po zaladowaniu, jak w Rekordboksie);
-    # B = poczatek groove'u (wejscie miksu), dalej drop, break, outro
-    hot = [(pierwszy_ms, "Start")]
-    if start_g != pierwszy_ms:
-        hot.append((start_g, "Groove"))
+    # dalej po kolei w czasie: groove (wejscie miksu), pierwszy drop, pierwszy break, outro, ostatni drop, ostatni break.
+    # Kandydaci wg waznosci; drugie wystapienia sa zawsze pozniejsze, wiec A-C sa takie jak wczesniej.
     drops = [(i, t) for i, t in wybrane if t in ("Drop", "Lift")]
     brks = [(i, t) for i, t in wybrane if t == "Break"]
     outros = [(i, t) for i, t in wybrane if t == "Outro"]
+    kandydaci = []
+    if start_g != pierwszy_ms:
+        kandydaci.append((start_g, "Groove"))
     if drops:
-        hot.append((ms(drops[0][0]), "Drop"))
+        kandydaci.append((ms(drops[0][0]), "Drop"))
     if brks:
-        hot.append((ms(brks[0][0]), "Break"))
+        kandydaci.append((ms(brks[0][0]), "Break"))
     if outros:
-        hot.append((ms(outros[0][0]), "Outro"))
-    elif len(drops) > 1:
-        hot.append((ms(drops[-1][0]), "Drop 2"))
+        kandydaci.append((ms(outros[0][0]), "Outro"))
+    if len(drops) > 1:
+        kandydaci.append((ms(drops[-1][0]), "Drop 2"))
+    if len(brks) > 1:
+        kandydaci.append((ms(brks[-1][0]), "Break 2"))
+    hot = [(pierwszy_ms, "Start")] + kandydaci[:5]
     # bez duplikatow czasu
     def uniq(lst):
         wyj, widziane = [], set()
@@ -126,5 +164,5 @@ def wyznacz(cechy, czasy_s, numery, dlugosc_s):
         return wyj
     hot = [hot[0]] + sorted(hot[1:])  # A = pierwszy beat, dalsze po kolei w czasie
     wyn["pamiec"] = uniq(sorted(pam))[:8]  # starsze CDJ ladujq ograniczona liczbe; zostaje <= 8
-    wyn["hot"] = uniq(hot)[:8]
+    wyn["hot"] = uniq(hot)[:6]
     return wyn

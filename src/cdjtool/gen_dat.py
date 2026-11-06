@@ -31,6 +31,10 @@ HOP = CONFIG["audio"]["hop_length"]
 FPS = SR / HOP
 OFFSET_REKORDBOX_S = CONFIG["audio"]["rekordbox_offset_ms"] / 1000.0
 ATAK_PRZED_WZROSTEM_S = CONFIG["audio"]["beat_attack_offset_ms"] / 1000.0
+# Kalibracja na eksporcie rekordboxa (15 utworow, 2026-11-04): beaty sieci Beat This! leza srednio 12,2 ms
+# za linia siatki rekordboxa; MP3 bez danych gapless sa w osi CDJ o 46,7 ms wczesniej niz dzwiek z ffmpeg.
+SIEC_OPOZNIENIE_S = 0.0122
+MP3_BEZ_GAPLESS_S = 0.0467
 BPM_MIN = CONFIG["analysis"]["bpm_min"]
 BPM_MAX = CONFIG["analysis"]["bpm_max"]
 CONFIDENCE_THRESHOLD = CONFIG["analysis"]["confidence_threshold"]
@@ -124,17 +128,24 @@ def _analizuj_wstepna(y: np.ndarray) -> Dict[str, Any]:
         
         return best, offs[j], confidence
 
-    # Coarse pass
+    # Coarse pass: na ok. 2 min fragmencie z najmocniejszym basem (kilkaset temp do sprawdzenia, a dokladne
+    # przejscia nizej i tak licza caly utwor); w dlugich utworach ok. 3x szybciej przy tym samym wyniku
+    okno = int(120 * FPS)
+    g0, g1 = 0, None
+    if len(env) > 1.5 * okno:
+        cs = np.concatenate(([0.0], np.cumsum(np.maximum(env, 0.0))))
+        g0 = int(np.argmax(cs[okno:] - cs[:-okno]))
+        g1 = g0 + okno
     grube = np.arange(BPM_MIN, BPM_MAX, 0.20)
     scores = []
     for x in grube:
-        score, _, _ = wynik(x, krok_fazy=1.0)
+        score, _, _ = wynik(x, g0, g1, krok_fazy=1.0)
         scores.append(score)
     bpm0 = grube[int(np.argmax(scores))]
 
     # Focused pass
     dok = np.arange(max(BPM_MIN, bpm0 - 0.30), min(BPM_MAX, bpm0 + 0.30) + 0.0001, 0.01)
-    scores = [wynik(x)[0] for x in dok]
+    scores = [wynik(x, g0, g1)[0] for x in dok]  # ten sam fragment; przejscie 0,001 BPM nizej liczy caly utwor
     bpm0 = float(dok[int(np.argmax(scores))])
 
     # Fine pass
@@ -301,8 +312,19 @@ def analizuj(y: np.ndarray) -> Dict[str, Any]:
         takt_d = 0
     wynik = {"bpm": bpm, "pierwszy": float(faza), "confidence": float(ostrosc),
              "reliable": True, "takt": int(takt_d), "takt_zrodlo": "heurystyka"}
-    try:  # siec neuronowa Beat This!: faza taktu (czerwony pasek) i struktura utworu
+    try:  # siec neuronowa Beat This!: faza siatki, faza taktu (czerwony pasek) i struktura utworu
         wynik.update(_takt_z_sieci(y, bpm, float(faza), takt_d))
+        med = wynik.get("siec_przesuniecie_s")
+        if med is not None and abs(med) < 0.45 * okres and wynik.get("siec_zgodnosc", 0.0) >= 0.4:
+            # Faza z sieci: na wzorcu rekordboxa mediana bledu 8 ms (heurystyka energii basu: ok. 60 ms, bo stawiala
+            # linie na szczycie basu stopy zamiast na jej ataku). Heurystyka zostaje, gdy siec nie dziala.
+            pierwszy = faza + med - SIEC_OPOZNIENIE_S + ATAK_PRZED_WZROSTEM_S
+            takt = wynik["takt"]
+            if pierwszy < 0:  # kotwica o beat pozniej: numeracja w takcie przesuwa sie o jeden
+                pierwszy += okres
+                takt = (takt - 1) % 4
+            wynik.update(pierwszy=float(pierwszy), takt=int(takt), faza_zrodlo="siec",
+                         faza_heurystyka=float(faza))
     except Exception as e:  # noqa: BLE001  # bez sieci zostaje algorytm zapasowy
         wynik["siec_blad"] = "%s: %s" % (type(e).__name__, e)
     _profil().update(ref=None, w=None, t=None)  # zwolnij pamiec podreczna filtrow/profilu tego utworu
@@ -322,14 +344,36 @@ def _takt_z_sieci(y, bpm, faza, takt_zapas, ile_okien=None):
         return {"siec_blad": BT.blad() or "brak modelu"}
     if ile_okien is None:
         ile_okien = NET_OKIEN
-    for k in ([ile_okien, 2 * ile_okien, 4 * ile_okien, None] if ile_okien else [None]):
+    # 1, 2, potem od razu 8 okien (utwor 13 wzorca: 8 okien = zgodnosc 0,53, blad 20 ms, polowa czasu calego
+    # utworu); caly utwor tylko gdy i to nie wystarcza
+    for k in ([ile_okien, 2 * ile_okien, 8 * ile_okien, None] if ile_okien else [None]):
         wynik = _glosowanie_sieci(y, bpm, faza, BT, k)
         if "siec_blad" in wynik:
             return wynik
         g_ = wynik["takt_glosy"]
-        if k is None or g_ and max(g_) >= 0.6 * sum(g_):
+        # slaba zgodnosc fazy (siec zaznacza tez beaty posrodku): liczymy wiecej okien
+        if k is None or (g_ and max(g_) >= 0.6 * sum(g_) and wynik.get("siec_zgodnosc", 1.0) >= 0.5):
             return wynik
     return wynik
+
+
+def _skupienie_beatow(d, okres):
+    """Przesuniecie beatow sieci wzgledem siatki: najsilniejsze skupienie odchylek d (s), a nie mediana, bo siec
+    bywa, ze zaznacza tez beaty posrodku (osemki) i mediana trafia wtedy miedzy nie. Z dwoch podobnie silnych
+    skupien wybiera blizsze 0 (fazy z heurystyki). Zwraca (przesuniecie, ulamek beatow w +-25 ms od niego)."""
+    d = np.asarray(d, dtype=np.float64)
+    if len(d) == 0:
+        return 0.0, 0.0
+    krok = 0.004
+    n = max(8, int(np.ceil(okres / krok)))
+    h, kr = np.histogram(d, bins=n, range=(-okres / 2, okres / 2))
+    hs = np.convolve(np.r_[h[-2:], h, h[:2]].astype(np.float64), np.ones(5) / 5, "same")[2:-2]
+    srodki = (kr[:-1] + kr[1:]) / 2
+    szczyty = [i for i in range(n) if hs[i] >= 0.6 * hs.max() and hs[i] >= hs[i - 1] and hs[i] >= hs[(i + 1) % n]]
+    i = min(szczyty, key=lambda j: abs(srodki[j])) if szczyty else int(np.argmax(hs))
+    blisko = np.abs(d - srodki[i]) < 0.02
+    przes = float(np.median(d[blisko])) if blisko.any() else float(srodki[i])
+    return przes, float(np.mean(np.abs(d - przes) < 0.025))
 
 
 def _glosowanie_sieci(y, bpm, faza, BT, ile_okien):
@@ -339,10 +383,10 @@ def _glosowanie_sieci(y, bpm, faza, BT, ile_okien):
     if len(bt) < 16 or len(bd) < 8:
         return {"siec_blad": "za malo beatow z sieci"}
     d = ((bt - faza + okres / 2) % okres) - okres / 2
-    med = float(np.median(d))
+    med, zgodnosc = _skupienie_beatow(d, okres)
     idx = np.round((bd - med - faza) / okres).astype(int) % 4
     glosy = np.bincount(idx, minlength=4)
-    wynik = {"beaty_sieci": bt, "takty_sieci": bd, "siec_przesuniecie_s": med,
+    wynik = {"beaty_sieci": bt, "takty_sieci": bd, "siec_przesuniecie_s": med, "siec_zgodnosc": zgodnosc,
              "takt_glosy": [int(v) for v in glosy]}
     if glosy.max() >= 0.6 * glosy.sum():
         wynik["takt"] = int(np.argmax(glosy))
@@ -595,11 +639,95 @@ def tag_pco2(tryb, wpisy):
     return (b"PCO2" + struct.pack(">III", 0x14, 0x14 + len(body), tryb) + struct.pack(">HH", len(wpisy), 0) + body)
 
 
+def tagi_anlz(dane):
+    """(przesuniecie, nazwa, dlugosc) kolejnych tagow pliku ANLZ (po naglowku PMAI)."""
+    o = struct.unpack(">I", dane[4:8])[0]
+    while o + 12 <= len(dane):
+        dl = struct.unpack(">I", dane[o + 8:o + 12])[0]
+        if dl < 12 or o + dl > len(dane):
+            break
+        yield o, dane[o:o + 4], dl
+        o += dl
+
+
+def hot_z_pliku(dane):
+    """Hot cue [(numer 1.., ms)] z tagu PCOB (tryb 1) pliku DAT albo EXT."""
+    for o, t, dl in tagi_anlz(dane):
+        if t == b"PCOB" and struct.unpack(">I", dane[o + 12:o + 16])[0] == 1:
+            p, wyn = o + struct.unpack(">I", dane[o + 4:o + 8])[0], []
+            while p + 36 <= o + dl and dane[p:p + 4] == b"PCPT":
+                wyn.append((struct.unpack(">I", dane[p + 12:p + 16])[0], struct.unpack(">I", dane[p + 32:p + 36])[0]))
+                p += struct.unpack(">I", dane[p + 8:p + 12])[0]
+            return wyn
+    return []
+
+
 def listy_cue(cue):
     """Z wyniku cue.wyznacz: (hot [(nr, ms, nazwa)], pamiec [(0, ms, nazwa)])."""
     hot = [(i + 1, ms, nazwa) for i, (ms, nazwa) in enumerate(cue.get("hot", [])[:8])]
     pam = [(0, ms, nazwa) for ms, nazwa in cue.get("pamiec", [])[:10]]
     return hot, pam
+
+
+# --- trzeci plik analizy ANLZ0000.2EX: waveform 3-pasmowy (PWV7 szczegolowy, PWV6 podglad) ------------------
+# Uklad i skale dopasowane do eksportu rekordboxa (15 utworow, wzorzec 2026-11-02): bajty kolejno pasmo niskie,
+# srednie, wysokie; niskie i srednie wyrownane do glosnosci utworu, wysokie bezwzgledne. PWV6 to srednie z PWV7
+# w 1200 odcinkach, kazde pasmo przeskalowane do wspolnej sredniej (0,57 sredniej pasma niskiego).
+PWV7_SKALA = ((80.94, 0.503), (69.49, 0.817), (881.98, 1.759))
+PWVC_K = (30.77, 21.07, 12.12)
+PVDI_STALY = bytes.fromhex("505644490000001800000018" "000004005622000100000000")
+
+
+def trzy_pasma(cechy):
+    """(n, 3) bajty 0..127 na 1/150 s z cech koloru (rms niskie, srednie, wysokie)."""
+    wyj = []
+    for j, (a, p) in enumerate(PWV7_SKALA):
+        f = np.asarray(cechy[:, j], dtype=np.float64)
+        if j < 2:
+            odn = np.percentile(f, 95) if len(f) else 0.0
+            f = f / odn if odn > 1e-9 else np.zeros_like(f)
+        wyj.append(np.clip(np.round(a * np.maximum(f, 0.0) ** p), 0, 127))
+    return np.stack(wyj, axis=1).astype(np.uint8)
+
+
+def tag_pwv7(w):
+    body = np.ascontiguousarray(w, dtype=np.uint8).tobytes()
+    return b"PWV7" + struct.pack(">III", 24, 24 + len(body), 3) + struct.pack(">II", len(w), 0x00960000) + body
+
+
+def tag_pwv6(w, n_wyj=1200):
+    n = len(w)
+    w = np.asarray(w, dtype=np.float64)
+    if n == 0:
+        sr = np.zeros((n_wyj, 3))
+    else:
+        gr = np.minimum((np.arange(n) * n_wyj) // n, n_wyj - 1)
+        ile = np.maximum(np.bincount(gr, minlength=n_wyj), 1)
+        sr = np.stack([np.bincount(gr, w[:, j], n_wyj) / ile for j in range(3)], axis=1)
+        wspolna = 0.57 * w[:, 0].mean()
+        sred = sr.mean(axis=0)
+        sr = sr * np.where(sred > 1e-9, wspolna / np.maximum(sred, 1e-9), 0.0)
+    body = np.clip(np.round(sr), 0, 127).astype(np.uint8).tobytes()
+    return b"PWV6" + struct.pack(">III", 20, 20 + len(body), 3) + struct.pack(">I", n_wyj) + body
+
+
+def tag_pwvc(cechy):
+    """PWVC: trzy wartosci zalezne od glosnosci pasm (w rekordboxie ok. 80-160; odwrotnie do rms pasma)."""
+    v = []
+    for j, k in enumerate(PWVC_K):
+        rms = float(np.sqrt(np.mean(np.square(cechy[:, j])))) if len(cechy) else 0.0
+        v.append(int(np.clip(round(k / rms), 80, 200)) if rms > 1e-9 else 100)
+    return b"PWVC" + struct.pack(">II", 14, 20) + struct.pack(">HHHH", 0, *v)
+
+
+def zbuduj_2ex(sciezka_na_pendrive, cechy):
+    """Plik .2EX jak w eksporcie rekordboxa: PPTH, PWV7, PWV6, PWVC, PVDI."""
+    NAGLOWEK_PMAI = bytes.fromhex("504d41490000001c00000000" "00000001000100000001000000000000")
+    raw = (sciezka_na_pendrive + "\x00").encode("utf-16-be")
+    ppth = b"PPTH" + struct.pack(">III", 16, 16 + len(raw), len(raw)) + raw
+    w = trzy_pasma(cechy)
+    calosc = NAGLOWEK_PMAI + ppth + tag_pwv7(w) + tag_pwv6(w) + tag_pwvc(cechy) + PVDI_STALY
+    return calosc[:8] + struct.pack(">I", len(calosc)) + calosc[12:]
 
 
 def zbuduj_ext(sciezka_na_pendrive, y, dlugosc_s, czasy_s=None, bpm=None, cechy=None, cue=None):

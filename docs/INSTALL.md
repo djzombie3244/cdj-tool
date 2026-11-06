@@ -8,7 +8,7 @@ required**, neither to install nor to run it.
 ## Requirements
 
 - Mac with **Apple Silicon** (M1, M2, M3, M4 ...) and **macOS 14 Sonoma or newer**.
-- Intel Macs are not supported by the released app.
+- Intel Macs: use `CDJ-Tool-<version>-intel.dmg` (same steps). Windows: `CDJ-Tool-<version>-windows.zip`, see `README-Windows.txt` inside.
 
 ## Option A: drag and drop
 

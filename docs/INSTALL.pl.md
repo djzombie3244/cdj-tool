@@ -8,7 +8,7 @@ potrzebne**, ani do instalacji, ani do działania.
 ## Wymagania
 
 - Mac z **Apple Silicon** (M1, M2, M3, M4 ...) i **macOS 14 Sonoma lub nowszy**.
-- Komputery Mac z procesorem Intel nie są obsługiwane przez wydaną aplikację.
+- Mac z procesorem Intel: `CDJ-Tool-<wersja>-intel.dmg` (te same kroki). Windows: `CDJ-Tool-<wersja>-windows.zip`, instrukcja w `README-Windows.txt` w środku.
 
 ## Wariant A: przeciągnij i upuść
 

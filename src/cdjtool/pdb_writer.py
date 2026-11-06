@@ -107,6 +107,11 @@ def album_row(shift, alid, artist_id, name):
     return _pad4(struct.pack("<HHIIIIBBH", 0x80, shift, 0, artist_id, alid, 0, 3, 24, 0) + s, 4)
 
 
+def key_row(kid, name):
+    """Wiersz tabeli tonacji (typ 5): id, id2 (= id, jak w rekordboxie) i nazwa, np. "Am" albo "8A"."""
+    return _pad4(struct.pack("<II", kid, kid) + dstr(name))  # wyrownanie do 4 bajtow, bez zapasu (jak rekordbox)
+
+
 def playlist_tree_row(parent_id, sort_order, pid, is_folder, name):
     return _pad4(struct.pack("<IIIII", parent_id, 0, sort_order, pid, 1 if is_folder else 0) + dstr(name), 4)
 
@@ -333,4 +338,10 @@ def czytaj_biblioteke(data):
     wpisy = []
     for r in _wiersze_tabeli(w, 8):
         wpisy.append(struct.unpack("<III", r[:12]))
-    return {"utwory": utwory, "artysci": artysci, "albumy": albumy, "drzewo": drzewo, "wpisy": wpisy}
+    klucze = []
+    if TYPE_KEYS in w.tabs:
+        for r in _wiersze_tabeli(w, TYPE_KEYS):
+            kid = struct.unpack("<I", r[:4])[0]
+            klucze.append((kid, dstr_decode(r, 8)))
+    return {"utwory": utwory, "artysci": artysci, "albumy": albumy, "drzewo": drzewo, "wpisy": wpisy,
+            "klucze": klucze}

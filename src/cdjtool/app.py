@@ -720,6 +720,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                      "flac": bool(dane.get("flac", False)),
                      "kopiuj_w_tle": bool(dane.get("kopiuj_w_tle", True)),
                      "nie_usypiaj": bool(dane.get("nie_usypiaj", True)),
+                     "tonacja": bool(dane.get("tonacja", False)),
+                     "notacja": "camelot" if dane.get("notacja") == "camelot" else "klasyczna",
+                     "tonacja_z_tagu": bool(dane.get("tonacja_z_tagu", True)),
+                     "playlisty_z_folderow": bool(dane.get("playlisty_z_folderow", True)),
+                     "autoload": bool(dane.get("autoload", False)),
+                     "trzy_pasma": bool(dane.get("trzy_pasma", False)),
                      "nazwa_folderu": str(dane.get("nazwa_folderu") or "")[:60]}
                 benchmark = STAN["benchmark"]
                 if (benchmark.get("stan") != "gotowe" or
@@ -765,7 +771,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if sciezka == "/api/wysun":
                 p = os.path.abspath(dane.get("sciezka", ""))
                 if not jest_wolumin(p) or not os.path.isdir(p):
-                    return self._wyslij(400, {"blad": "To nie jest pendrive."})
+                    return self._wyslij(400, {"blad": "To nie jest pendrive (%s)." % (p or "brak ścieżki")})
                 ok, tekst = wysun_pendrive(p)
                 return self._wyslij(200, {"ok": ok, "tekst": tekst})
             if sciezka == "/api/zakoncz":
@@ -788,6 +794,16 @@ def pilnuj():
 
     Po wybudzeniu komputera pierwsza kontrola może zobaczyć stare „ostatnio” sprzed uśpienia,
     dlatego wymagamy kilku kolejnych kontroli bez zapytań (okno zdąży się odezwać)."""
+    if NATIVE:
+        # W aplikacji na Macu/Windows o zamknieciu decyduje launcher (konczy ten proces przy wyjsciu).
+        # Brak zapytan z okna nic tu nie znaczy: po uspieniu komputera WebKit wstrzymuje timery strony
+        # i dawny watchdog zamykal serwer, a okno pokazywalo blad. Konczymy sie tylko, gdy launcher
+        # zniknal bez sprzatania (proces osierocony).
+        rodzic = os.getppid()
+        while True:
+            time.sleep(5)
+            if os.getppid() != rodzic:
+                os._exit(0)
     bezczynne = 0
     while True:
         time.sleep(5)

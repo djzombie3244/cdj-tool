@@ -46,12 +46,22 @@ echo "==> Copying the app bundle"
 ditto "$APP_IN" "$APP"
 
 echo "==> Installing sources from src/cdjtool"
-for f in app.py silnik.py pdb_writer.py gen_dat.py takt.py beatthis.py cue.py audio_stream.py exceptions.py logging_config.py worker.py ui.html config.json AppIcon.png; do
+for f in app.py silnik.py pdb_writer.py gen_dat.py takt.py beatthis.py cue.py tonacja.py audio_stream.py exceptions.py logging_config.py worker.py ui.html config.json AppIcon.png; do
   [ -f "$SRC/$f" ] || die "Missing source file: $f"
   cp "$SRC/$f" "$RES/$f"
 done
 rm -rf "$RES/wzorzec"
 cp -R "$SRC/wzorzec" "$RES/wzorzec"
+
+# The launcher is always compiled from the current source. Copying it from the template bundle
+# shipped an outdated launcher in 1.0.4 and 1.0.5 (the sleep/wake fix never reached Apple Silicon).
+echo "==> Compiling the launcher from src/cdjtool/CDJToolApp.swift ($ARCH, macOS $MINOS or newer)"
+command -v swiftc >/dev/null || die "swiftc not found. Run: xcode-select --install"
+swiftc -O -target "$ARCH-apple-macos$MINOS" "$SRC/CDJToolApp.swift" -o "$WORK/CDJTool" \
+  -framework AppKit -framework WebKit || die "The launcher did not compile"
+rm -f "$APP/Contents/MacOS/CDJTool"
+cp "$WORK/CDJTool" "$APP/Contents/MacOS/CDJTool"
+chmod 755 "$APP/Contents/MacOS/CDJTool"
 
 echo "==> Beat This! model and ONNX Runtime (universal2, runs on Apple Silicon and Intel)"
 bash "$ROOT/tools/fetch_models.sh" >/dev/null || die "Could not fetch the model/ONNX Runtime (needs internet once)"
@@ -189,7 +199,12 @@ chmod +x "$STAGE/Install CDJ Tool.command"
 
 DMG="$OUT/CDJ-Tool-$VERSION$SUF.dmg"
 rm -f "$DMG"
-hdiutil create -volname "CDJ Tool $VERSION" -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null
+# hdiutil bywa przypadkowo zajety ("Resource busy"): kilka prob z przerwa
+for proba in 1 2 3 4; do
+  hdiutil create -volname "CDJ Tool $VERSION" -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null && break
+  [ "$proba" = 4 ] && die "hdiutil create failed 4 times"
+  echo "    hdiutil busy, retrying in 10 s..."; sleep 10
+done
 ZIP="$OUT/CDJ-Tool-$VERSION$SUF.zip"
 rm -f "$ZIP"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"

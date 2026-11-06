@@ -25,6 +25,7 @@ sys.path.insert(0, KAT)
 
 import gen_dat as g
 import pdb_writer as pw
+import tonacja
 from exceptions import (
     CDJError, FFmpegError, InvalidMP3Error, DiskSpaceError, PathTooLongError,
     ProcessTimeoutError, BPMConfidenceError, NoAudioFilesError
@@ -246,8 +247,10 @@ def metadane(sciezka: str) -> Dict[str, any]:
                     break
                 if linia.startswith(";") or "=" not in linia:
                     continue
-                k, v = linia.split("=", 1)
-                tagi.setdefault(k.lower(), v.strip())
+                k, v = re.split(r"(?<!\\)=", linia, maxsplit=1) if re.search(r"(?<!\\)=", linia) else (linia, "")
+                # format ffmetadata poprzedza znaki = ; # \ ukosnikiem (np. "F\#m", "Track \#1")
+                odslon = lambda x: re.sub(r"\\(.)", r"\1", x)
+                tagi.setdefault(odslon(k).lower(), odslon(v).strip())
         
         # Parsuj stderr
         i = r.stderr
@@ -258,6 +261,8 @@ def metadane(sciezka: str) -> Dict[str, any]:
             raise InvalidMP3Error(os.path.basename(sciezka), "Nie można odczytać czasu trwania")
         
         dur = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+        ms = re.search(r"Duration:[^\n]*?start:\s*(-?[\d.]+)", i)
+        start_s = float(ms.group(1)) if ms else 0.0
         
         # Parsuj audio info
         linia_audio = next((l for l in i.splitlines() if "Audio:" in l), "")
@@ -334,7 +339,9 @@ def metadane(sciezka: str) -> Dict[str, any]:
             mm = re.match(r"(\d+)", tagi.get(klucz, "") or "")
             return int(mm.group(1)) if mm else 0
         
+        ton_tag = tonacja.z_tagu(tagi.get("tkey") or tagi.get("initialkey") or tagi.get("key"))
         return {
+            "tonacja_tag": [ton_tag[0], ton_tag[1]] if ton_tag else None,
             "tytul": tagi.get("title") or os.path.splitext(os.path.basename(sciezka))[0],
             "artysta": tagi.get("artist") or "Unknown Artist",
             "album": tagi.get("album") or "Unknown Album",
@@ -348,7 +355,9 @@ def metadane(sciezka: str) -> Dict[str, any]:
             "total_probek": total_probek,
             "bity": bity,
             "typ_pliku": TYP_PLIKU[ext],
-            "kodek": kodek
+            "kodek": kodek,
+            # MP3 bez danych gapless (naglowek LAME): ffmpeg niczego nie obcina, a CDJ/rekordbox tak (patrz _analizuj_licz)
+            "mp3_bez_gapless": TYP_PLIKU[ext] == 1 and start_s <= 0.0
         }
     
     except (InvalidMP3Error, FFmpegError, PathTooLongError, ProcessTimeoutError):
@@ -585,7 +594,7 @@ def _cache_wersja():
         import hashlib
         h = hashlib.sha1()
         tu = os.path.dirname(os.path.abspath(__file__))
-        for plik in ("gen_dat.py", "cue.py", "takt.py", "beatthis.py", "silnik.py", "config.json"):
+        for plik in ("gen_dat.py", "cue.py", "takt.py", "beatthis.py", "tonacja.py", "silnik.py", "config.json"):
             try:
                 with open(os.path.join(tu, plik), "rb") as fh:
                     h.update(fh.read())
@@ -624,23 +633,25 @@ def _cache_czytaj(klucz):
         n = struct.unpack(">I", surowe[:4])[0]
         info = json.loads(surowe[4:4 + n].decode("utf-8"))
         reszta = zlib.decompress(surowe[4 + n:])
-        dat, ext = reszta[:info["dat_len"]], reszta[info["dat_len"]:]
+        dl_dat = info["dat_len"]
+        dl_ext = info.get("ext_len", len(reszta) - dl_dat)
+        dat, ext, ex2 = reszta[:dl_dat], reszta[dl_dat:dl_dat + dl_ext], reszta[dl_dat + dl_ext:]
         os.utime(plik, None)  # LRU: swiezo uzyty wpis
-        return info, dat, ext
+        return info, dat, ext, ex2
     except (OSError, ValueError, KeyError, zlib.error, struct.error):
         return None
 
 
-def _cache_zapisz(klucz, info, dat, ext):
+def _cache_zapisz(klucz, info, dat, ext, ex2=b""):
     kat = _cache_katalog()
     if not kat:
         return
     try:
-        info = dict(info, dat_len=len(dat))
+        info = dict(info, dat_len=len(dat), ext_len=len(ext))
         js = json.dumps(info).encode("utf-8")
         tmp = os.path.join(kat, klucz + ".tmp%d" % threading.get_ident())
         with open(tmp, "wb") as fh:
-            fh.write(struct.pack(">I", len(js)) + js + zlib.compress(dat + ext, 6))
+            fh.write(struct.pack(">I", len(js)) + js + zlib.compress(dat + ext + ex2, 6))
         os.replace(tmp, os.path.join(kat, klucz + ".bin"))
     except OSError:
         pass
@@ -686,24 +697,19 @@ def _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3,
     u, ev = _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, dzis, nazwa_folderu)
     if klucz:
         try:
-            if u.get("dat_plik"):
-                with open(u["dat_plik"], "rb") as fh:
-                    dat = fh.read()
-                with open(u["ext_plik"], "rb") as fh:
-                    ext = fh.read()
-            else:
-                dat, ext = u["dat"], u["ext"]
+            dat, ext = _czytaj_analize(u)
+            ex2 = _czytaj_2ex(u)
             info = {"pend": u["pend"], "bpm": u["bpm"], "confidence": u["confidence"], "reliable": u["reliable"],
                     "pierwszy_ms": ev["pierwszy_ms"], "beatow": ev["beatow"], "czas": ev["czas"],
-                    "podglad": ev.get("podglad")}
-            _cache_zapisz(klucz, info, dat, ext)
+                    "podglad": ev.get("podglad"), "tonacja": u.get("tonacja_analiza")}
+            _cache_zapisz(klucz, info, dat, ext, ex2)
         except Exception:  # noqa: BLE001  # pamiec podreczna jest dodatkiem
             pass
     return u, ev
 
 
 def _z_cache(traf, sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, nazwa_folderu):
-    info, dat, ext = traf
+    info, dat, ext, ex2 = traf
     if kopiuj_mp3:
         pend = sciezka_wg_folderow(nazwa_folderu, nazwa_wzgledna) if nazwa_folderu else sciezka_na_pendrive(meta, nazwa)
     else:
@@ -711,35 +717,65 @@ def _z_cache(traf, sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, n
         pend = "/" + rel
     if pend != info["pend"]:
         dat, ext = _podmien_ppth(dat, pend), _podmien_ppth(ext, pend)
+        if ex2:
+            ex2 = _podmien_ppth(ex2, pend)
     analiza = sciezka_analizy(pend)
     crc = zlib.crc32(pend.encode("utf-8")) & 0xFFFFFFFF
     kat = SPOOL["katalog"]
-    plik_dat = plik_ext = None
-    dat_len, ext_len = len(dat), len(ext)
+    plik_dat = plik_ext = plik_ex2 = None
+    dat_len, ext_len, ex2_len = len(dat), len(ext), len(ex2)
     if kat:
         plik_dat = os.path.join(kat, "%d.dat" % nr)
         plik_ext = os.path.join(kat, "%d.ext" % nr)
-        with open(plik_dat, "wb") as fh:
-            fh.write(dat)
-        with open(plik_ext, "wb") as fh:
-            fh.write(ext)
-        dat = ext = None
+        plik_ex2 = os.path.join(kat, "%d.2ex" % nr)
+        for p, b in ((plik_dat, dat), (plik_ext, ext), (plik_ex2, ex2)):
+            with open(p, "wb") as fh:
+                fh.write(b)
+        dat = ext = ex2 = None
     u = {"nazwa": nazwa, "meta": meta, "bpm": info["bpm"], "pend": pend, "analiza": analiza,
          "dat": dat, "ext": ext, "dat_plik": plik_dat, "ext_plik": plik_ext, "dat_len": dat_len, "ext_len": ext_len,
-         "crc": crc, "src": sciezka, "confidence": info["confidence"], "reliable": info["reliable"]}
+         "ex2": ex2, "ex2_plik": plik_ex2, "ex2_len": ex2_len,
+         "crc": crc, "src": sciezka, "confidence": info["confidence"], "reliable": info["reliable"],
+         "tonacja": _wybierz_tonacje(meta, info.get("tonacja")), "tonacja_analiza": info.get("tonacja")}
     ev = {"typ": "utwor", "i": nr, "n": 0, "nazwa": nazwa_wzgledna.replace(os.sep, "/"),
           "tytul": meta["tytul"], "artysta": meta["artysta"], "bpm": round(info["bpm"], 2),
           "confidence": round(info["confidence"], 3), "pierwszy_ms": info["pierwszy_ms"],
           "beatow": info["beatow"], "czas": info["czas"], "z_pamieci": True}
+    if u["tonacja"]:
+        ev["tonacja"] = _opis_tonacji(u["tonacja"])
     if info.get("podglad") is not None and nr <= 50:
         ev["podglad"] = info["podglad"]
     return u, ev
+
+
+TONACJA_Z_TAGU = {"on": True}  # ustawiane z opcji w oknie (przetworz)
+
+
+def _wybierz_tonacje(meta, wykryta):
+    """[tonika, molowa, pewnosc, zrodlo]: tag pliku (gdy jest i opcja wlaczona), inaczej wlasna analiza."""
+    tag = meta.get("tonacja_tag")
+    if TONACJA_Z_TAGU["on"] and tag:
+        return [int(tag[0]), bool(tag[1]), 1.0, "tag"]
+    if wykryta:
+        return [int(wykryta[0]), bool(wykryta[1]), float(wykryta[2]), "analiza"]
+    return None
+
+
+def _opis_tonacji(ton):
+    """Tonacja do pokazania w oknie: obie notacje, pewnosc i zrodlo (tag pliku albo analiza)."""
+    return {"klasyczna": tonacja.nazwa(ton[0], ton[1]), "camelot": tonacja.nazwa(ton[0], ton[1], "camelot"),
+            "pewnosc": round(float(ton[2]), 2), "zrodlo": ton[3] if len(ton) > 3 else "analiza"}
 
 
 def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, dzis, nazwa_folderu=None):
     """Wlasciwa analiza utworu; wywolywana po zajeciu miejsca w bramce pamieci."""
     try:
         y = g.wczytaj(sciezka)
+        if meta.get("mp3_bez_gapless"):
+            # Na wzorcu rekordboxa (10 plikow MP3 z naglowkiem Info bez LAME) cala os czasu CDJ jest o ok. 46,7 ms
+            # wczesniej niz dzwiek z ffmpeg; pliki z naglowkiem LAME zgadzaja sie co do 1-2 ms. Przycinamy poczatek,
+            # wiec siatka, waveformy i cue przesuwaja sie razem.
+            y = y[int(round(g.MP3_BEZ_GAPLESS_S * g.SR)):]
         dl = len(y) / g.SR
         analysis = g.analizuj(y)
         
@@ -772,7 +808,17 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
             pass
         dat = g.zbuduj_dat(pend, bpm, czasy, y, dl, meta["total_probek"], pwav_wynik=pwav_wynik, cue=cue)
         ext = g.zbuduj_ext(pend, y, dl, czasy, bpm, cechy=cechy_koloru, cue=cue)
+        try:  # waveform 3-pasmowy (.2EX) liczony zawsze, zapisywany na pendrive tylko z opcja
+            ex2 = g.zbuduj_2ex(pend, cechy_koloru) if cechy_koloru is not None else b""
+        except Exception:  # noqa: BLE001
+            ex2 = b""
         pod = podglad(y, czasy - g.OFFSET_REKORDBOX_S, pwav_wynik[1]) if nr <= 50 else None
+        try:  # tonacja jest dodatkiem: blad tutaj nie moze zatrzymac eksportu utworu
+            ton_analiza = tonacja.wykryj(y, g.SR)
+            ton_analiza = [int(ton_analiza[0]), bool(ton_analiza[1]), float(ton_analiza[2])] if ton_analiza else None
+        except Exception:  # noqa: BLE001
+            ton_analiza = None
+        ton = _wybierz_tonacje(meta, ton_analiza)
         kat = SPOOL["katalog"]
         if kat:  # wyniki ida na dysk lokalny, zeby pamiec nie rosla z liczba utworow
             plik_dat = os.path.join(kat, "%d.dat" % nr)
@@ -781,11 +827,14 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
                 fh.write(dat)
             with open(plik_ext, "wb") as fh:
                 fh.write(ext)
-            dat_len, ext_len = len(dat), len(ext)
-            dat = ext = None
+            plik_ex2 = os.path.join(kat, "%d.2ex" % nr)
+            with open(plik_ex2, "wb") as fh:
+                fh.write(ex2)
+            dat_len, ext_len, ex2_len = len(dat), len(ext), len(ex2)
+            dat = ext = ex2 = None
         else:
-            plik_dat = plik_ext = None
-            dat_len, ext_len = len(dat), len(ext)
+            plik_dat = plik_ext = plik_ex2 = None
+            dat_len, ext_len, ex2_len = len(dat), len(ext), len(ex2)
         
         u = {
             "nazwa": nazwa,
@@ -799,10 +848,15 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
             "ext_plik": plik_ext,
             "dat_len": dat_len,
             "ext_len": ext_len,
+            "ex2": ex2,
+            "ex2_plik": plik_ex2,
+            "ex2_len": ex2_len,
             "crc": crc,
             "src": sciezka,
             "confidence": confidence,
-            "reliable": reliable
+            "reliable": reliable,
+            "tonacja": ton,
+            "tonacja_analiza": ton_analiza
         }
         
         ev = {
@@ -821,6 +875,8 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
         
         if pod is not None:
             ev["podglad"] = pod
+        if ton:
+            ev["tonacja"] = _opis_tonacji(ton)
         
         return u, ev
     
@@ -926,9 +982,33 @@ class KopiarkaTla:
         self.watek.join()
 
 
+# Pliki, ktore na pendrive zapisuje mod RaftTone v1.1 (siatka poprawiona na decku, bank hot cue D-F).
+# Wpisy sa przypisane do numeru katalogu analizy utworu (USBANLZ/Pxxx/<numer>), ktory zalezy tylko od sciezki
+# pliku na pendrive, wiec zostaja wazne po ponownym zapisie. CDJ Tool ich nie zmienia, takze przy zastapieniu PIONEER.
+PLIKI_MODA = ("MODGRID.BIN", "MODHCUE.BIN")
+
+
+def _czytaj_analize(u):
+    if u["dat_plik"]:
+        with open(u["dat_plik"], "rb") as fh:
+            dat = fh.read()
+        with open(u["ext_plik"], "rb") as fh:
+            ext = fh.read()
+        return dat, ext
+    return u["dat"], u["ext"]
+
+
+def _czytaj_2ex(u):
+    if u.get("ex2_plik"):
+        with open(u["ex2_plik"], "rb") as fh:
+            return fh.read()
+    return u.get("ex2") or b""
+
+
 def przetworz(a, emit):
     """Punkt wejscia: sprzata katalog tymczasowy z wynikami analizy po zakonczeniu (takze po bledzie)."""
     _niski_priorytet()
+    TONACJA_Z_TAGU["on"] = bool(a.get("tonacja_z_tagu", True))
     if a.get("nie_usypiaj", True):
         _nie_usypiaj()
     try:
@@ -1047,6 +1127,12 @@ def _przetworz(a, emit):
                     utwor, ev = future.result()
                     ev["n"] = len(pliki)
                     if utwor:
+                        # zrodlo tonacji wybierane tutaj (procesy analizy nie znaja opcji z okna)
+                        utwor["tonacja"] = _wybierz_tonacje(utwor["meta"], utwor.get("tonacja_analiza"))
+                        if utwor["tonacja"]:
+                            ev["tonacja"] = _opis_tonacji(utwor["tonacja"])
+                        else:
+                            ev.pop("tonacja", None)
                         utwory_wg_indeksu[ev["i"]] = utwor
                         if kopiarka is not None:
                             kopiarka.dodaj(utwor)
@@ -1132,6 +1218,27 @@ def _przetworz(a, emit):
         u["analiza"] = analiza
         zajete.add(analiza)
 
+    # Hot cue: w DAT tylko A-C (tyle zna firmware CDJ-2000; deck nadpisujac DAT psul dalsze wpisy), w EXT do 6.
+    # Mod RaftTone v1.1 bierze bank D-F z EXT (sprawdzone na decku 2026-11-04).
+
+    # tonacje: tabela kluczy (typ 5) wspolna dla calej biblioteki; istniejace wpisy zachowujemy
+    zapisz_tonacje = bool(a.get("tonacja", False))
+    notacja = "camelot" if a.get("notacja") == "camelot" else "klasyczna"
+    klucze = {n: kid for kid, n in lib.get("klucze", [])}
+    klucze_nast = max(list(klucze.values()) + [0]) + 1
+    zmiana_kluczy = False
+
+    def id_klucza(u):
+        nonlocal klucze_nast, zmiana_kluczy
+        if not zapisz_tonacje or not u.get("tonacja"):
+            return None
+        nm = tonacja.nazwa(u["tonacja"][0], u["tonacja"][1], notacja)
+        if nm not in klucze:
+            klucze[nm] = klucze_nast
+            klucze_nast += 1
+            zmiana_kluczy = True
+        return klucze[nm]
+
     kodowane = [(f, s) for f, s in lib["utwory"]]
     wg_sciezki = {s["file_path"]: i for i, (f, s) in enumerate(kodowane)}
     nast_id = max([f["id"] for f, _ in kodowane] + [0]) + 1
@@ -1144,11 +1251,16 @@ def _przetworz(a, emit):
             bitrate=m["bitrate"], track_no=m["nr"], tempo=int(round(u["bpm"] * 100)), year=m["rok"],
             duration=int(m["czas"]), depth=m["bity"], unk90=m["typ_pliku"], disc=m["dysk"], unk20=u["crc"]
         )
+        kid = id_klucza(u)
+        if kid is not None:
+            pola["key"] = kid
         napisy = dict(
             title=m["tytul"], filename=os.path.basename(u["pend"]), file_path=u["pend"],
             analyze_path=u["analiza"], analyze_date=dzis,
             s4="",  # jak w eksporcie Rekordboxa (szablon mial "1")
-            autoload="",  # Hot Cue Auto Load wylaczone: hot cue tylko zaznaczone, ladowane recznie przez CALL
+            # Hot Cue Auto Load: domyslnie wylaczone (hot cue tylko zaznaczone, ladowane recznie przez CALL);
+            # "ON" jak w Rekordboksie, gdy odtwarzacz ma w UTILITY ustawienie rekordbox SETTING
+            autoload="ON" if a.get("autoload") else "",
         )
         if u["pend"] in wg_sciezki:  # ten sam plik analizowany ponownie: zachowaj id, gatunek, ocene, odtworzenia
             i = wg_sciezki[u["pend"]]
@@ -1158,7 +1270,8 @@ def _przetworz(a, emit):
             id_nowych.append(f["id"])
         else:
             f = dict(f_szablon)
-            f.update(pola, id=nast_id, key=0, label=0, genre=0, artwork=0, composer=0, orig_artist=0,
+            f.update(key=0)
+            f.update(pola, id=nast_id, label=0, genre=0, artwork=0, composer=0, orig_artist=0,
                      remixer=0, plays=0)
             s = dict(s_szablon)
             s.update(napisy, date_added=dzis, lyricist="", release_date="", mix_name="", comment="")
@@ -1180,21 +1293,55 @@ def _przetworz(a, emit):
     nazwa_pl = a.get("playlista") or "Tracks"
     drzewo = list(lib["drzewo"])
     wpisy = list(lib["wpisy"])
-    istn = [pid for par, srt, pid, fold, n in drzewo if par == 0 and not fold and n == nazwa_pl]
-    if istn:
-        pl_id = istn[0]
-    else:
-        pl_id = max([pid for _, _, pid, _, _ in drzewo] + [0]) + 1
-        drzewo.append((0, max([srt for par, srt, _, _, _ in drzewo if par == 0] + [-1]) + 1, pl_id, False, nazwa_pl))
-    juz = {tid for _, tid, pid in wpisy if pid == pl_id}
-    idx = max([e for e, _, pid in wpisy if pid == pl_id] + [0])
-    for tid in id_nowych:
-        if tid not in juz:
-            idx += 1
-            wpisy.append((idx, tid, pl_id))
-            juz.add(tid)
 
-    pdb = pw.zbuduj_pdb(pdb_wzor, {
+    def wezel(rodzic, nazwa, folder):
+        """Istniejacy wezel drzewa playlist (rodzic, nazwa, typ) albo nowy na koncu listy rodzica."""
+        for par, srt, pid, fold, n in drzewo:
+            if par == rodzic and bool(fold) == folder and n == nazwa:
+                return pid
+        pid = max([p for _, _, p, _, _ in drzewo] + [0]) + 1
+        srt = max([s for par, s, _, _, _ in drzewo if par == rodzic] + [-1]) + 1
+        drzewo.append((rodzic, srt, pid, folder, nazwa))
+        return pid
+
+    def dodaj_do(pl_id, tidy):
+        juz = {tid for _, tid, pid in wpisy if pid == pl_id}
+        idx = max([e for e, _, pid in wpisy if pid == pl_id] + [0])
+        for tid in tidy:
+            if tid not in juz:
+                idx += 1
+                wpisy.append((idx, tid, pl_id))
+                juz.add(tid)
+
+    # podfoldery zrodla -> foldery playlist (widok Playlist odwzorowuje uklad folderow; w widoku Folder
+    # CDJ-2000 nie pokazuje BPM z bazy, a w widoku Playlist tak)
+    def katalog(u):
+        rel = os.path.relpath(u["src"], folder).replace(os.sep, "/")
+        return tuple(unicodedata.normalize("NFC", c)[:60] for c in rel.split("/")[:-1])
+
+    kat_utworow = [katalog(u) for u in utwory]
+    if a.get("playlisty_z_folderow", True) and any(kat_utworow):
+        z_podfolderami = {p[:k] for p in kat_utworow for k in range(len(p))}
+
+        def folder_id(prefix):
+            pid = wezel(0, nazwa_pl, True)
+            for nazwa in prefix:
+                pid = wezel(pid, nazwa, True)
+            return pid
+
+        grupy = {}
+        for p, tid in zip(kat_utworow, id_nowych):
+            if p in z_podfolderami or not p:  # katalog z podkatalogami: jego pliki w playliscie wewnatrz
+                pl = wezel(folder_id(p), p[-1] if p else nazwa_pl, False)
+            else:
+                pl = wezel(folder_id(p[:-1]), p[-1], False)
+            grupy.setdefault(pl, []).append(tid)
+        for pl, tidy in grupy.items():
+            dodaj_do(pl, tidy)
+    else:
+        dodaj_do(wezel(0, nazwa_pl, False), id_nowych)
+
+    tabele = {
         0: zgrupowane([(lambda sh, f=f, s=s: pw.track_row(sh, f, s)) for f, s in kodowane]),
         2: zgrupowane([(lambda sh, aid=aid, n=n: pw.artist_row(sh, aid, n)) for n, aid in artysci.items()]),
         3: zgrupowane([(lambda sh, alid=alid, n=n, ar=ar: pw.album_row(sh, alid, ar, n))
@@ -1202,10 +1349,14 @@ def _przetworz(a, emit):
                                            for n, alid in albumy.items())]),
         7: [pw.playlist_tree_row(par, srt, pid, fold, n) for par, srt, pid, fold, n in drzewo],
         8: [pw.playlist_entry_row(e, tid, pid) for e, tid, pid in wpisy],
-    })
+    }
+    if zmiana_kluczy:  # nowe nazwy tonacji: tabela kluczy od nowa (stare wpisy zachowuja swoje id)
+        tabele[pw.TYPE_KEYS] = [pw.key_row(kid, n) for n, kid in sorted(klucze.items(), key=lambda x: x[1])]
+    pdb = pw.zbuduj_pdb(pdb_wzor, tabele)
 
     pioneer = os.path.join(root, "PIONEER")
-    dat_bajty = sum(u["dat_len"] + u["ext_len"] for u in utwory)
+    zapisz_2ex = bool(a.get("trzy_pasma", False))
+    dat_bajty = sum(u["dat_len"] + u["ext_len"] + (u.get("ex2_len", 0) if zapisz_2ex else 0) for u in utwory)
     dane_bajty = dat_bajty + len(pdb)
     stat = os.path.join(WZORZEC, "PIONEER")
     
@@ -1265,6 +1416,13 @@ def _przetworz(a, emit):
             emit({"typ": "etap", "tekst": "Robię kopię zapasową dotychczasowego folderu PIONEER..."})
             cel = kopia_zapasowa(pioneer, root)
             emit({"typ": "kopia", "sciezka": cel})
+            pliki_moda = {}
+            for nm in PLIKI_MODA:
+                try:
+                    with open(os.path.join(pioneer, nm), "rb") as fh:
+                        pliki_moda[nm] = fh.read()
+                except OSError:
+                    pass
             
             def pomin_znikniety_sidecar(func, sciezka, exc_info):
                 blad = exc_info[1]
@@ -1273,6 +1431,13 @@ def _przetworz(a, emit):
                 raise blad
 
             shutil.rmtree(pioneer, onerror=pomin_znikniety_sidecar)
+            if pliki_moda:
+                os.makedirs(pioneer, exist_ok=True)
+                for nm, bajty in pliki_moda.items():
+                    with open(os.path.join(pioneer, nm), "wb") as fh:
+                        fh.write(bajty)
+                emit({"typ": "log", "tekst": "Zachowano pliki moda RaftTone (%s): siatka i hot cue poprawione na decku."
+                      % ", ".join(sorted(pliki_moda))})
         else:
             emit({"typ": "etap", "tekst": "Wybrany katalog nie jest pendrive'em, nie usuwam starego folderu PIONEER."})
 
@@ -1304,6 +1469,18 @@ def _przetworz(a, emit):
             else:
                 with open(cel_pliku, "wb") as fh:
                     fh.write(bajty)
+        cel_2ex = os.path.splitext(dst)[0] + ".2EX"
+        if zapisz_2ex and u.get("ex2_len"):
+            if u.get("ex2_plik"):
+                shutil.copyfile(u["ex2_plik"], cel_2ex)
+            else:
+                with open(cel_2ex, "wb") as fh:
+                    fh.write(u["ex2"])
+        elif os.path.exists(cel_2ex):
+            try:  # bez opcji nie zostawiamy starego .2EX obok nowych DAT/EXT
+                os.remove(cel_2ex)
+            except OSError:
+                pass
     
     if kopiuj_mp3:
         do_skopiowania = []
