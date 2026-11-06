@@ -7,7 +7,7 @@ CDJ Tool analyses your tracks (BPM, beat grid, waveforms, cue points) and writes
 loads like a rekordbox export: track database (`export.pdb`), analysis files (`ANLZ0000.DAT` / `.EXT`) and copies of
 your audio files. It is a small app for macOS (Apple Silicon and Intel) and Windows that works completely **offline**.
 
-> **Status:** version 1.0.6. Tested by the author on real hardware: a CDJ-2000 (non-NXS) running the
+> **Status:** version 1.0.7. Tested by the author on real hardware: a CDJ-2000 (non-NXS) running the
 > [RaftTone mod](https://rafttone.com/cdj2000/) v1.1, with MP3 tracks (database, waveforms incl. 3BAND, BPM and beat
 > grid, key, hot cues A–F, playlists). The app was checked on Apple Silicon and Intel Macs and on Windows.
 > AAC, WAV, AIFF and FLAC support is newer and still being tested on hardware; a CDJ-2000 with stock firmware has
@@ -46,6 +46,9 @@ affiliated with it. Follow the mod's own page for building and flashing the firm
 - **Musical key** (test version): taken from the file tags when present (e.g. from the store), otherwise detected; classic (Am) or Camelot (8A) notation. A CDJ-2000 with firmware 4.33 shows KEY when browsing.
 - **Playlists that mirror your folders**: subfolders become playlist folders, so the Playlist view shows your folder structure with BPM, key and waveform right away.
 - **For the RaftTone mod v1.1:** every track gets 6 hot cues (the mod's A–F banks), optional *Hot Cue Auto Load* "ON" like rekordbox, and an optional **3-band waveform** (`ANLZ0000.2EX`, as rekordbox writes it) for the mod's 3BAND mode. Beat grid edits the mod saves on the stick (`MODGRID.BIN`, `MODHCUE.BIN`) are never touched.
+- **Album artwork** shown on the player: the cover from the file tags (MP3, WAV, AIFF, M4A, FLAC), written as rekordbox does. Optionally (off by default), missing covers are looked up online on Deezer and Apple iTunes by artist and title.
+- **Missing tags filled from names**: a file without artist/title tags gets them from its name ("Artist - Title.mp3"), and album and year from its folder ("Artist - Album 2011"). Existing tags are never changed.
+- **Long tracks and DJ sets up to 3 hours**, analysed in sections with modest memory use; the beat grid can change tempo along a set (dynamic grid, as rekordbox writes it).
 - **Adds to an existing library** on the stick instead of overwriting it; playlists, genres and earlier analysis are kept. Optional full replace (with a backup).
 - Parallel analysis tuned to your disk speed and a RAM limit; time-remaining estimate. It uses at most half of your CPU cores, so the Mac stays cool and responsive.
 - Each track is copied to the stick in the background as soon as it is analysed, so writing overlaps the analysis (optional, on by default). The database is still written last, so an interrupted run leaves the previous library working.
@@ -53,7 +56,7 @@ affiliated with it. Follow the mod's own page for building and flashing the firm
 - Optional **format the stick as FAT32 (MBR)** for the CDJ-2000.
 - Reliable **eject** button.
 - Interface in **6 languages**: Polski, English, Deutsch, Français, Español, Italiano.
-- No account, no network access, no telemetry.
+- No account, no telemetry. The network is used only if you turn on online artwork (only artist, title and album are sent).
 
 ## Requirements
 

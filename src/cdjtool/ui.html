@@ -159,10 +159,16 @@ canvas.ov { height: 14px; }
       <select id="sNotacja"><option value="klasyczna" data-i18n="keyClassic"></option><option value="camelot" data-i18n="keyCamelot"></option></select></div>
     <label class="chk" style="margin-left:26px"><input type="checkbox" id="cTonTag" checked>
       <span data-i18n="keyFromTag"></span></label>
+    <label class="chk"><input type="checkbox" id="cOkladki" checked>
+      <span data-i18n-html="artOpt"></span></label>
+    <label class="chk" style="margin-left:26px"><input type="checkbox" id="cOkladkiSiec">
+      <span data-i18n-html="artNetOpt"></span></label>
     <label class="chk"><input type="checkbox" id="cAutoload">
       <span data-i18n-html="autoloadOpt"></span></label>
     <label class="chk"><input type="checkbox" id="cTrzyPasma">
       <span data-i18n-html="threeBand"></span></label>
+    <label class="chk"><input type="checkbox" id="cDlugie" checked>
+      <span data-i18n-html="longOpt"></span></label>
   </div>
 
   <div class="row" style="margin:6px 0 16px">
@@ -238,7 +244,7 @@ pl: {
  skipped:"Pominięto {name}: {text}", skippedTotal:"Łącznie pominięto {n} plików z błędami (pokazuję pierwsze {m}).",
  trackInfo:"pierwszy beat", beatsWord:"beatów",
  doneTitle:"Gotowe: zapisano {n} utworów", doneEject:"Wysuń pendrive i włóż go do CDJ-2000.", backupOf:"Kopia poprzedniej biblioteki:",
- threeBand:"Waveform 3-pasmowy (plik .2EX jak w rekordboxie: <b>wersja testowa</b>, dla trybu 3BAND moda i odtwarzaczy CDJ-3000 przez LINK; ok. 190 KB więcej na utwór)", autoloadOpt:"Hot Cue Auto Load: ustaw w utworach „ON” jak rekordbox (działa, gdy w UTILITY odtwarzacza jest rekordbox SETTING; mod v1.1 wymaga go dla banku hot cue D–F)", oldFiles:"Na pendrive są stare pliki z rekordbox ({list}). CDJ-2000 ich nie używa, ale lepiej je usunąć.",
+ longOpt:"Długie utwory i sety do 3 h (analiza odcinkami; siatka może zmieniać tempo jak w secie DJ-skim; bez tej opcji utwory dłuższe niż 45 min są pomijane)", artNetOpt:"Brakujące okładki z sieci (wysyła wykonawcę i tytuł do Deezer i Apple iTunes; okładka może czasem nie pasować)", artOpt:"Okładki albumów z tagów plików (widoczne na ekranie odtwarzacza przy wyborze i odtwarzaniu utworu)", threeBand:"Waveform 3-pasmowy (plik .2EX jak w rekordboxie: <b>wersja testowa</b>, dla trybu 3BAND moda i odtwarzaczy CDJ-3000 przez LINK; ok. 190 KB więcej na utwór)", autoloadOpt:"Hot Cue Auto Load: ustaw w utworach „ON” jak rekordbox (działa, gdy w UTILITY odtwarzacza jest rekordbox SETTING; mod v1.1 wymaga go dla banku hot cue D–F)", oldFiles:"Na pendrive są stare pliki z rekordbox ({list}). CDJ-2000 ich nie używa, ale lepiej je usunąć.",
  eject:"Wysuń pendrive", ejected:"Pendrive wysunięty", ejectRetry:"Spróbuj wysunąć ponownie", ejecting:"Wysuwam pendrive…",
  ejectOk:"Pendrive został bezpiecznie wysunięty. Możesz go teraz odłączyć.", ejectFail:"Nie udało się wysunąć pendrive’a. Nie odłączaj go jeszcze. {e}", ejectFail2:"Nie udało się potwierdzić wysunięcia pendrive’a. Nie odłączaj go jeszcze. {e}", tryAgain:"Spróbuj ponownie.",
  errTitle:"Wystąpił błąd", canceledTitle:"Anulowano", canceledDesc:"Jeśli zapis na pendrive już się rozpoczął, uruchom go ponownie, aby uzyskać komplet plików.",
@@ -278,7 +284,7 @@ en: {
  skipped:"Skipped {name}: {text}", skippedTotal:"{n} files with errors were skipped in total (showing the first {m}).",
  trackInfo:"first beat", beatsWord:"beats",
  doneTitle:"Done: {n} tracks written", doneEject:"Eject the USB stick and put it into the CDJ-2000.", backupOf:"Backup of the previous library:",
- threeBand:"3-band waveform (.2EX file as rekordbox writes it: <b>test version</b>, for the mod's 3BAND mode and CDJ-3000 players over LINK; about 190 KB more per track)", autoloadOpt:"Hot Cue Auto Load: mark tracks \"ON\" as rekordbox does (used when the player's UTILITY is set to rekordbox SETTING; mod v1.1 needs it for the D–F bank)", oldFiles:"The stick contains old rekordbox files ({list}). The CDJ-2000 does not use them, but it is better to delete them.",
+ longOpt:"Long tracks and sets up to 3 h (analysed in sections; the grid can change tempo along a DJ set; without this option tracks longer than 45 min are skipped)", artNetOpt:"Missing artwork from the internet (sends artist and title to Deezer and Apple iTunes; the match may occasionally be wrong)", artOpt:"Album artwork from the file tags (shown on the player's screen when browsing and playing)", threeBand:"3-band waveform (.2EX file as rekordbox writes it: <b>test version</b>, for the mod's 3BAND mode and CDJ-3000 players over LINK; about 190 KB more per track)", autoloadOpt:"Hot Cue Auto Load: mark tracks \"ON\" as rekordbox does (used when the player's UTILITY is set to rekordbox SETTING; mod v1.1 needs it for the D–F bank)", oldFiles:"The stick contains old rekordbox files ({list}). The CDJ-2000 does not use them, but it is better to delete them.",
  eject:"Eject USB stick", ejected:"USB stick ejected", ejectRetry:"Try ejecting again", ejecting:"Ejecting…",
  ejectOk:"The USB stick was ejected safely. You can unplug it now.", ejectFail:"Could not eject the USB stick. Do not unplug it yet. {e}", ejectFail2:"Could not confirm the eject. Do not unplug the stick yet. {e}", tryAgain:"Try again.",
  errTitle:"An error occurred", canceledTitle:"Cancelled", canceledDesc:"If writing to the stick had already started, run it again to get a complete set of files.",
@@ -318,7 +324,7 @@ de: {
  skipped:"{name} übersprungen: {text}", skippedTotal:"Insgesamt wurden {n} Dateien mit Fehlern übersprungen (angezeigt: die ersten {m}).",
  trackInfo:"erster Beat", beatsWord:"Beats",
  doneTitle:"Fertig: {n} Titel geschrieben", doneEject:"USB-Stick auswerfen und in den CDJ-2000 stecken.", backupOf:"Sicherung der bisherigen Bibliothek:",
- threeBand:"3-Band-Wellenform (.2EX-Datei wie bei rekordbox: <b>Testversion</b>, für den 3BAND-Modus des Mods und CDJ-3000 über LINK; ca. 190 KB mehr pro Titel)", autoloadOpt:"Hot Cue Auto Load: Titel wie rekordbox auf „ON“ setzen (wirkt, wenn im UTILITY des Players rekordbox SETTING eingestellt ist; Mod v1.1 braucht es für die Bank D–F)", oldFiles:"Auf dem Stick liegen alte rekordbox-Dateien ({list}). Der CDJ-2000 nutzt sie nicht, es ist aber besser, sie zu löschen.",
+ longOpt:"Lange Titel und Sets bis 3 h (Analyse in Abschnitten; das Raster kann im DJ-Set das Tempo wechseln; ohne diese Option werden Titel über 45 min übersprungen)", artNetOpt:"Fehlende Cover aus dem Internet (sendet Interpret und Titel an Deezer und Apple iTunes; das Cover kann gelegentlich falsch sein)", artOpt:"Albumcover aus den Datei-Tags (auf dem Display des Players beim Suchen und Abspielen)", threeBand:"3-Band-Wellenform (.2EX-Datei wie bei rekordbox: <b>Testversion</b>, für den 3BAND-Modus des Mods und CDJ-3000 über LINK; ca. 190 KB mehr pro Titel)", autoloadOpt:"Hot Cue Auto Load: Titel wie rekordbox auf „ON“ setzen (wirkt, wenn im UTILITY des Players rekordbox SETTING eingestellt ist; Mod v1.1 braucht es für die Bank D–F)", oldFiles:"Auf dem Stick liegen alte rekordbox-Dateien ({list}). Der CDJ-2000 nutzt sie nicht, es ist aber besser, sie zu löschen.",
  eject:"USB-Stick auswerfen", ejected:"USB-Stick ausgeworfen", ejectRetry:"Erneut auswerfen", ejecting:"Werfe aus…",
  ejectOk:"Der USB-Stick wurde sicher ausgeworfen. Sie können ihn jetzt abziehen.", ejectFail:"Auswerfen fehlgeschlagen. Stick noch nicht abziehen. {e}", ejectFail2:"Auswerfen konnte nicht bestätigt werden. Stick noch nicht abziehen. {e}", tryAgain:"Bitte erneut versuchen.",
  errTitle:"Es ist ein Fehler aufgetreten", canceledTitle:"Abgebrochen", canceledDesc:"Hat das Schreiben auf den Stick schon begonnen, starten Sie es erneut, um alle Dateien zu erhalten.",
@@ -358,7 +364,7 @@ fr: {
  skipped:"{name} ignoré : {text}", skippedTotal:"{n} fichiers en erreur ont été ignorés au total (affichage des {m} premiers).",
  trackInfo:"premier temps", beatsWord:"temps",
  doneTitle:"Terminé : {n} morceaux écrits", doneEject:"Éjectez la clé USB et insérez-la dans le CDJ-2000.", backupOf:"Sauvegarde de la bibliothèque précédente :",
- threeBand:"Forme d'onde 3 bandes (fichier .2EX comme rekordbox : <b>version de test</b>, pour le mode 3BAND du mod et les CDJ-3000 via LINK ; env. 190 Ko de plus par morceau)", autoloadOpt:"Hot Cue Auto Load : marquer les morceaux « ON » comme rekordbox (utilisé quand l'UTILITY du lecteur est sur rekordbox SETTING ; le mod v1.1 en a besoin pour la banque D–F)", oldFiles:"La clé contient d'anciens fichiers rekordbox ({list}). Le CDJ-2000 ne les utilise pas, mais il vaut mieux les supprimer.",
+ longOpt:"Morceaux longs et sets jusqu'à 3 h (analyse par sections ; la grille peut changer de tempo au fil d'un set DJ ; sans cette option, les morceaux de plus de 45 min sont ignorés)", artNetOpt:"Pochettes manquantes depuis Internet (envoie l'artiste et le titre à Deezer et Apple iTunes ; la pochette peut parfois être erronée)", artOpt:"Pochettes d'album depuis les tags des fichiers (affichées sur l'écran du lecteur)", threeBand:"Forme d'onde 3 bandes (fichier .2EX comme rekordbox : <b>version de test</b>, pour le mode 3BAND du mod et les CDJ-3000 via LINK ; env. 190 Ko de plus par morceau)", autoloadOpt:"Hot Cue Auto Load : marquer les morceaux « ON » comme rekordbox (utilisé quand l'UTILITY du lecteur est sur rekordbox SETTING ; le mod v1.1 en a besoin pour la banque D–F)", oldFiles:"La clé contient d'anciens fichiers rekordbox ({list}). Le CDJ-2000 ne les utilise pas, mais il vaut mieux les supprimer.",
  eject:"Éjecter la clé USB", ejected:"Clé USB éjectée", ejectRetry:"Réessayer l'éjection", ejecting:"Éjection…",
  ejectOk:"La clé USB a été éjectée en toute sécurité. Vous pouvez la débrancher.", ejectFail:"Impossible d'éjecter la clé USB. Ne la débranchez pas encore. {e}", ejectFail2:"Impossible de confirmer l'éjection. Ne débranchez pas encore la clé. {e}", tryAgain:"Réessayez.",
  errTitle:"Une erreur s'est produite", canceledTitle:"Annulé", canceledDesc:"Si l'écriture sur la clé avait déjà commencé, relancez-la pour obtenir tous les fichiers.",
@@ -398,7 +404,7 @@ es: {
  skipped:"Omitido {name}: {text}", skippedTotal:"En total se omitieron {n} archivos con errores (se muestran los primeros {m}).",
  trackInfo:"primer tiempo", beatsWord:"tiempos",
  doneTitle:"Listo: {n} pistas escritas", doneEject:"Expulsa la memoria USB e insértala en el CDJ-2000.", backupOf:"Copia de la biblioteca anterior:",
- threeBand:"Forma de onda de 3 bandas (archivo .2EX como rekordbox: <b>versión de prueba</b>, para el modo 3BAND del mod y los CDJ-3000 por LINK; unos 190 KB más por pista)", autoloadOpt:"Hot Cue Auto Load: marcar las pistas como «ON» como rekordbox (se usa cuando el UTILITY del reproductor está en rekordbox SETTING; el mod v1.1 lo necesita para el banco D–F)", oldFiles:"La memoria contiene archivos antiguos de rekordbox ({list}). El CDJ-2000 no los usa, pero es mejor borrarlos.",
+ longOpt:"Pistas largas y sets de hasta 3 h (análisis por secciones; la cuadrícula puede cambiar de tempo a lo largo de un set; sin esta opción se omiten las pistas de más de 45 min)", artNetOpt:"Portadas que faltan desde internet (envía artista y título a Deezer y Apple iTunes; a veces la portada puede no coincidir)", artOpt:"Portadas de álbum de las etiquetas de los archivos (se ven en la pantalla del reproductor)", threeBand:"Forma de onda de 3 bandas (archivo .2EX como rekordbox: <b>versión de prueba</b>, para el modo 3BAND del mod y los CDJ-3000 por LINK; unos 190 KB más por pista)", autoloadOpt:"Hot Cue Auto Load: marcar las pistas como «ON» como rekordbox (se usa cuando el UTILITY del reproductor está en rekordbox SETTING; el mod v1.1 lo necesita para el banco D–F)", oldFiles:"La memoria contiene archivos antiguos de rekordbox ({list}). El CDJ-2000 no los usa, pero es mejor borrarlos.",
  eject:"Expulsar la memoria USB", ejected:"Memoria USB expulsada", ejectRetry:"Intentar expulsar de nuevo", ejecting:"Expulsando…",
  ejectOk:"La memoria USB se expulsó de forma segura. Ya puedes desconectarla.", ejectFail:"No se pudo expulsar la memoria USB. No la desconectes todavía. {e}", ejectFail2:"No se pudo confirmar la expulsión. No desconectes todavía la memoria. {e}", tryAgain:"Inténtalo de nuevo.",
  errTitle:"Se produjo un error", canceledTitle:"Cancelado", canceledDesc:"Si la escritura en la memoria ya había empezado, vuelve a ejecutarla para obtener todos los archivos.",
@@ -438,7 +444,7 @@ it: {
  skipped:"Saltato {name}: {text}", skippedTotal:"In totale sono stati saltati {n} file con errori (mostro i primi {m}).",
  trackInfo:"primo battito", beatsWord:"battiti",
  doneTitle:"Fatto: scritti {n} brani", doneEject:"Espelli la chiavetta USB e inseriscila nel CDJ-2000.", backupOf:"Backup della libreria precedente:",
- threeBand:"Forma d'onda a 3 bande (file .2EX come rekordbox: <b>versione di prova</b>, per la modalità 3BAND della mod e i CDJ-3000 via LINK; circa 190 KB in più per brano)", autoloadOpt:"Hot Cue Auto Load: segna i brani «ON» come rekordbox (vale quando nell'UTILITY del lettore è impostato rekordbox SETTING; la mod v1.1 lo richiede per il banco D–F)", oldFiles:"Sulla chiavetta ci sono vecchi file rekordbox ({list}). Il CDJ-2000 non li usa, ma è meglio eliminarli.",
+ longOpt:"Brani lunghi e set fino a 3 h (analisi a sezioni; la griglia può cambiare tempo lungo un set DJ; senza questa opzione i brani oltre 45 min vengono saltati)", artNetOpt:"Copertine mancanti da internet (invia artista e titolo a Deezer e Apple iTunes; a volte la copertina potrebbe non corrispondere)", artOpt:"Copertine dell'album dai tag dei file (visibili sullo schermo del lettore)", threeBand:"Forma d'onda a 3 bande (file .2EX come rekordbox: <b>versione di prova</b>, per la modalità 3BAND della mod e i CDJ-3000 via LINK; circa 190 KB in più per brano)", autoloadOpt:"Hot Cue Auto Load: segna i brani «ON» come rekordbox (vale quando nell'UTILITY del lettore è impostato rekordbox SETTING; la mod v1.1 lo richiede per il banco D–F)", oldFiles:"Sulla chiavetta ci sono vecchi file rekordbox ({list}). Il CDJ-2000 non li usa, ma è meglio eliminarli.",
  eject:"Espelli la chiavetta USB", ejected:"Chiavetta USB espulsa", ejectRetry:"Riprova a espellere", ejecting:"Espulsione…",
  ejectOk:"La chiavetta USB è stata espulsa in sicurezza. Ora puoi scollegarla.", ejectFail:"Impossibile espellere la chiavetta USB. Non scollegarla ancora. {e}", ejectFail2:"Impossibile confermare l'espulsione. Non scollegare ancora la chiavetta. {e}", tryAgain:"Riprova.",
  errTitle:"Si è verificato un errore", canceledTitle:"Annullato", canceledDesc:"Se la scrittura sulla chiavetta era già iniziata, eseguila di nuovo per ottenere tutti i file.",
@@ -691,7 +697,7 @@ async function startFolderu(i) {
     kopiuj_mp3: $("cKopiuj").checked, zastap_pioneer: i === 0 && $("cZastap").checked, flac: flacWl(),
     kopiuj_w_tle: $("cTlo").checked, nie_usypiaj: $("cNieUsypiaj").checked,
     tonacja: $("cTonacja").checked, notacja: $("sNotacja").value, tonacja_z_tagu: $("cTonTag").checked,
-    playlisty_z_folderow: $("cPlFoldery").checked, autoload: $("cAutoload").checked, trzy_pasma: $("cTrzyPasma").checked });
+    playlisty_z_folderow: $("cPlFoldery").checked, autoload: $("cAutoload").checked, trzy_pasma: $("cTrzyPasma").checked, okladki: $("cOkladki").checked, okladki_siec: $("cOkladki").checked && $("cOkladkiSiec").checked, dlugie: $("cDlugie").checked });
   if (r.blad) { alert(r.blad); kolejka.przerwana = true; return false; }
   return true;
 }
@@ -915,7 +921,7 @@ async function odswiez() {
   odswiezPrzycisk();
 }
 // opcje zapamiętywane w tej przeglądarce (bez nich działają wartości domyślne)
-["cTlo", "cNieUsypiaj", "cTonacja", "cTonTag", "cPlFoldery", "cAutoload", "cTrzyPasma"].forEach(id => {
+["cTlo", "cNieUsypiaj", "cTonacja", "cTonTag", "cPlFoldery", "cAutoload", "cTrzyPasma", "cOkladki", "cOkladkiSiec", "cDlugie"].forEach(id => {
   try { const v = localStorage.getItem("cdj_" + id); if (v !== null) $(id).checked = v === "1"; } catch (e) {}
   $(id).addEventListener("change", () => { try { localStorage.setItem("cdj_" + id, $(id).checked ? "1" : "0"); } catch (e) {} });
 });
@@ -924,6 +930,8 @@ const odswiezStatystyki = () => document.querySelectorAll("#lista .tr").forEach(
 $("sNotacja").addEventListener("change", () => { try { localStorage.setItem("cdj_sNotacja", $("sNotacja").value); } catch (e) {} odswiezStatystyki(); });
 $("cTonacja").addEventListener("change", () => { $("sNotacja").disabled = $("cTonTag").disabled = !$("cTonacja").checked; odswiezStatystyki(); });
 $("sNotacja").disabled = $("cTonTag").disabled = !$("cTonacja").checked;
+$("cOkladki").addEventListener("change", () => { $("cOkladkiSiec").disabled = !$("cOkladki").checked; });
+$("cOkladkiSiec").disabled = !$("cOkladki").checked;
 const tloDostepne = () => { $("cTlo").disabled = !$("cKopiuj").checked; };
 $("cKopiuj").addEventListener("change", tloDostepne); tloDostepne();
 $("lang").onchange = () => { LANG = $("lang").value; try { localStorage.setItem("cdj_lang", LANG); } catch (e) {} applyLang(); };

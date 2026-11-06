@@ -12,6 +12,7 @@ HDR = 40
 
 TYPE_TRACKS, TYPE_GENRES, TYPE_ARTISTS, TYPE_ALBUMS, TYPE_LABELS, TYPE_KEYS = 0, 1, 2, 3, 4, 5
 TYPE_PLAYLIST_TREE, TYPE_PLAYLIST_ENTRIES = 7, 8
+TYPE_ARTWORK = 13
 
 
 # ------------------------------------------------------------ napisy -------
@@ -110,6 +111,11 @@ def album_row(shift, alid, artist_id, name):
 def key_row(kid, name):
     """Wiersz tabeli tonacji (typ 5): id, id2 (= id, jak w rekordboxie) i nazwa, np. "Am" albo "8A"."""
     return _pad4(struct.pack("<II", kid, kid) + dstr(name))  # wyrownanie do 4 bajtow, bez zapasu (jak rekordbox)
+
+
+def art_row(aid, path):
+    """Wiersz tabeli okladek (typ 13): id i sciezka miniatury 80 px, np. /PIONEER/Artwork/00001/a1.jpg (jak rekordbox)."""
+    return _pad4(struct.pack("<I", aid) + dstr(path))
 
 
 def playlist_tree_row(parent_id, sort_order, pid, is_folder, name):
@@ -343,5 +349,9 @@ def czytaj_biblioteke(data):
         for r in _wiersze_tabeli(w, TYPE_KEYS):
             kid = struct.unpack("<I", r[:4])[0]
             klucze.append((kid, dstr_decode(r, 8)))
+    okladki = []
+    if TYPE_ARTWORK in w.tabs:
+        for r in _wiersze_tabeli(w, TYPE_ARTWORK):
+            okladki.append((struct.unpack("<I", r[:4])[0], dstr_decode(r, 4)))
     return {"utwory": utwory, "artysci": artysci, "albumy": albumy, "drzewo": drzewo, "wpisy": wpisy,
-            "klucze": klucze}
+            "klucze": klucze, "okladki": okladki}

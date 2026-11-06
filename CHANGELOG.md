@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.7 - 2026
+- **Album artwork on the CDJ.** The cover embedded in the file tags (MP3/WAV/AIFF ID3, M4A, FLAC) is written as rekordbox does: 80x80 and 240x240 JPEG in `PIONEER/Artwork/00001` plus the artwork table in `export.pdb`. One file per distinct image, same id on re-export. On by default, can be switched off.
+- **Optional: missing artwork from the internet** (off by default). Tracks without a cover in their tags are looked up by artist and title (or the file name "Artist - Title") on Deezer, then Apple iTunes; only those strings are sent. Results, including "not found", are cached on the computer, and the lookup stops after a few failures when there is no network.
+- **Missing tags filled from names.** A file without artist/title tags gets them from its name ("Artist - Title.mp3", "_" read as a comma), and the album and year from the folder ("Artist - Album 2011") when the artist matches. Existing tags are never changed.
+- **Long tracks and DJ sets up to 3 hours** (option, on by default; before: tracks over 45 min were skipped). Recordings over 20 min are analysed in 3-minute sections, so memory use no longer grows 15x with length (37 min set: about 1.2 GB). Sections with the same tempo and phase are joined, and the exact point where the next track starts is found from the Beat This! beats of the whole recording, giving a dynamic beat grid as rekordbox writes it (tempo of each beat in PQTZ/PQT2). Key detection is skipped for sets (the key from the tag is still used). Normal tracks are analysed exactly as before.
+
 ## 1.0.6 - 2026
 - **Fixed for real: CDJ Tool no longer shows "nie uruchomił składnika analizy" after the Mac sleeps.** The fix from 1.0.4 never reached the Apple Silicon installers: the build copied the launcher from an old app bundle instead of compiling it from the source. `build_installer.sh` now always compiles the launcher from `CDJToolApp.swift`.
 - In the Mac/Windows app the analysis component no longer stops itself when the window has been quiet for a minute (after sleep, WebKit pauses the page and that looked like a closed window). It now stops only together with the app. If it still ends unexpectedly, the app starts it again (up to 5 tries in a row) instead of showing an error.

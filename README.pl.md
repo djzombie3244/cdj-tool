@@ -7,7 +7,7 @@ CDJ Tool analizuje utwory (BPM, siatka beatów, waveformy, punkty cue) i zapisuj
 wczytuje tak jak eksport z rekordboxa: baza utworów (`export.pdb`), pliki analizy (`ANLZ0000.DAT` / `.EXT`)
 i kopie plików audio. To mała aplikacja na macOS (Apple Silicon i Intel) oraz Windows, która działa całkowicie **offline**.
 
-> **Status:** wersja 1.0.6. Autor testował na prawdziwym sprzęcie: CDJ-2000 (nie NXS) z [modem RaftTone](https://rafttone.com/cdj2000/) v1.1,
+> **Status:** wersja 1.0.7. Autor testował na prawdziwym sprzęcie: CDJ-2000 (nie NXS) z [modem RaftTone](https://rafttone.com/cdj2000/) v1.1,
 > na utworach MP3 (baza, waveformy także w trybie 3BAND, BPM i siatka, tonacja, hot cue A–F, playlisty). Aplikację
 > sprawdzono na Macach z Apple Silicon i z procesorem Intel oraz na Windowsie. Obsługa AAC, WAV, AIFF i FLAC jest nowsza i nadal testowana
 > na sprzęcie; CDJ-2000 z oryginalnym firmware nie był jeszcze testowany przez autora
@@ -53,7 +53,10 @@ powiązany. Budowanie i wgrywanie firmware'u opisuje strona moda; robisz to na w
 - Opcjonalne **formatowanie pendrive do FAT32 (MBR)** pod CDJ-2000.
 - Niezawodny przycisk **wysuwania**.
 - Interfejs w **6 językach**: Polski, English, Deutsch, Français, Español, Italiano.
-- Bez konta, bez dostępu do sieci, bez telemetrii.
+- **Okładki albumów** na ekranie odtwarzacza: okładka z tagów pliku (MP3, WAV, AIFF, M4A, FLAC), zapisana tak jak przez rekordbox. Opcjonalnie (domyślnie wyłączone) brakujące okładki z sieci: Deezer i Apple iTunes, po wykonawcy i tytule.
+- **Brakujące tagi uzupełniane z nazw**: plik bez wykonawcy/tytułu dostaje je z nazwy („Wykonawca - Tytuł.mp3”), a album i rok z nazwy folderu („Wykonawca - Album 2011”). Istniejące tagi zostają bez zmian.
+- **Długie utwory i sety do 3 godzin**, analizowane odcinkami przy umiarkowanym zużyciu pamięci; siatka może zmieniać tempo w trakcie seta (siatka dynamiczna, jak w rekordboxie).
+- Bez konta, bez telemetrii. Sieć jest używana tylko po włączeniu okładek z sieci (wysyłane są tylko wykonawca, tytuł i album).
 
 ## Wymagania
 

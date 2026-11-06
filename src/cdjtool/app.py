@@ -726,6 +726,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                      "playlisty_z_folderow": bool(dane.get("playlisty_z_folderow", True)),
                      "autoload": bool(dane.get("autoload", False)),
                      "trzy_pasma": bool(dane.get("trzy_pasma", False)),
+                     "okladki": bool(dane.get("okladki", True)),
+                     "okladki_siec": bool(dane.get("okladki_siec", False)),
+                     "dlugie": bool(dane.get("dlugie", True)),
                      "nazwa_folderu": str(dane.get("nazwa_folderu") or "")[:60]}
                 benchmark = STAN["benchmark"]
                 if (benchmark.get("stan") != "gotowe" or

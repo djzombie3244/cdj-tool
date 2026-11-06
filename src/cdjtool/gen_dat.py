@@ -425,11 +425,249 @@ def siatka_ms(bpm: float, pierwszy_s: float, dlugosc_s: float, takt: int = 0):
     return czasy
 
 
+# ------------------------------------------------- dlugie utwory (sety, miksy) ---
+DLUGI_PROG_S = 20 * 60     # od tej dlugosci analiza idzie odcinkami, a siatka moze zmieniac tempo
+ODCINEK_S = 180            # dlugosc odcinka analizy (tempo i faza liczone osobno w kazdym)
+ZGODNE_BPM = 0.06          # sasiednie odcinki o tym samym tempie i fazie lacza sie w jedna rowna siatke
+ZGODNA_FAZA_S = 0.025
+
+
+def beaty_sieci_dlugie(y, postep=None):
+    """Beaty i pierwsze uderzenia taktow z Beat This! dla calego nagrania, odcinkami (z zakladka)."""
+    import beatthis as BT
+    kaw, zap = int(ODCINEK_S * SR), int(10 * SR)
+    beaty, takty = [], []
+    granice = list(range(0, len(y), kaw))
+    for j, p in enumerate(granice):
+        k = min(len(y), p + kaw)
+        lo, hi = max(0, p - zap), min(len(y), k + zap)
+        r = BT.analizuj(y[lo:hi], None)
+        for zrodlo, cel in ((r["beaty"], beaty), (r["takty"], takty)):
+            t = np.asarray(zrodlo) + lo / SR
+            cel.append(t[(t >= p / SR) & (t < k / SR)])
+        if postep:
+            postep(j + 1, len(granice))
+    return np.concatenate(beaty), np.concatenate(takty)
+
+
+def analizuj_dlugi(y, postep=None):
+    """Dlugie nagranie (set, miks): odcinki po ODCINEK_S analizowane jak zwykly utwor (BPM, faza, takt),
+    zgodne sasiednie odcinki laczone w serie, a moment zmiany utworu wyznaczony z beatow sieci Beat This!
+    dla calego nagrania (bez sieci: z uderzen basu). Siatka dynamiczna jak w rekordboxie.
+    Pamiec: ok. 15x jednego odcinka zamiast calego nagrania."""
+    dl = len(y) / SR
+    kaw = int(ODCINEK_S * SR)
+    granice = list(range(0, len(y), kaw))
+    if len(granice) > 1 and len(y) - granice[-1] < 60 * SR:  # krotka koncowka dolacza do poprzedniego
+        granice.pop()
+    beaty = None
+    try:
+        import beatthis as BT
+        if BT.dostepny():
+            beaty, _ = beaty_sieci_dlugie(y)
+            beaty = np.sort(beaty) + OFFSET_REKORDBOX_S - SIEC_OPOZNIENIE_S  # wspolrzedne rekordboxa
+    except Exception:  # noqa: BLE001
+        beaty = None
+    odcinki = []
+    for j, p in enumerate(granice):
+        k = granice[j + 1] if j + 1 < len(granice) else len(y)
+        try:
+            w = analizuj(y[p:k])
+        except Exception:  # noqa: BLE001  # cisza albo szum: odcinek bez wlasnej siatki
+            w = None
+        odcinki.append((p / SR, k / SR, w))
+        if postep:
+            postep(j + 1, len(granice))
+    return siatka_dynamiczna(odcinki, dl, y, beaty)
+
+
+def _trafienia(sr_, t):
+    """Ktore z czasow t (wsp. rekordboxa) leza na siatce serii (+-25 ms)."""
+    k = np.round((t - sr_["t0"]) / sr_["okres"])
+    return np.abs(sr_["t0"] + k * sr_["okres"] - t) < 0.025
+
+
+def _sily_basu(y, lo, hi):
+    """Funkcja: czasy (wsp. rekordboxa, w [lo, hi)) -> sila narastania basu przy beacie."""
+    przes = ATAK_PRZED_WZROSTEM_S - OFFSET_REKORDBOX_S  # wsp. rekordboxa -> czas dzwieku
+    p0 = int(max(0.0, lo + przes - 0.1) * SR)
+    env = _obwiednia_kicka(y[p0:int(max(0.0, hi + przes + 0.1) * SR)])
+    krok = _HOP_MS / SR
+
+    def f(t):
+        if len(env) == 0:
+            return np.zeros(len(t))
+        a = t + przes - p0 / SR
+        i0 = np.clip(((a - 0.010) / krok).astype(int), 0, len(env) - 1)
+        i1 = np.clip(((a + 0.040) / krok).astype(int), 1, len(env))
+        return np.array([env[x:max(z, x + 1)].max() for x, z in zip(i0, i1)])
+    return f
+
+
+def _oceniacz(lo, hi, beaty, y, serie):
+    """Funkcja seria -> (czasy, wagi) w oknie [lo, hi): trafione beaty sieci, a gdy siec w tym miejscu nie widzi
+    beatow zadnej z serii (np. zaznacza tylko hi-haty) - sila basu na beatach siatki."""
+    if beaty is not None:
+        t = beaty[(beaty >= lo) & (beaty < hi)]
+        if len(t) >= 8 and max(_trafienia(s_, t).mean() for s_ in serie) >= 0.25:
+            return lambda sr_: (t, _trafienia(sr_, t).astype(float))
+    if y is None:
+        return None
+    f = _sily_basu(y, lo, hi)
+
+    def bas(sr_):
+        k0 = int(np.ceil((lo - sr_["t0"]) / sr_["okres"]))
+        k1 = int(np.floor((hi - sr_["t0"]) / sr_["okres"]))
+        tt = sr_["t0"] + np.arange(k0, k1 + 1) * sr_["okres"]
+        tt = tt[(tt >= lo) & (tt < hi)]
+        return tt, f(tt)
+    return bas
+
+
+def _najlepszy_podzial(a, b, lo, hi, oc):
+    """Moment T w [lo, hi): siatka a przed T, b od T; zwraca (T, ocena)."""
+    ta, wa = oc(a)
+    tb, wb = oc(b)
+    kand = np.unique(np.r_[ta, tb, lo])
+    ca = np.concatenate(([0.0], np.cumsum(wa)))
+    cb = np.concatenate(([0.0], np.cumsum(wb)))
+    ocena = ca[np.searchsorted(ta, kand)] + (cb[-1] - cb[np.searchsorted(tb, kand)])
+    i = int(np.argmax(ocena))
+    return float(kand[i]), float(ocena[i])
+
+
+def siatka_dynamiczna(odcinki, dl, y=None, beaty=None):
+    """odcinki: [(start_s, koniec_s, wynik analizuj() albo None)], beaty: beaty sieci (wsp. rekordboxa) albo None.
+    Zwraca slownik jak analizuj() plus "czasy" (_Siatka z .numery i .tempa)."""
+    O = OFFSET_REKORDBOX_S
+    # 1. serie: kolejne odcinki o zgodnym tempie i fazie (prosta t = t0 + k*okres przez kotwice odcinkow)
+    serie = []
+    for s0, s1, w in odcinki:
+        kw = None
+        if w:
+            c = siatka_ms(w["bpm"], w["pierwszy"], s1 - s0, w.get("takt", 0))
+            if len(c):
+                kw = (s0 + float(c[0]), 60.0 / w["bpm"], int(c.numery[0]))
+                if beaty is not None:  # faza odcinka z beatow sieci (odcinek z przejsciem: faza utworu, ktory trwa dluzej)
+                    b = beaty[(beaty >= s0 + O) & (beaty < s1 + O)]
+                    if len(b) >= 16:
+                        okr = kw[1]
+                        przes, zg = _skupienie_beatow(((b - kw[0] + okr / 2) % okr) - okr / 2, okr)
+                        if zg >= 0.3 and abs(przes) < 0.45 * okr:  # jak w analizuj(): nie o pol beatu
+                            kw = (kw[0] + przes, okr, kw[2])
+        if serie and kw is None:
+            serie[-1]["koniec"] = s1 + O
+            continue
+        if kw is None:
+            continue
+        if serie:
+            sr_ = serie[-1]
+            t2, okres2, _ = kw
+            k = int(round((t2 - sr_["t0"]) / sr_["okres"]))
+            if abs(60.0 / sr_["okres"] - 60.0 / okres2) <= ZGODNE_BPM and \
+                    abs(sr_["t0"] + k * sr_["okres"] - t2) <= ZGODNA_FAZA_S:
+                ks, ts = np.array(sr_["k"] + [k], float), np.array(sr_["t"] + [t2])
+                okr, t0 = np.polyfit(ks, ts, 1)
+                if np.max(np.abs(t0 + okr * ks - ts)) <= ZGODNA_FAZA_S:
+                    sr_["k"].append(k); sr_["t"].append(t2)
+                    sr_["okres"], sr_["t0"] = float(okr), float(t0)
+                    sr_["koniec"] = s1 + O
+                    continue
+        t, okres, nr = kw
+        serie.append({"start": s0 + O, "koniec": s1 + O, "k": [0], "t": [t], "t0": t, "okres": okres, "nr0": nr})
+    if not serie:
+        raise ValueError("nie znaleziono rytmu w nagraniu")
+    if beaty is not None:  # tempo i faza serii dopasowane do wszystkich trafionych beatow sieci (dokladniej)
+        for sr_ in serie:
+            b = beaty[(beaty >= sr_["start"]) & (beaty < sr_["koniec"])]
+            for _ in range(2):
+                tr = _trafienia(sr_, b)
+                if tr.sum() < 32:
+                    break
+                ks = np.round((b[tr] - sr_["t0"]) / sr_["okres"])
+                okr, t0 = np.polyfit(ks, b[tr], 1)
+                if abs(60.0 / okr - 60.0 / sr_["okres"]) > 0.2:
+                    break
+                sr_["okres"], sr_["t0"] = float(okr), float(t0)
+    ocen = beaty is not None or y is not None
+    # 2. serie z jednego odcinka, ktore lepiej tlumacza sasiedzi (odcinek z przejsciem miedzy utworami) - usun
+    if ocen:
+        zmiana = True
+        while zmiana and len(serie) > 2:
+            zmiana = False
+            for i in range(1, len(serie) - 1):
+                a, sr_, c = serie[i - 1], serie[i], serie[i + 1]
+                if len(sr_["k"]) > 1:
+                    continue
+                lo, hi = sr_["start"], sr_["koniec"]
+                oc_ = _oceniacz(lo, hi, beaty, y, [a, sr_, c])
+                if oc_ is None:
+                    continue
+                _, w_own = oc_(sr_)
+                _, oc = _najlepszy_podzial(a, c, lo, hi, oc_)
+                if oc >= w_own.sum():
+                    a["koniec"] = c["start"] = lo
+                    c["szukaj_do"] = max(c.get("szukaj_do", 0.0), hi + ODCINEK_S)
+                    del serie[i]
+                    zmiana = True
+                    break
+    # 3. dokladny moment zmiany: w otoczeniu granicy odcinkow (zmiana zwykle wypada wewnatrz odcinka)
+    serie[0]["start"] = 0.0
+    koniec = dl + O - 0.05
+    serie[-1]["koniec"] = koniec
+    if ocen:
+        for i in range(1, len(serie)):
+            a, b = serie[i - 1], serie[i]
+            lo = max(a["start"], b["start"] - ODCINEK_S)
+            hi = min(b["koniec"], max(b["start"] + ODCINEK_S, b.get("szukaj_do", 0.0)))
+            if hi - lo > 2:
+                try:
+                    oc_ = _oceniacz(lo, hi, beaty, y, [a, b])
+                    if oc_ is None:
+                        continue
+                    gr, _ = _najlepszy_podzial(a, b, lo, hi, oc_)
+                    a["koniec"] = b["start"] = gr - 0.05
+                except Exception:  # noqa: BLE001
+                    pass
+    # 4. beaty
+    czasy, numery, tempa = [], [], []
+    for sr_ in serie:
+        t0, okres = sr_["t0"], sr_["okres"]
+        k = int(np.ceil((sr_["start"] - t0) / okres - 1e-9))
+        while True:
+            t = t0 + k * okres
+            if t >= sr_["koniec"] or t >= koniec:
+                break
+            if t >= 0 and (not czasy or t >= czasy[-1] + 0.6 * okres):
+                czasy.append(t)
+                numery.append((sr_["nr0"] - 1 + k) % 4 + 1)
+                tempa.append(60.0 / okres)
+            k += 1
+    wyn = np.array(czasy).view(_Siatka)
+    wyn.numery = np.array(numery, dtype=int)
+    wyn.tempa = np.array(tempa)
+    pewne = [w for _, _, w in odcinki if w]
+    dlug = [(s_["koniec"] - s_["start"], 60.0 / s_["okres"]) for s_ in serie]
+    return {"bpm": float(max(dlug)[1]), "czasy": wyn, "pierwszy": float(wyn[0]) if len(wyn) else 0.0,
+            "confidence": float(np.median([w["confidence"] for w in pewne])) if pewne else 0.0,
+            "reliable": True, "takt": 0, "odcinkow": len(odcinki), "serii": len(serie),
+            "tempa_serii": [round(60.0 / s_["okres"], 2) for s_ in serie]}
+
+
 class _Siatka(np.ndarray):
     numery = None
+    tempa = None  # BPM kazdego beatu (siatka dynamiczna); None = staly bpm
 
     def __array_finalize__(self, obj):
         self.numery = getattr(obj, "numery", None)
+        self.tempa = getattr(obj, "tempa", None)
+
+
+def _bpm100_beatow(czasy_s, bpm):
+    tempa = getattr(czasy_s, "tempa", None)
+    if tempa is not None and len(tempa) == len(czasy_s):
+        return [int(round(t * 100)) for t in tempa]
+    return [int(round(bpm * 100))] * len(czasy_s)
 
 
 def _ms_calk(t_s: float) -> int:
@@ -444,13 +682,13 @@ def tag_pqt2(czasy_s: np.ndarray, bpm: float) -> bytes:
     n = len(czasy_s)
     numery = getattr(czasy_s, "numery", None)
     nr = [int(numery[i]) if numery is not None else (i % 4) + 1 for i in range(n)]
-    bpm100 = int(round(bpm * 100))
+    b100 = _bpm100_beatow(czasy_s, bpm)  # siatka dynamiczna: suma kontrolna z tempem kazdego beatu (jak rekordbox)
     ms = [_ms_calk(t) for t in czasy_s]
     ulamki = [min(999, max(0, int(round((t * 1000.0 - m) * 1000.0)))) for t, m in zip(czasy_s, ms)]
-    suma = sum(nr[i] + bpm100 + ms[i] for i in range(n)) & 0xFFFFFFFF
+    suma = sum(nr[i] + b100[i] + ms[i] for i in range(n)) & 0xFFFFFFFF
     body = b"".join(struct.pack(">H", u) for u in ulamki)
     hdr = struct.pack(">11I", 0, 0x02000002, 0,
-                      (nr[0] << 16) | bpm100, ms[0], (nr[-1] << 16) | bpm100, ms[-1], n, suma, 0, 0)
+                      (nr[0] << 16) | b100[0], ms[0], (nr[-1] << 16) | b100[-1], ms[-1], n, suma, 0, 0)
     return b"PQT2" + struct.pack(">II", 56, 56 + len(body)) + hdr + body
 
 
@@ -459,9 +697,10 @@ def tag_pqtz(czasy_s: np.ndarray, bpm: float) -> bytes:
     n = len(czasy_s)
     body = b""
     numery = getattr(czasy_s, "numery", None)
+    b100 = _bpm100_beatow(czasy_s, bpm)
     for i, t in enumerate(czasy_s):
         nr = int(numery[i]) if numery is not None else (i % 4) + 1
-        body += struct.pack(">HHI", nr, int(round(bpm * 100)), _ms_calk(t))
+        body += struct.pack(">HHI", nr, b100[i], _ms_calk(t))
     return b"PQTZ" + struct.pack(">III", 24, 24 + len(body), 0) + struct.pack(">II", 0x80000, n) + body
 
 
@@ -505,17 +744,47 @@ PCO2_EXT_PAMIEC = bytes.fromhex("50434f32000000140000001400000001" "00000000")
 PCO2_EXT_HOT = bytes.fromhex("50434f32000000140000001400000000" "00000000")
 
 
-def tag_pwv3(y, dlugosc_s):
-    """PWV3: waveform szczegolowy, 150 probek/s, 1 bajt (3 bity jasnosc, 5 bitow wysokosc)."""
+KAWALEK_S = 600       # dlugie utwory: filtry i sumy liczone po 10 min (krotsze utwory w jednym kawalku)
+ZAKLADKA_S = 2.0      # zapas na brzegach kawalka, zeby filtr nie zostawil sladu w wyniku
+
+
+def _okna_150(y, dlugosc_s):
     calk = dlugosc_s + OFFSET_REKORDBOX_S
     n = int(round(calk * PWV3_PROBEK_NA_S))
     okno = SR / PWV3_PROBEK_NA_S
     idx = np.arange(n)
     a = np.clip(np.round(idx * okno - OFFSET_REKORDBOX_S * SR).astype(np.int64), 0, len(y))
     b = np.clip(np.round((idx + 1) * okno - OFFSET_REKORDBOX_S * SR).astype(np.int64), 0, len(y))
-    cs = np.concatenate(([0.0], np.cumsum(np.asarray(y, dtype=np.float64) ** 2)))
-    dl = np.maximum(b - a, 1)
-    rms = np.where(b > a, np.sqrt(np.maximum(cs[b] - cs[a], 0.0) / dl), 0.0)
+    return n, a, np.maximum(b, a)
+
+
+def _rms_okien(y, a, b, sos=None):
+    """RMS sygnalu (opcjonalnie po filtrze sos) w oknach [a, b), liczony kawalkami po KAWALEK_S."""
+    from scipy.signal import sosfiltfilt
+    wyn = np.zeros(len(a))
+    kaw, zap = int(KAWALEK_S * SR), int(ZAKLADKA_S * SR)
+    for p in range(0, max(len(y), 1), kaw):
+        k = min(len(y), p + kaw)
+        sel = np.nonzero((a >= p) & (a < k))[0] if len(y) > kaw else np.arange(len(a))
+        if len(sel) == 0:
+            continue
+        lo = max(0, p - zap) if len(y) > kaw else 0
+        hi = min(len(y), max(k, int(b[sel].max())) + zap) if len(y) > kaw else len(y)
+        z = np.asarray(y[lo:hi], dtype=np.float64)
+        if sos is not None and len(z) > 27:
+            z = sosfiltfilt(sos, z)
+        cs = np.concatenate(([0.0], np.cumsum(z * z)))
+        aa, bb = a[sel] - lo, b[sel] - lo
+        wyn[sel] = np.sqrt(np.maximum(cs[bb] - cs[aa], 0.0) / np.maximum(bb - aa, 1))
+        if len(y) <= kaw:
+            break
+    return np.where(b > a, wyn, 0.0)
+
+
+def tag_pwv3(y, dlugosc_s):
+    """PWV3: waveform szczegolowy, 150 probek/s, 1 bajt (3 bity jasnosc, 5 bitow wysokosc)."""
+    n, a, b = _okna_150(y, dlugosc_s)
+    rms = _rms_okien(y, a, b)
     h = np.clip(np.round(40.5 * rms), 0, 31).astype(np.uint8)
     body = ((5 << 5) | h).astype(np.uint8).tobytes()
     return (b"PWV3" + struct.pack(">III", 24, 24 + len(body), 1)
@@ -539,30 +808,25 @@ PWV4_WSP = np.array([
 
 def _cechy_koloru(y, dlugosc_s):
     """Na kazde okno 1/150 s: (rms nisko <200 Hz, rms srednio 200-2000 Hz, rms wysoko >2 kHz, szczyt)."""
-    from scipy.signal import butter, sosfiltfilt
-    calk = dlugosc_s + OFFSET_REKORDBOX_S
-    n = int(round(calk * PWV3_PROBEK_NA_S))
-    okno = SR / PWV3_PROBEK_NA_S
-    a = np.clip(np.round(np.arange(n) * okno - OFFSET_REKORDBOX_S * SR).astype(np.int64), 0, len(y))
-    b = np.clip(np.round((np.arange(n) + 1) * okno - OFFSET_REKORDBOX_S * SR).astype(np.int64), 0, len(y))
-    b = np.maximum(b, a)
-    dl = np.maximum(b - a, 1)
+    from scipy.signal import butter
+    n, a, b = _okna_150(y, dlugosc_s)
     ny = SR / 2
     pasma = (butter(4, 200 / ny, "low", output="sos"), butter(4, [200 / ny, 2000 / ny], "band", output="sos"),
              butter(4, 2000 / ny, "high", output="sos"))
-    wyj = []
-    for sos in pasma:
-        z = sosfiltfilt(sos, y.astype(np.float64))
-        cs = np.concatenate(([0.0], np.cumsum(z * z)))
-        wyj.append(np.sqrt(np.maximum(cs[b] - cs[a], 0.0) / dl))
-    ay = np.abs(y)
+    wyj = [_rms_okien(y, a, b, sos) for sos in pasma]
     szczyt = np.zeros(n)
     ok = b > a
-    if ok.any():
-        # reduceat po poczatkach okien; okna sa ciagle i nie zachodza na siebie
-        idx = a[ok]
-        red = np.maximum.reduceat(ay, np.minimum(idx, len(ay) - 1)) if len(ay) else np.zeros(ok.sum())
-        szczyt[ok] = red
+    if ok.any() and len(y):
+        # maksimum |y| w kazdym oknie (okna ciagle, bez zakladek); kawalkami, bez kopii calego |y|
+        idx = np.nonzero(ok)[0]
+        kaw = int(KAWALEK_S * SR)
+        for p in range(0, len(y), kaw):
+            sel = idx[(a[idx] >= p) & (a[idx] < p + kaw)]
+            if len(sel) == 0:
+                continue
+            hi = len(y) if p + kaw >= len(y) else min(len(y), int(b[sel].max()))
+            ay = np.abs(y[p:hi])
+            szczyt[sel] = np.maximum.reduceat(ay, np.minimum(a[sel] - p, len(ay) - 1))
     return np.c_[wyj[0], wyj[1], wyj[2], szczyt]
 
 

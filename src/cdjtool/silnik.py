@@ -25,6 +25,7 @@ sys.path.insert(0, KAT)
 
 import gen_dat as g
 import pdb_writer as pw
+import okladki
 import tonacja
 from exceptions import (
     CDJError, FFmpegError, InvalidMP3Error, DiskSpaceError, PathTooLongError,
@@ -134,7 +135,9 @@ import threading
 
 SPOOL = {"katalog": None}
 BRAMKA = {"obj": None}
-MAKS_MIN_UTWORU = 45          # dluzsze utwory pomijamy (zbyt duze zuzycie pamieci)
+MAKS_MIN_UTWORU = 45          # bez opcji dlugich utworow dluzsze pomijamy
+MAKS_MIN_DLUGIEGO = 180       # z opcja: sety i miksy do 3 h, analizowane odcinkami (gen_dat.analizuj_dlugi)
+DLUGIE = {"on": True}         # ustawiane z opcji w interfejsie (przetworz)
 BAJTOW_NA_PROBKE = 4 * 16     # float32 x ~16 (zmierzony szczyt analizy ~14.7x dlugosci audio)
 
 
@@ -205,10 +208,45 @@ class BramkaPamieci:
 
 
 def szacunek_bajtow(czas_s):
+    if czas_s > g.DLUGI_PROG_S:  # odcinkami: caly dzwiek (float32) z zapasem + staly szczyt odcinka i kawalka
+        return int(czas_s * g.SR * 8) + 1100 * 1024 * 1024  # zmierzone: set 37 min = +1,2 GB
     return int(czas_s * g.SR * BAJTOW_NA_PROBKE) + 20 * 1024 * 1024
 
 
+def _limit_dlugosci(nazwa, czas_s):
+    maks = MAKS_MIN_DLUGIEGO if DLUGIE["on"] else MAKS_MIN_UTWORU
+    if czas_s > maks * 60:
+        powod = ("utwór dłuższy niż %d min jest pomijany" % maks) + (
+            "" if DLUGIE["on"] else " (włącz opcję długich utworów, by analizować sety do %d min)" % MAKS_MIN_DLUGIEGO)
+        raise InvalidMP3Error(nazwa, powod)
+
+
 # ================================================================ Metadane ---
+def _uzupelnij_z_nazw(sciezka, tytul, artysta, album):
+    """Brakujace tagi z nazwy pliku ("Wykonawca - Tytul.mp3") i folderu ("Wykonawca - Album 2011").
+    Istniejace tagi zostaja bez zmian."""
+    tytul, artysta, album = (tytul or "").strip(), (artysta or "").strip(), (album or "").strip()
+    rok = 0
+    if not artysta:
+        z = okladki.z_nazwy_pliku((tytul + ".x") if " - " in tytul else sciezka)
+        if z:
+            artysta = z[0]
+            if not tytul or " - " in tytul:
+                tytul = z[1]
+    if not album and artysta:
+        folder = unicodedata.normalize("NFC", os.path.basename(os.path.dirname(os.path.abspath(sciezka))))
+        if " - " in folder:
+            fa, fal = (c.strip() for c in folder.split(" - ", 1))
+            if okladki._norm(fa) == okladki._norm(artysta) and fal:
+                m = re.match(r"^(.*?)[\s\(\[]*((?:19|20)\d\d)[\)\]]?$", fal)
+                if m and m.group(1).strip():
+                    fal, rok = m.group(1).strip(" -"), int(m.group(2))
+                album = fal
+    nfc = lambda x: unicodedata.normalize("NFC", x)  # noqa: E731  # macOS zapisuje nazwy plikow w NFD
+    return {"tytul": nfc(tytul), "artysta": nfc(artysta), "album": nfc(album), "rok": rok}
+
+
+
 def metadane(sciezka: str) -> Dict[str, any]:
     """Ekstrahuj metadata MP3 (bezpiecznie z timeoutem)."""
     try:
@@ -340,12 +378,13 @@ def metadane(sciezka: str) -> Dict[str, any]:
             return int(mm.group(1)) if mm else 0
         
         ton_tag = tonacja.z_tagu(tagi.get("tkey") or tagi.get("initialkey") or tagi.get("key"))
+        uzup = _uzupelnij_z_nazw(sciezka, tagi.get("title"), tagi.get("artist"), tagi.get("album"))
         return {
             "tonacja_tag": [ton_tag[0], ton_tag[1]] if ton_tag else None,
-            "tytul": tagi.get("title") or os.path.splitext(os.path.basename(sciezka))[0],
-            "artysta": tagi.get("artist") or "Unknown Artist",
-            "album": tagi.get("album") or "Unknown Album",
-            "rok": liczba("date") or liczba("year"),
+            "tytul": uzup["tytul"] or os.path.splitext(os.path.basename(sciezka))[0],
+            "artysta": uzup["artysta"] or "Unknown Artist",
+            "album": uzup["album"] or "Unknown Album",
+            "rok": liczba("date") or liczba("year") or uzup["rok"],
             "nr": liczba("track"),
             "dysk": liczba("disc"),
             "sr": sr,
@@ -455,6 +494,7 @@ def _poczatek_dzwieku_ms(y, sr, prog_db=-60.0, okno_s=0.005):
     """Pierwszy moment, w ktorym dzwiek przekracza prog (jak Auto Cue w CDJ, domyslnie -60 dB); ms lub None."""
     import numpy as np
     n = max(1, int(sr * okno_s))
+    y = y[: int(sr * 300)]  # poczatek dzwieku szukamy w pierwszych 5 min (bez kopii calego seta)
     ile = len(y) // n
     if ile < 2:
         return None
@@ -486,8 +526,7 @@ def _analizuj_jeden(folder, root, nr, nazwa_wzgledna, kopiuj_mp3, dzis, nazwa_fo
     nazwa = os.path.basename(nazwa_wzgledna)
     try:
         meta = metadane(sciezka)
-        if meta["czas"] > MAKS_MIN_UTWORU * 60:
-            raise InvalidMP3Error(nazwa, "utwór dłuższy niż %d min jest pomijany (limit pamięci)" % MAKS_MIN_UTWORU)
+        _limit_dlugosci(nazwa, meta["czas"])
         bramka = BRAMKA["obj"]
         szac = szacunek_bajtow(meta["czas"])
         if bramka is not None and szac > bramka.budzet * 0.9:
@@ -537,8 +576,7 @@ def _analizuj_jeden_proc(pula_proc, folder, root, nr, nazwa_wzgledna, kopiuj_mp3
     nazwa = os.path.basename(nazwa_wzgledna)
     try:
         meta = metadane(sciezka)
-        if meta["czas"] > MAKS_MIN_UTWORU * 60:
-            raise InvalidMP3Error(nazwa, "utwór dłuższy niż %d min jest pomijany (limit pamięci)" % MAKS_MIN_UTWORU)
+        _limit_dlugosci(nazwa, meta["czas"])
         bramka = BRAMKA["obj"]
         szac = szacunek_bajtow(meta["czas"])
         if bramka is not None and szac > bramka.budzet * 0.9:
@@ -701,7 +739,7 @@ def _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3,
             ex2 = _czytaj_2ex(u)
             info = {"pend": u["pend"], "bpm": u["bpm"], "confidence": u["confidence"], "reliable": u["reliable"],
                     "pierwszy_ms": ev["pierwszy_ms"], "beatow": ev["beatow"], "czas": ev["czas"],
-                    "podglad": ev.get("podglad"), "tonacja": u.get("tonacja_analiza")}
+                    "podglad": ev.get("podglad"), "tonacja": u.get("tonacja_analiza"), "dlugi": ev.get("dlugi")}
             _cache_zapisz(klucz, info, dat, ext, ex2)
         except Exception:  # noqa: BLE001  # pamiec podreczna jest dodatkiem
             pass
@@ -745,6 +783,8 @@ def _z_cache(traf, sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, n
         ev["tonacja"] = _opis_tonacji(u["tonacja"])
     if info.get("podglad") is not None and nr <= 50:
         ev["podglad"] = info["podglad"]
+    if info.get("dlugi"):
+        ev["dlugi"] = info["dlugi"]
     return u, ev
 
 
@@ -777,7 +817,8 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
             # wiec siatka, waveformy i cue przesuwaja sie razem.
             y = y[int(round(g.MP3_BEZ_GAPLESS_S * g.SR)):]
         dl = len(y) / g.SR
-        analysis = g.analizuj(y)
+        dlugi = dl > g.DLUGI_PROG_S
+        analysis = g.analizuj_dlugi(y) if dlugi else g.analizuj(y)
         
         bpm = analysis["bpm"]
         pierwszy = analysis["pierwszy"]
@@ -787,7 +828,10 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
         # Niska pewnosc BPM nie odrzuca utworu (oryginal tez nic nie odrzucal);
         # informacja trafia do zdarzenia w polu "reliable".
         
-        czasy = g.siatka_ms(bpm, pierwszy, dl, analysis.get("takt", 0))
+        if dlugi:  # set/miks: siatka dynamiczna (tempo moze zmieniac sie miedzy fragmentami)
+            czasy = analysis["czasy"]
+        else:
+            czasy = g.siatka_ms(bpm, pierwszy, dl, analysis.get("takt", 0))
         
         if kopiuj_mp3:
             pend = sciezka_wg_folderow(nazwa_folderu, nazwa_wzgledna) if nazwa_folderu else sciezka_na_pendrive(meta, nazwa)
@@ -814,6 +858,8 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
             ex2 = b""
         pod = podglad(y, czasy - g.OFFSET_REKORDBOX_S, pwav_wynik[1]) if nr <= 50 else None
         try:  # tonacja jest dodatkiem: blad tutaj nie moze zatrzymac eksportu utworu
+            if dlugi:  # set ma wiele tonacji; zostaje tylko tonacja z tagu
+                raise ValueError("dlugi")
             ton_analiza = tonacja.wykryj(y, g.SR)
             ton_analiza = [int(ton_analiza[0]), bool(ton_analiza[1]), float(ton_analiza[2])] if ton_analiza else None
         except Exception:  # noqa: BLE001
@@ -872,6 +918,8 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
             "beatow": len(czasy),
             "czas": round(dl, 1)
         }
+        if dlugi:
+            ev["dlugi"] = {"odcinkow": analysis["odcinkow"], "tempa": analysis["tempa_serii"][:40]}
         
         if pod is not None:
             ev["podglad"] = pod
@@ -1025,6 +1073,7 @@ def przetworz(a, emit):
 def _przetworz(a, emit):
     """a: slownik z folder_mp3, pendrive, playlista, kopiuj_mp3, zastap_pioneer, flac (opcjonalnie)."""
     FLAC["on"] = bool(a.get("flac"))
+    DLUGIE["on"] = bool(a.get("dlugie", True))
     os.environ["CDJ_FLAC"] = "1" if FLAC["on"] else "0"  # dziedziczone przez procesy robocze
     folder = os.path.realpath(a["folder_mp3"])
     nazwa_folderu = str(a.get("nazwa_folderu") or os.path.basename(folder.rstrip("/")) or "Tracks")[:60]
@@ -1137,6 +1186,13 @@ def _przetworz(a, emit):
                         if kopiarka is not None:
                             kopiarka.dodaj(utwor)
                     emit(ev)
+                    if ev.get("dlugi"):
+                        tem = ev["dlugi"]["tempa"]
+                        emit({"typ": "log", "tekst": "Długi utwór %s: %d min, analiza w %d odcinkach, %s." % (
+                            ev["nazwa"], round(ev["czas"] / 60), ev["dlugi"]["odcinkow"],
+                            "stałe tempo %.2f BPM" % tem[0] if len(tem) == 1 else
+                            "siatka dynamiczna, tempa: " + ", ".join("%.2f" % t for t in tem[:12])
+                            + (" …" if len(tem) > 12 else ""))})
                 except CDJError as e:
                     emit({
                         "typ": "utwor_blad",
@@ -1239,6 +1295,69 @@ def _przetworz(a, emit):
             zmiana_kluczy = True
         return klucze[nm]
 
+    # okladki z tagow plikow: miniatury 80/240 px w PIONEER/Artwork/00001, tabela 13 jak w rekordboxie
+    zapisz_okladki = bool(a.get("okladki", True))
+    art_dla, art_pliki, art_wiersze = {}, [], []
+    if zapisz_okladki:
+        emit({"typ": "etap", "tekst": "Okładki albumów..." + _t()})
+
+        def _obraz(u):
+            ob = okladki.wyciagnij(u["src"])
+            return (okladki.skrot(ob), ob) if ob else None
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pula:
+            obrazy = list(pula.map(_obraz, utwory))
+            z_sieci = 0
+            braki = [i for i, r in enumerate(obrazy) if not r]
+            if a.get("okladki_siec") and braki:
+                emit({"typ": "etap", "tekst": "Szukam okładek w sieci dla %d utworów..." % len(braki) + _t()})
+                kc = _cache_katalog()
+                siec = okladki.Siec(os.path.join(os.path.dirname(kc), "okladki-siec") if kc else None)
+
+                def _z_sieci(i):
+                    m = utwory[i]["meta"]
+                    ob = siec.szukaj(m["artysta"], m["tytul"], m["album"], os.path.basename(utwory[i]["src"]))
+                    return i, ob
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pula_s:
+                    for i, ob in pula_s.map(_z_sieci, braki):
+                        if ob:
+                            obrazy[i] = (okladki.skrot(ob), ob)
+                            z_sieci += 1
+                emit({"typ": "log", "tekst": "Okładki z sieci (Deezer, iTunes): znaleziono %d z %d%s." % (
+                    z_sieci, len(braki), "; brak połączenia z siecią, pominięto resztę" if siec.wylaczone else "")})
+            unikalne = {}
+            for r in obrazy:
+                if r:
+                    unikalne.setdefault(r[0], r[1])
+            mini = dict(zip(unikalne, pula.map(lambda ob: okladki.miniatury(ob, FFMPEG), unikalne.values())))
+        stare_art = {s["file_path"]: f["artwork"] for f, s in lib["utwory"]}
+        uzywane = {f["artwork"] for f, s in lib["utwory"] if s["file_path"] not in nowe_sciezki and f["artwork"]}
+        nast_art = max(list(uzywane) + [0]) + 1
+        id_obrazu = {}
+        for u, r in zip(utwory, obrazy):
+            if not r or not mini.get(r[0]):
+                continue
+            if r[0] not in id_obrazu:
+                stary = stare_art.get(u["pend"], 0)
+                if stary and stary not in uzywane and stary not in id_obrazu.values():
+                    id_obrazu[r[0]] = stary  # ten sam utwor ponownie: ta sama nazwa pliku okladki
+                else:
+                    while nast_art in id_obrazu.values():
+                        nast_art += 1
+                    id_obrazu[r[0]] = nast_art
+                    nast_art += 1
+            art_dla[u["pend"]] = id_obrazu[r[0]]
+        for h, aid in id_obrazu.items():
+            sciezka_bazy, mala, duza = okladki.sciezki(aid)
+            art_pliki.append((mala, mini[h][0]))
+            art_pliki.append((duza, mini[h][1]))
+        art_wiersze = sorted([(aid, pth) for aid, pth in lib.get("okladki", []) if aid in uzywane]
+                             + [(aid, okladki.sciezki(aid)[0]) for aid in id_obrazu.values()])
+        bez = sum(1 for r in obrazy if not r)
+        emit({"typ": "log", "tekst": "Okładki: %d utworów z okładką (%d różnych obrazów), %d bez okładki."
+              % (len(art_dla), len(id_obrazu), bez)})
+
     kodowane = [(f, s) for f, s in lib["utwory"]]
     wg_sciezki = {s["file_path"]: i for i, (f, s) in enumerate(kodowane)}
     nast_id = max([f["id"] for f, _ in kodowane] + [0]) + 1
@@ -1254,6 +1373,8 @@ def _przetworz(a, emit):
         kid = id_klucza(u)
         if kid is not None:
             pola["key"] = kid
+        if zapisz_okladki:
+            pola["artwork"] = art_dla.get(u["pend"], 0)
         napisy = dict(
             title=m["tytul"], filename=os.path.basename(u["pend"]), file_path=u["pend"],
             analyze_path=u["analiza"], analyze_date=dzis,
@@ -1271,7 +1392,8 @@ def _przetworz(a, emit):
         else:
             f = dict(f_szablon)
             f.update(key=0)
-            f.update(pola, id=nast_id, label=0, genre=0, artwork=0, composer=0, orig_artist=0,
+            f.update(artwork=0)
+            f.update(pola, id=nast_id, label=0, genre=0, composer=0, orig_artist=0,
                      remixer=0, plays=0)
             s = dict(s_szablon)
             s.update(napisy, date_added=dzis, lyricist="", release_date="", mix_name="", comment="")
@@ -1352,12 +1474,14 @@ def _przetworz(a, emit):
     }
     if zmiana_kluczy:  # nowe nazwy tonacji: tabela kluczy od nowa (stare wpisy zachowuja swoje id)
         tabele[pw.TYPE_KEYS] = [pw.key_row(kid, n) for n, kid in sorted(klucze.items(), key=lambda x: x[1])]
+    if art_wiersze:  # wiersze uzywanych okladek (bez pustych wpisow wzorca)
+        tabele[pw.TYPE_ARTWORK] = [pw.art_row(aid, pth) for aid, pth in art_wiersze]
     pdb = pw.zbuduj_pdb(pdb_wzor, tabele)
 
     pioneer = os.path.join(root, "PIONEER")
     zapisz_2ex = bool(a.get("trzy_pasma", False))
     dat_bajty = sum(u["dat_len"] + u["ext_len"] + (u.get("ex2_len", 0) if zapisz_2ex else 0) for u in utwory)
-    dane_bajty = dat_bajty + len(pdb)
+    dane_bajty = dat_bajty + len(pdb) + sum(len(b) for _, b in art_pliki)
     stat = os.path.join(WZORZEC, "PIONEER")
     
     szablony = []
@@ -1482,6 +1606,12 @@ def _przetworz(a, emit):
             except OSError:
                 pass
     
+    for rel, bajty in art_pliki:
+        cel_art = os.path.join(root, rel.lstrip("/"))
+        os.makedirs(os.path.dirname(cel_art), exist_ok=True)
+        with open(cel_art, "wb") as fh:
+            fh.write(bajty)
+
     if kopiuj_mp3:
         do_skopiowania = []
         for u in utwory:

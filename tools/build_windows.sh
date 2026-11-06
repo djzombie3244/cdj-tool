@@ -25,7 +25,7 @@ curl -fL -o "$W/dl/$FF" "$FFURL"
 unzip -q "$W/dl/$FF" -d "$W/dl/ff"
 mkdir -p "$APP/ffmpeg"; cp "$W"/dl/ff/*/bin/ffmpeg.exe "$APP/ffmpeg/"
 cp "$W"/dl/ff/*/LICENSE.txt "$APP/ffmpeg/FFMPEG-LICENSE.txt" 2>/dev/null || true
-for f in app.py audio_stream.py beatthis.py cue.py exceptions.py gen_dat.py logging_config.py pdb_writer.py silnik.py takt.py tonacja.py ui.html \
+for f in app.py audio_stream.py beatthis.py cue.py exceptions.py gen_dat.py logging_config.py pdb_writer.py silnik.py takt.py tonacja.py okladki.py ui.html \
          winplat.py worker.py config.json; do cp "src/cdjtool/$f" "$APP/src/"; done
 cp -R src/cdjtool/wzorzec "$APP/src/"
 bash tools/fetch_models.sh >/dev/null
