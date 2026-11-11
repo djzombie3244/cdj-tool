@@ -56,7 +56,7 @@ def test_autoload_option_and_mod_files_are_kept(tmp_path, monkeypatch):
     a.mkdir(); usb.mkdir()
     _click_track(str(a / "one.wav"), 128.0, seconds=30)
     monkeypatch.setattr(silnik, "_na_wolumenie", lambda root: True)   # jak prawdziwy pendrive: kopia + czyszczenie
-    monkeypatch.setattr(silnik, "kopia_zapasowa", lambda pioneer, root: str(tmp_path / "kopia"))
+    monkeypatch.setattr(silnik, "kopia_zapasowa", lambda pioneer, root, *r: str(tmp_path / "kopia"))
     monkeypatch.setattr(silnik, "kopia_zapasowa_pdb", lambda p, root: str(tmp_path / "kopia_pdb"))
 
     _run(a, usb)
@@ -111,3 +111,15 @@ def test_three_band_file_is_written_only_with_the_option(tmp_path):
     assert not dat_p.with_suffix(".2EX").exists()
     _run(a, usb, trzy_pasma=True)
     assert dat_p.with_suffix(".2EX").read_bytes() == ex2
+
+
+def test_hot_cues_are_filled_to_six_without_moving_the_first_ones():
+    import cue
+    czasy = np.arange(0.1, 300, 60 / 128)                      # 128 BPM, ok. 5 min
+    numery = (np.arange(len(czasy)) % 4) + 1
+    wyn = {"hot": [(100, "Start"), (60100, "Drop")], "pamiec": [(100, "Start"), (120100, "Break")]}
+    hot = cue._uzupelnij_hot(wyn, czasy, numery)
+    assert len(hot) == 6 and hot[:2] == wyn["hot"]
+    t = sorted(m for m, _ in hot)
+    assert min(np.diff(t)) >= 4 * 60 / 128 * 1000 * 0.99      # co najmniej takt odstepu
+    assert (120100, "Break") in hot                             # najpierw memory cue

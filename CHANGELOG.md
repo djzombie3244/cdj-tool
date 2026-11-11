@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.8 - 2026
+- **Simpler window.** Three steps instead of four (Music, USB stick, Options), short option names in two columns with the full explanation behind an *i* button, a player switch (*CDJ-2000* / *CDJ-2000 with RaftTone mod* / *Custom*) that sets the mod-specific options in one click, rarely changed options under *Advanced*, formatting and the speed measurement under *Tools*. The Start button stays visible with one sentence saying what will happen, and the settings fold away while the app works.
+- **Summary at the end**: tracks written, files skipped, artwork (and how many from the internet), tags filled from names, results taken from the cache, total time and time per track, disk write speed and format. Skipped files are now listed by name (before: "unknown").
+- **Short disk test before the run** (write, read back and verify, read source files, file system): a failing or read-only stick stops the run in seconds instead of after the analysis, and a format the CDJ-2000 cannot read (e.g. exFAT) is flagged.
+- **Faster analysis of large libraries.** New option *Full power* (on by default): analysis runs on all CPU cores but two (before: half of them, at most 6), with a larger share of free memory, and numeric libraries in the worker processes use one thread each. The heuristic bar-phase step now runs only when the neural network has not decided it (same results, about 10% less work per track).
+- Analysis worker processes give freed memory back to the system after every track. Before, each kept up to 1 GB, and on a 16 GB Mac seven of them pushed the system into swap.
+- Artwork (from tags and, with the option on, from the internet) is now looked up in the background while tracks are being analysed, instead of after the whole analysis.
+- **The log (Dziennik) shows each track**: BPM, key and its source, tags filled from the file name, results taken from the cache, and whether artwork was found in the file, on the internet or not at all. It scrolls and keeps the last 200 lines.
+- **Backup no longer stops a long run because of one unreadable file.** Before replacing the stick contents, unreadable analysis files are skipped (and listed in the log); the run stops only if the database itself cannot be copied, and the message now names the file and the reason and warns that formatting would also erase music kept on the same drive.
+- Saved analysis results survive app updates that do not touch the analysis itself (log, artwork, writing to the stick), so re-writing a large library after an update takes minutes instead of a full re-analysis.
+- **A drive that disconnects during the run stops it with a clear message** (which drive, how many tracks were done, what to check) instead of marking every remaining track as a broken MP3. Tracks already analysed come from the cache on the next run.
+- The log now shows how long the analysis took per track and how long the app waited for copying to the stick, so a slow stick is easy to spot.
+
 ## 1.0.7 - 2026
 - **Album artwork on the CDJ.** The cover embedded in the file tags (MP3/WAV/AIFF ID3, M4A, FLAC) is written as rekordbox does: 80x80 and 240x240 JPEG in `PIONEER/Artwork/00001` plus the artwork table in `export.pdb`. One file per distinct image, same id on re-export. On by default, can be switched off.
 - **Optional: missing artwork from the internet** (off by default). Tracks without a cover in their tags are looked up by artist and title (or the file name "Artist - Title") on Deezer, then Apple iTunes; only those strings are sent. Results, including "not found", are cached on the computer, and the lookup stops after a few failures when there is no network.

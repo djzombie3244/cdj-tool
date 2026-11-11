@@ -306,14 +306,19 @@ def analizuj(y: np.ndarray) -> Dict[str, Any]:
     for _ in range(2):  # dosun siatke do poczatku narastania kicka
         faza = (faza + _poczatek_kicka(y, bpm, faza)) % okres
     _kick120().update(ref=None, e=None, c=None)
-    try:
-        takt_d = wykryj_takt(y, bpm, float(faza))
-    except Exception:
-        takt_d = 0
+
+    def _takt_heurystyka():
+        try:
+            return int(wykryj_takt(y, bpm, float(faza)))
+        except Exception:
+            return 0
     wynik = {"bpm": bpm, "pierwszy": float(faza), "confidence": float(ostrosc),
-             "reliable": True, "takt": int(takt_d), "takt_zrodlo": "heurystyka"}
+             "reliable": True, "takt": 0, "takt_zrodlo": "heurystyka"}
     try:  # siec neuronowa Beat This!: faza siatki, faza taktu (czerwony pasek) i struktura utworu
-        wynik.update(_takt_z_sieci(y, bpm, float(faza), takt_d))
+        z_sieci = _takt_z_sieci(y, bpm, float(faza), None)
+        if "takt" not in z_sieci:  # heurystyka taktu tylko gdy siec go nie rozstrzygnela (oszczedza ok. 7% czasu)
+            z_sieci = dict(z_sieci, takt=_takt_heurystyka())
+        wynik.update(z_sieci)
         med = wynik.get("siec_przesuniecie_s")
         if med is not None and abs(med) < 0.45 * okres and wynik.get("siec_zgodnosc", 0.0) >= 0.4:
             # Faza z sieci: na wzorcu rekordboxa mediana bledu 8 ms (heurystyka energii basu: ok. 60 ms, bo stawiala
@@ -327,6 +332,8 @@ def analizuj(y: np.ndarray) -> Dict[str, Any]:
                          faza_heurystyka=float(faza))
     except Exception as e:  # noqa: BLE001  # bez sieci zostaje algorytm zapasowy
         wynik["siec_blad"] = "%s: %s" % (type(e).__name__, e)
+        if wynik.get("takt_zrodlo") != "siec":
+            wynik["takt"] = _takt_heurystyka()
     _profil().update(ref=None, w=None, t=None)  # zwolnij pamiec podreczna filtrow/profilu tego utworu
     _kick120().update(ref=None, e=None, c=None)
     return wynik

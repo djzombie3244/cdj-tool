@@ -7,7 +7,7 @@ CDJ Tool analyses your tracks (BPM, beat grid, waveforms, cue points) and writes
 loads like a rekordbox export: track database (`export.pdb`), analysis files (`ANLZ0000.DAT` / `.EXT`) and copies of
 your audio files. It is a small app for macOS (Apple Silicon and Intel) and Windows that works completely **offline**.
 
-> **Status:** version 1.0.7. Tested by the author on real hardware: a CDJ-2000 (non-NXS) running the
+> **Status:** version 1.0.8. Tested by the author on real hardware: a CDJ-2000 (non-NXS) running the
 > [RaftTone mod](https://rafttone.com/cdj2000/) v1.1, with MP3 tracks (database, waveforms incl. 3BAND, BPM and beat
 > grid, key, hot cues A–F, playlists). The app was checked on Apple Silicon and Intel Macs and on Windows.
 > AAC, WAV, AIFF and FLAC support is newer and still being tested on hardware; a CDJ-2000 with stock firmware has
@@ -41,7 +41,7 @@ affiliated with it. Follow the mod's own page for building and flashing the firm
 ## Features
 
 - Analysis of **MP3, AAC (.m4a), WAV and AIFF** files (the formats a stock CDJ-2000 plays; ALAC is not supported and is skipped).
-- **Optional FLAC** (experimental): tick *Include FLAC* if your CDJ-2000 runs the RaftTone mod, which plays FLAC (stereo, 16 or 24 bit, 44.1 or 48 kHz). A stock CDJ-2000 cannot play FLAC. In the author's test on a CDJ-2000 with the mod, FLAC tracks load and play, but hot cues load slowly and the player does not use the exported BPM and beat grid, so it has to analyse the track itself. FLAC therefore performs worse than MP3, AAC, WAV and AIFF; use it only if you need it. Reports from other hardware are welcome.
+- **Optional FLAC** (experimental): tick *FLAC files (mod only)* if your CDJ-2000 runs the RaftTone mod, which plays FLAC (stereo, 16 or 24 bit, 44.1 or 48 kHz). A stock CDJ-2000 cannot play FLAC. In the author's test on a CDJ-2000 with the mod, FLAC tracks load and play, but hot cues load slowly and the player does not use the exported BPM and beat grid, so it has to analyse the track itself. FLAC therefore performs worse than MP3, AAC, WAV and AIFF; use it only if you need it. Reports from other hardware are welcome.
 - **BPM and beat grid** detection, **overview and detailed waveforms** (the CDJ-2000 needs the `.EXT` file to show waveforms), automatic **hot cues and memory cues**. On 15 test tracks the beat grid matched a rekordbox export within 9 ms (median) and the waveforms within a few milliseconds.
 - **Musical key** (test version): taken from the file tags when present (e.g. from the store), otherwise detected; classic (Am) or Camelot (8A) notation. A CDJ-2000 with firmware 4.33 shows KEY when browsing.
 - **Playlists that mirror your folders**: subfolders become playlist folders, so the Playlist view shows your folder structure with BPM, key and waveform right away.
@@ -50,7 +50,10 @@ affiliated with it. Follow the mod's own page for building and flashing the firm
 - **Missing tags filled from names**: a file without artist/title tags gets them from its name ("Artist - Title.mp3"), and album and year from its folder ("Artist - Album 2011"). Existing tags are never changed.
 - **Long tracks and DJ sets up to 3 hours**, analysed in sections with modest memory use; the beat grid can change tempo along a set (dynamic grid, as rekordbox writes it).
 - **Adds to an existing library** on the stick instead of overwriting it; playlists, genres and earlier analysis are kept. Optional full replace (with a backup).
-- Parallel analysis tuned to your disk speed and a RAM limit; time-remaining estimate. It uses at most half of your CPU cores, so the Mac stays cool and responsive.
+- **Simple window**: three steps (music, USB stick, options), a player switch (*CDJ-2000* / *CDJ-2000 with RaftTone mod*) that sets the right options in one click, short option names with an *i* button for details, and a summary at the end (tracks written, skipped files, artwork, time, disk speed).
+- A **short disk test** before the run catches a failing, read-only or wrongly formatted stick in seconds; a drive that disconnects mid-run stops it with a clear message.
+- Parallel analysis tuned to your disk speed and a RAM limit; time-remaining estimate. *Full power* (on by default) uses all CPU cores but two; turn it off under *Advanced* to keep the Mac cooler. Analysis results are cached, so writing the same tracks again takes minutes.
+- A **log** with one line per track: BPM, key and its source, artwork, tags filled from names.
 - Each track is copied to the stick in the background as soon as it is analysed, so writing overlaps the analysis (optional, on by default). The database is still written last, so an interrupted run leaves the previous library working.
 - Keeps the computer awake while it analyses and writes (optional, on by default; closing a laptop lid still puts it to sleep).
 - Optional **format the stick as FAT32 (MBR)** for the CDJ-2000.
@@ -76,10 +79,10 @@ Full instructions, Gatekeeper workaround and uninstall: [docs/INSTALL.md](docs/I
 ## Use
 
 1. Choose the folder with your tracks and the USB stick.
-2. Wait for the automatic speed check, optionally name the playlist.
+2. Pick your player (*CDJ-2000* or *CDJ-2000 with RaftTone mod*), optionally name the playlist.
 3. Click **Analyze and write to USB stick**, then **Eject** and put the stick into the CDJ-2000.
 
-By default new tracks are **added** to the library already on the stick. Tick *Replace everything* to start
+By default new tracks are **added** to the library already on the stick. Tick *Replace the stick contents* to start
 from scratch (the old `PIONEER` folder is first copied to `Documents/CDJ-Tool-kopie`).
 
 ## Known limitations

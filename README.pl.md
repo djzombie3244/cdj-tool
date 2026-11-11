@@ -7,7 +7,7 @@ CDJ Tool analizuje utwory (BPM, siatka beatów, waveformy, punkty cue) i zapisuj
 wczytuje tak jak eksport z rekordboxa: baza utworów (`export.pdb`), pliki analizy (`ANLZ0000.DAT` / `.EXT`)
 i kopie plików audio. To mała aplikacja na macOS (Apple Silicon i Intel) oraz Windows, która działa całkowicie **offline**.
 
-> **Status:** wersja 1.0.7. Autor testował na prawdziwym sprzęcie: CDJ-2000 (nie NXS) z [modem RaftTone](https://rafttone.com/cdj2000/) v1.1,
+> **Status:** wersja 1.0.8. Autor testował na prawdziwym sprzęcie: CDJ-2000 (nie NXS) z [modem RaftTone](https://rafttone.com/cdj2000/) v1.1,
 > na utworach MP3 (baza, waveformy także w trybie 3BAND, BPM i siatka, tonacja, hot cue A–F, playlisty). Aplikację
 > sprawdzono na Macach z Apple Silicon i z procesorem Intel oraz na Windowsie. Obsługa AAC, WAV, AIFF i FLAC jest nowsza i nadal testowana
 > na sprzęcie; CDJ-2000 z oryginalnym firmware nie był jeszcze testowany przez autora
@@ -41,13 +41,16 @@ powiązany. Budowanie i wgrywanie firmware'u opisuje strona moda; robisz to na w
 ## Funkcje
 
 - Analiza plików **MP3, AAC (.m4a), WAV i AIFF** (formaty, które gra zwykły CDJ-2000; ALAC nie jest obsługiwany i jest pomijany).
-- **Opcjonalny FLAC** (eksperymentalny): zaznacz *Włącz FLAC*, jeśli Twój CDJ-2000 ma mod RaftTone, który gra FLAC (stereo, 16 lub 24 bity, 44,1 lub 48 kHz). Zwykły CDJ-2000 nie odtworzy FLAC. W teście autora na CDJ-2000 z modem pliki FLAC się ładują i grają, ale hot cue wczytują się wolno, a odtwarzacz nie wykorzystuje wyeksportowanego BPM i siatki beatów, więc musi przeanalizować utwór sam. FLAC wypada więc gorzej niż MP3, AAC, WAV i AIFF; używaj go tylko, jeśli go potrzebujesz. Raporty z innego sprzętu są mile widziane.
+- **Opcjonalny FLAC** (eksperymentalny): zaznacz *Pliki FLAC (tylko z modem)*, jeśli Twój CDJ-2000 ma mod RaftTone, który gra FLAC (stereo, 16 lub 24 bity, 44,1 lub 48 kHz). Zwykły CDJ-2000 nie odtworzy FLAC. W teście autora na CDJ-2000 z modem pliki FLAC się ładują i grają, ale hot cue wczytują się wolno, a odtwarzacz nie wykorzystuje wyeksportowanego BPM i siatki beatów, więc musi przeanalizować utwór sam. FLAC wypada więc gorzej niż MP3, AAC, WAV i AIFF; używaj go tylko, jeśli go potrzebujesz. Raporty z innego sprzętu są mile widziane.
 - Wykrywanie **BPM i siatki beatów**, **waveform przeglądowy i szczegółowy** (CDJ-2000 potrzebuje pliku `.EXT`, żeby pokazać waveform), automatyczne **hot cue i memory cue**. Na 15 utworach testowych siatka zgadzała się z eksportem rekordboxa co do 9 ms (mediana), a waveformy co do kilku milisekund.
 - **Tonacja** (wersja testowa): z tagów pliku, gdy są (np. ze sklepu), w przeciwnym razie wykrywana; zapis klasyczny (Am) albo Camelot (8A). CDJ-2000 z firmware 4.33 pokazuje KEY przy przeglądaniu.
 - **Playlisty odwzorowujące Twoje foldery**: podfoldery stają się folderami playlist, więc widok Playlist pokazuje układ Twoich folderów z BPM, tonacją i waveformem od razu.
 - **Dla moda RaftTone v1.1:** każdy utwór dostaje 6 hot cue (banki A–F moda), opcjonalne *Hot Cue Auto Load* „ON” jak w rekordboxie i opcjonalny **waveform 3-pasmowy** (`ANLZ0000.2EX`, jak zapisuje go rekordbox) dla trybu 3BAND moda. Poprawki siatki, które mod zapisuje na pendrive (`MODGRID.BIN`, `MODHCUE.BIN`), nie są nigdy ruszane.
 - **Dopisywanie do istniejącej biblioteki** na pendrive zamiast nadpisywania; playlisty, gatunki i wcześniejsza analiza zostają. Opcjonalne pełne zastąpienie (z kopią zapasową).
-- Równoległa analiza dopasowana do szybkości dysku i limitu pamięci RAM oraz szacowany czas do końca. Używa najwyżej połowy rdzeni procesora, więc Mac pozostaje chłodny i responsywny.
+- **Proste okno**: trzy kroki (muzyka, pendrive, opcje), przełącznik odtwarzacza (*CDJ-2000* / *CDJ-2000 z modem RaftTone*), który jednym kliknięciem ustawia właściwe opcje, krótkie nazwy opcji z przyciskiem *i* do opisu i podsumowanie na końcu (zapisane utwory, pominięte pliki, okładki, czas, szybkość dysku).
+- **Krótki test dysku** przed startem wyłapuje w kilka sekund uszkodzony, zablokowany lub źle sformatowany pendrive; odłączenie dysku w trakcie zatrzymuje pracę z jasnym komunikatem.
+- Równoległa analiza dopasowana do szybkości dysku i limitu pamięci RAM oraz szacowany czas do końca. *Pełna moc* (domyślnie włączona) używa wszystkich rdzeni procesora oprócz dwóch; wyłączysz ją w *Zaawansowanych*, jeśli Mac ma być chłodniejszy. Wyniki analizy są zapamiętywane, więc ponowny zapis tych samych utworów trwa kilka minut.
+- **Dziennik** z linią dla każdego utworu: BPM, tonacja i jej źródło, okładka, tagi uzupełnione z nazw.
 - Każdy utwór trafia na pendrive w tle zaraz po analizie, więc zapis idzie równolegle z analizą (opcja, domyślnie włączona). Baza nadal jest zapisywana na końcu, więc przerwany zapis zostawia działającą poprzednią bibliotekę.
 - Komputer nie usypia się podczas analizy i zapisu (opcja, domyślnie włączona; zamknięcie klapy laptopa nadal go usypia).
 - Opcjonalne **formatowanie pendrive do FAT32 (MBR)** pod CDJ-2000.
@@ -76,11 +79,11 @@ Pełna instrukcja, obejście Gatekeepera i odinstalowanie: [docs/INSTALL.pl.md](
 ## Użycie
 
 1. Wybierz folder z utworami i pendrive.
-2. Poczekaj na automatyczny pomiar szybkości, w razie potrzeby wpisz nazwę playlisty.
+2. Wybierz odtwarzacz (*CDJ-2000* albo *CDJ-2000 z modem RaftTone*), w razie potrzeby wpisz nazwę playlisty.
 3. Kliknij **Analizuj i zapisz na pendrive**, potem **Wysuń** i włóż pendrive do CDJ-2000.
 
 Domyślnie nowe utwory są **dopisywane** do biblioteki, która już jest na pendrive. Zaznacz
-*Zastąp całą dotychczasową zawartość*, aby zacząć od zera (stary folder `PIONEER` zostanie wcześniej
+*Zastąp zawartość pendrive'a*, aby zacząć od zera (stary folder `PIONEER` zostanie wcześniej
 skopiowany do `Dokumenty/CDJ-Tool-kopie`).
 
 ## Znane ograniczenia

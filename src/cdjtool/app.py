@@ -59,7 +59,7 @@ PROC = {"p": None}
 FFMPEG = {"sciezka": os.environ.get("CDJ_FFMPEG", "")}
 
 
-def dodaj_log(lista, linia, limit=80):
+def dodaj_log(lista, linia, limit=500):
     lista.append(linia.rstrip())
     del lista[:-limit]
 
@@ -622,6 +622,9 @@ def obsluz(job, ev):
         job["etap"] = "Gotowe"
         job["stare_pliki"] = ev.get("stare_pliki", [])
         job["pendrive"] = ev.get("pendrive")
+        job["podsumowanie"] = ev.get("podsumowanie")
+    elif t == "ostrzezenie":
+        job.setdefault("ostrzezenia", []).append(ev["tekst"])
     elif t == "blad":
         job["stan"] = "blad"
         job["blad"] = ev["tekst"]
@@ -671,7 +674,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 job["uplynelo_s"] = (time.time() - job["t0"]) if job.get("t0") and job.get("stan") == "trwa" else None
                 if "utwory" in job:
                     job["utwory"] = list(job["utwory"])
-                    job["log"] = list(job.get("log", []))[-30:]
+                    job["log"] = list(job.get("log", []))[-200:]
                 return self._wyslij(200, {"setup": STAN["setup"], "job": job, "benchmark": benchmark})
         if url.path == "/api/podglad":
             raw = urllib.parse.parse_qs(url.query).get("i", ["0"])[0]
@@ -729,6 +732,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                      "okladki": bool(dane.get("okladki", True)),
                      "okladki_siec": bool(dane.get("okladki_siec", False)),
                      "dlugie": bool(dane.get("dlugie", True)),
+                     "pelna_moc": bool(dane.get("pelna_moc", True)),
+                     "test_dysku": bool(dane.get("test_dysku", True)),
                      "nazwa_folderu": str(dane.get("nazwa_folderu") or "")[:60]}
                 benchmark = STAN["benchmark"]
                 if (benchmark.get("stan") != "gotowe" or

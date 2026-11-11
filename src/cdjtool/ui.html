@@ -53,6 +53,27 @@ canvas.ov { height: 14px; margin-top: 3px; }
 .eject-result.err { color: var(--err); border-color: var(--err); background: color-mix(in srgb, var(--err) 10%, transparent); }
 .eject-result.wait { color: var(--muted); }
 .stats b { font-variant-numeric: tabular-nums; }
+#ustawienia { color: var(--txt); font-size: 15px; margin: 0; }
+#ustawienia > summary { color: var(--muted); font-size: 13px; cursor: pointer; margin: 0 0 8px; }
+#ustawienia[open] > summary { display: none; }
+.opts { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
+@media (max-width: 640px) { .opts { grid-template-columns: 1fr; } }
+.opt { display: flex; align-items: center; gap: 6px; min-height: 34px; }
+.opt label.chk { margin-top: 0; align-items: center; flex: 0 1 auto; }
+.opt select { margin-left: 6px; }
+.inf { width: 20px; height: 20px; padding: 0; border-radius: 50%; font-size: 12px; line-height: 1; color: var(--muted); flex: none; }
+.infobox { grid-column: 1 / -1; margin: 0 0 8px 26px; }
+.pasekStart { position: sticky; bottom: 0; z-index: 5; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  background: var(--bg); padding: 12px 0; margin: 0 0 14px; border-top: 1px solid var(--line); }
+#narzedzia h2 { color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; flex-wrap: wrap; }
+.seg button { border: 0; border-radius: 0; border-right: 1px solid var(--line); padding: 8px 14px; }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--acc); color: var(--acc-txt); font-weight: 600; }
+.sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 10px 0; }
+.sum div { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--bg); }
+.sum b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.sum span { color: var(--muted); font-size: 12px; }
 .speed-result { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
 .speed-result .speed-lead { font-size: 17px; font-weight: 700; }
 .speed-result .speed-detail { color: var(--muted); font-size: 13px; margin-top: 4px; }
@@ -100,13 +121,12 @@ canvas.ov { height: 14px; }
     <details open><summary data-i18n="details"></summary><pre id="setupLog"></pre></details>
   </div>
 
+  <details id="ustawienia" open><summary data-i18n="settingsTitle"></summary>
   <div class="card" id="k1">
-    <h2><span class="num">1</span><span data-i18n="step1"></span></h2>
+    <h2><span class="num">1</span><span data-i18n="stepMusic"></span></h2>
     <div class="row"><button id="bMp3" data-i18n="addFolder"></button><button id="bMp3Clear" class="hidden" data-i18n="clearFolders"></button></div>
     <div id="infoMp3" class="path" data-i18n="notChosen"></div>
     <div id="ostrzFolder" class="warn" style="margin-top:6px;font-size:13px"></div>
-    <label class="chk"><input type="checkbox" id="cFlac">
-      <span data-i18n-html="flacOpt"></span></label>
     <div id="flacInfo" class="legend"></div>
   </div>
 
@@ -114,13 +134,78 @@ canvas.ov { height: 14px; }
     <h2><span class="num">2</span><span data-i18n="step2"></span></h2>
     <div class="row"><button id="bPend" data-i18n="choosePend"></button><span id="infoPend" class="path" data-i18n="notChosen"></span></div>
     <div id="ostrzPend" class="warn" style="margin-top:6px;font-size:13px"></div>
-    <label class="chk"><input type="checkbox" id="cZastap">
-      <span data-i18n-html="replacePioneer"></span></label>
-    <label class="chk"><input type="checkbox" id="cKopiuj" checked>
-      <span data-i18n="copyMp3"></span></label>
-    <label class="chk"><input type="checkbox" id="cTlo" checked>
-      <span data-i18n="copyBg"></span></label>
+    <div class="opts">
+      <div class="opt"><label class="chk"><input type="checkbox" id="cKopiuj" checked><span data-i18n="oCopy"></span></label></div>
+      <div class="legend infobox hidden" data-info=""></div>
+      <div class="opt"><label class="chk"><input type="checkbox" id="cZastap"><span data-i18n="oReplace"></span></label><button type="button" class="inf" aria-label="info">i</button></div>
+      <div class="legend infobox hidden" data-info="replacePioneer"></div>
+    </div>
     <div id="kopiujOpis" class="legend"></div>
+  </div>
+
+  <div class="card" id="k3">
+    <h2><span class="num">3</span><span data-i18n="stepOpt"></span></h2>
+    <div class="row"><span data-i18n="plName"></span>
+      <input type="text" id="playlista" value="Tracks" maxlength="60" style="max-width:260px"></div>
+    <div id="playlistaNota" class="legend"></div>
+    <div class="row" style="margin-top:12px"><span data-i18n="presetLabel"></span>
+      <span class="seg" id="zestawy"><button type="button" data-z="cdj" data-i18n="presetStock"></button><button type="button" data-z="mod" data-i18n="presetMod"></button><button type="button" data-z="wlasne" data-i18n="presetCustom"></button></span></div>
+    <div id="zestawOpis" class="legend"></div>
+    <div class="opts" style="margin-top:8px">
+      <div class="opt"><label class="chk"><input type="checkbox" id="cPlFoldery" checked><span data-i18n="oPlFolders"></span></label><button type="button" class="inf" aria-label="info">i</button></div>
+      <div class="legend infobox hidden" data-info="plFolders"></div>
+      <div class="opt"><label class="chk"><input type="checkbox" id="cTonacja" checked><span data-i18n="oKey"></span> <select id="sNotacja"><option value="klasyczna" data-i18n="keyClassic"></option><option value="camelot" data-i18n="keyCamelot"></option></select></label><button type="button" class="inf" aria-label="info">i</button></div>
+      <div class="legend infobox hidden" data-info="keyOpt"></div>
+      <div class="opt"><label class="chk"><input type="checkbox" id="cOkladki" checked><span data-i18n="oArt"></span></label><button type="button" class="inf" aria-label="info">i</button></div>
+      <div class="legend infobox hidden" data-info="artOpt"></div>
+      <div class="opt"><label class="chk"><input type="checkbox" id="cOkladkiSiec"><span data-i18n="oArtNet"></span></label><button type="button" class="inf" aria-label="info">i</button></div>
+      <div class="legend infobox hidden" data-info="artNetOpt"></div>
+      <div class="opt"><label class="chk"><input type="checkbox" id="cAutoload"><span data-i18n="oAutoload"></span></label><button type="button" class="inf" aria-label="info">i</button></div>
+      <div class="legend infobox hidden" data-info="autoloadOpt"></div>
+      <div class="opt"><label class="chk"><input type="checkbox" id="cTrzyPasma"><span data-i18n="o3band"></span></label><button type="button" class="inf" aria-label="info">i</button></div>
+      <div class="legend infobox hidden" data-info="threeBand"></div>
+      <div class="opt"><label class="chk"><input type="checkbox" id="cFlac"><span data-i18n="oFlac"></span></label><button type="button" class="inf" aria-label="info">i</button></div>
+      <div class="legend infobox hidden" data-info="flacOpt"></div>
+    </div>
+    <details id="zaawansowane"><summary data-i18n="advanced"></summary>
+    <div class="opts">
+      <div class="opt"><label class="chk"><input type="checkbox" id="cTonTag" checked><span data-i18n="oKeyTag"></span></label><button type="button" class="inf" aria-label="info">i</button></div>
+      <div class="legend infobox hidden" data-info="keyFromTag"></div>
+      <div class="opt"><label class="chk"><input type="checkbox" id="cDlugie" checked><span data-i18n="oLong"></span></label><button type="button" class="inf" aria-label="info">i</button></div>
+      <div class="legend infobox hidden" data-info="longOpt"></div>
+      <div class="opt"><label class="chk"><input type="checkbox" id="cPelnaMoc" checked><span data-i18n="oPower"></span></label><button type="button" class="inf" aria-label="info">i</button></div>
+      <div class="legend infobox hidden" data-info="fullPowerOpt"></div>
+      <div class="opt"><label class="chk"><input type="checkbox" id="cNieUsypiaj" checked><span data-i18n="oNoSleep"></span></label><button type="button" class="inf" aria-label="info">i</button></div>
+      <div class="legend infobox hidden" data-info="noSleep"></div>
+      <div class="opt"><label class="chk"><input type="checkbox" id="cTlo" checked><span data-i18n="oCopyBg"></span></label><button type="button" class="inf" aria-label="info">i</button></div>
+      <div class="legend infobox hidden" data-info="copyBg"></div>
+      <div class="opt"><label class="chk"><input type="checkbox" id="cTestDysku" checked><span data-i18n="oDiskTest"></span></label><button type="button" class="inf" aria-label="info">i</button></div>
+      <div class="legend infobox hidden" data-info="diskTestOpt"></div>
+    </div>
+    </details>
+  </div>
+  </details>
+
+  <div class="pasekStart">
+    <button class="primary" id="bStart" disabled data-i18n="start"></button>
+    <button id="bAnuluj" class="hidden" data-i18n="cancel"></button>
+    <span id="startInfo" class="legend"></span>
+  </div>
+
+  <div class="card hidden" id="postep">
+    <h2 id="etap"></h2>
+    <div class="bar"><div id="pasek"></div></div>
+    <div class="legend" id="eta" style="font-weight:600"></div>
+    <div class="legend" id="postepOpis"></div>
+    <details><summary data-i18n="logTitle"></summary><pre id="log" style="max-height:320px;overflow:auto"></pre></details>
+  </div>
+
+  <div class="card hidden" id="koniec"></div>
+
+  <div class="card hidden" id="wyniki"><h2 id="wynikiTytul" data-i18n="results"></h2><div id="lista"></div>
+    <div class="legend" data-i18n="resultsLegend"></div></div>
+
+  <div class="card" id="narzedzia"><h2 data-i18n="toolsTitle"></h2>
     <details id="formatBox">
       <summary data-i18n="fmtSummary"></summary>
       <p class="legend" data-i18n-html="fmtIntro"></p>
@@ -136,58 +221,12 @@ canvas.ov { height: 14px; }
         <div id="formatWynik" class="legend" style="margin-top:8px"></div>
       </div>
     </details>
+    <details id="kPredkosc"><summary data-i18n="step3"></summary>
+      <p class="legend" data-i18n-html="speedIntro"></p>
+      <div class="row"><button id="bPredkosc" disabled data-i18n="speedBtn"></button></div>
+      <div id="wynikPredkosci" class="speed-result"></div>
+    </details>
   </div>
-
-  <div class="card" id="kPredkosc">
-    <h2><span class="num">3</span><span data-i18n="step3"></span></h2>
-    <p class="legend" data-i18n-html="speedIntro"></p>
-    <div class="row"><button id="bPredkosc" disabled data-i18n="speedBtn"></button></div>
-    <div id="wynikPredkosci" class="speed-result"></div>
-  </div>
-
-  <div class="card" id="k3">
-    <h2><span class="num">4</span><span data-i18n="step4"></span></h2>
-    <input type="text" id="playlista" value="Tracks" maxlength="60">
-    <div id="playlistaNota" class="legend"></div>
-    <label class="chk"><input type="checkbox" id="cPlFoldery" checked>
-      <span data-i18n="plFolders"></span></label>
-    <label class="chk"><input type="checkbox" id="cNieUsypiaj" checked>
-      <span data-i18n="noSleep"></span></label>
-    <label class="chk"><input type="checkbox" id="cTonacja" checked>
-      <span data-i18n-html="keyOpt"></span></label>
-    <div class="row" style="margin-top:6px;margin-left:26px"><span class="legend" data-i18n="keyNotation"></span>
-      <select id="sNotacja"><option value="klasyczna" data-i18n="keyClassic"></option><option value="camelot" data-i18n="keyCamelot"></option></select></div>
-    <label class="chk" style="margin-left:26px"><input type="checkbox" id="cTonTag" checked>
-      <span data-i18n="keyFromTag"></span></label>
-    <label class="chk"><input type="checkbox" id="cOkladki" checked>
-      <span data-i18n-html="artOpt"></span></label>
-    <label class="chk" style="margin-left:26px"><input type="checkbox" id="cOkladkiSiec">
-      <span data-i18n-html="artNetOpt"></span></label>
-    <label class="chk"><input type="checkbox" id="cAutoload">
-      <span data-i18n-html="autoloadOpt"></span></label>
-    <label class="chk"><input type="checkbox" id="cTrzyPasma">
-      <span data-i18n-html="threeBand"></span></label>
-    <label class="chk"><input type="checkbox" id="cDlugie" checked>
-      <span data-i18n-html="longOpt"></span></label>
-  </div>
-
-  <div class="row" style="margin:6px 0 16px">
-    <button class="primary" id="bStart" disabled data-i18n="start"></button>
-    <button id="bAnuluj" class="hidden" data-i18n="cancel"></button>
-  </div>
-
-  <div class="card hidden" id="postep">
-    <h2 id="etap"></h2>
-    <div class="bar"><div id="pasek"></div></div>
-    <div class="legend" id="eta" style="font-weight:600"></div>
-    <div class="legend" id="postepOpis"></div>
-    <details><summary data-i18n="logTitle"></summary><pre id="log"></pre></details>
-  </div>
-
-  <div class="card hidden" id="koniec"></div>
-
-  <div class="card hidden" id="wyniki"><h2 id="wynikiTytul" data-i18n="results"></h2><div id="lista"></div>
-    <div class="legend" data-i18n="resultsLegend"></div></div>
 
   <p class="legend" style="text-align:center">CDJ Tool · © 2026 Wiktor Bakowicz</p>
   <p style="text-align:center"><button id="bZakoncz" data-i18n="quit"></button></p>
@@ -236,7 +275,7 @@ pl: {
  modeCopy:"kopiowanie MP3", modeNoCopy:"bez kopiowania",
  speedDetail:"Limit pamięci RAM dla analizy: ok. {ram} MB z {tot} MB; gdy zabraknie miejsca, aplikacja sama zmniejsza liczbę równoległych utworów. Rzeczywiste tempo zależy też od procesora ({cores} rdzeni): ponad tę liczbę zadań przyspieszenie jest już niewielkie.",
  speedReady:"Gotowe: analiza do {n} utworów naraz", speedReadyDesc:"Limit pamięci RAM: ok. {ram} MB z {tot} MB. Tryb: {mode}.",
- step4:"Nazwa playlisty", start:"Analizuj i zapisz na pendrive", startEtap:"Start…", logTitle:"Dziennik",
+ settingsTitle:"Ustawienia (muzyka, pendrive, opcje)", stepMusic:"Muzyka", stepOpt:"Opcje", toolsTitle:"Narzędzia", needMusic:"Dodaj folder z muzyką.", needStick:"Wybierz pendrive.", startSum:"{n} utworów → {stick}", sumCopy:"z kopiowaniem muzyki", sumNoCopy:"bez kopiowania", oCopy:"Kopiuj muzykę na pendrive", oReplace:"Zastąp zawartość pendrive'a", oPlFolders:"Podfoldery jako playlisty", oKey:"Tonacja", oKeyTag:"Tonacja z tagów pliku", oArt:"Okładki", oArtNet:"Brakujące okładki z sieci", oAutoload:"Hot Cue Auto Load", o3band:"Waveform 3-pasmowy", oFlac:"Pliki FLAC (tylko z modem)", oLong:"Długie utwory i sety", oPower:"Pełna moc procesora", oNoSleep:"Nie usypiaj komputera", oCopyBg:"Kopiuj w tle podczas analizy", oDiskTest:"Test dysku przed startem", presetLabel:"Odtwarzacz:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 z modem RaftTone", presetCustom:"Własne", presetStockHint:"Zwykły CDJ-2000: 3 hot cue (A–C), bez dodatków moda i bez FLAC.", presetModHint:"Mod RaftTone v1.1: Hot Cue Auto Load dla banku D–F i waveform 3-pasmowy (tryb 3BAND).", presetCustomHint:"Własny wybór opcji poniżej.", advanced:"Zaawansowane", diskTestOpt:"Krótki test dysku przed startem (zapis, odczyt, format)", speedWhat:"Co to za pomiar?", sumTracks:"zapisanych utworów", sumSkipped:"pominiętych plików", sumArt:"z okładką", sumNet:"{n} z sieci", sumTags:"tagi uzupełnione z nazw", sumCache:"z pamięci podręcznej", sumTime:"łącznie ({s} s na utwór)", sumDisk:"zapis na dysk, format {fs}", sumDiskOnly:"zapis na dysk", step4:"Playlista i opcje", plName:"Nazwa playlisty", start:"Analizuj i zapisz na pendrive", startEtap:"Start…", logTitle:"Dziennik",
  results:"Wyniki analizy", results50:"Wyniki analizy — pierwsze 50 podglądów",
  resultsLegend:"Niebieski: cały dźwięk, pomarańczowy: niskie tony (stopa i bas), białe linie: siatka beatów zapisana na pendrive (pierwsze 6 s utworu). Linie powinny stać na początku uderzeń stopy.",
  quit:"Zakończ program", quitDone:"CDJ Tool zakończony", quitDesc:"Możesz zamknąć tę kartę.",
@@ -244,7 +283,7 @@ pl: {
  skipped:"Pominięto {name}: {text}", skippedTotal:"Łącznie pominięto {n} plików z błędami (pokazuję pierwsze {m}).",
  trackInfo:"pierwszy beat", beatsWord:"beatów",
  doneTitle:"Gotowe: zapisano {n} utworów", doneEject:"Wysuń pendrive i włóż go do CDJ-2000.", backupOf:"Kopia poprzedniej biblioteki:",
- longOpt:"Długie utwory i sety do 3 h (analiza odcinkami; siatka może zmieniać tempo jak w secie DJ-skim; bez tej opcji utwory dłuższe niż 45 min są pomijane)", artNetOpt:"Brakujące okładki z sieci (wysyła wykonawcę i tytuł do Deezer i Apple iTunes; okładka może czasem nie pasować)", artOpt:"Okładki albumów z tagów plików (widoczne na ekranie odtwarzacza przy wyborze i odtwarzaniu utworu)", threeBand:"Waveform 3-pasmowy (plik .2EX jak w rekordboxie: <b>wersja testowa</b>, dla trybu 3BAND moda i odtwarzaczy CDJ-3000 przez LINK; ok. 190 KB więcej na utwór)", autoloadOpt:"Hot Cue Auto Load: ustaw w utworach „ON” jak rekordbox (działa, gdy w UTILITY odtwarzacza jest rekordbox SETTING; mod v1.1 wymaga go dla banku hot cue D–F)", oldFiles:"Na pendrive są stare pliki z rekordbox ({list}). CDJ-2000 ich nie używa, ale lepiej je usunąć.",
+ fullPowerOpt:"Pełna moc: analiza na prawie wszystkich rdzeniach (szybciej przy dużych bibliotekach; komputer może się bardziej nagrzać)", longOpt:"Długie utwory i sety do 3 h (analiza odcinkami; siatka może zmieniać tempo jak w secie DJ-skim; bez tej opcji utwory dłuższe niż 45 min są pomijane)", artNetOpt:"Brakujące okładki z sieci (wysyła wykonawcę i tytuł do Deezer i Apple iTunes; okładka może czasem nie pasować)", artOpt:"Okładki albumów z tagów plików (widoczne na ekranie odtwarzacza przy wyborze i odtwarzaniu utworu)", threeBand:"Waveform 3-pasmowy (plik .2EX jak w rekordboxie: <b>wersja testowa</b>, dla trybu 3BAND moda i odtwarzaczy CDJ-3000 przez LINK; ok. 190 KB więcej na utwór)", autoloadOpt:"Hot Cue Auto Load: ustaw w utworach „ON” jak rekordbox (działa, gdy w UTILITY odtwarzacza jest rekordbox SETTING; mod v1.1 wymaga go dla banku hot cue D–F)", oldFiles:"Na pendrive są stare pliki z rekordbox ({list}). CDJ-2000 ich nie używa, ale lepiej je usunąć.",
  eject:"Wysuń pendrive", ejected:"Pendrive wysunięty", ejectRetry:"Spróbuj wysunąć ponownie", ejecting:"Wysuwam pendrive…",
  ejectOk:"Pendrive został bezpiecznie wysunięty. Możesz go teraz odłączyć.", ejectFail:"Nie udało się wysunąć pendrive’a. Nie odłączaj go jeszcze. {e}", ejectFail2:"Nie udało się potwierdzić wysunięcia pendrive’a. Nie odłączaj go jeszcze. {e}", tryAgain:"Spróbuj ponownie.",
  errTitle:"Wystąpił błąd", canceledTitle:"Anulowano", canceledDesc:"Jeśli zapis na pendrive już się rozpoczął, uruchom go ponownie, aby uzyskać komplet plików.",
@@ -276,7 +315,7 @@ en: {
  modeCopy:"copying MP3", modeNoCopy:"no copying",
  speedDetail:"RAM limit for analysis: about {ram} MB of {tot} MB; if memory runs short the app reduces the number of parallel tracks by itself. Real speed also depends on the CPU ({cores} cores): beyond that many tasks the gain is small.",
  speedReady:"Ready: analyzing up to {n} tracks at once", speedReadyDesc:"RAM limit: about {ram} MB of {tot} MB. Mode: {mode}.",
- step4:"Playlist name", start:"Analyze and write to USB stick", startEtap:"Start…", logTitle:"Log",
+ settingsTitle:"Settings (music, USB stick, options)", stepMusic:"Music", stepOpt:"Options", toolsTitle:"Tools", needMusic:"Add a folder with music.", needStick:"Choose the USB stick.", startSum:"{n} tracks → {stick}", sumCopy:"copying the music", sumNoCopy:"no copying", oCopy:"Copy music to the stick", oReplace:"Replace the stick contents", oPlFolders:"Subfolders as playlists", oKey:"Key", oKeyTag:"Key from file tags", oArt:"Artwork", oArtNet:"Missing artwork from the internet", oAutoload:"Hot Cue Auto Load", o3band:"3-band waveform", oFlac:"FLAC files (mod only)", oLong:"Long tracks and sets", oPower:"Full CPU power", oNoSleep:"Keep the computer awake", oCopyBg:"Copy in the background while analysing", oDiskTest:"Disk test before starting", presetLabel:"Player:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 with RaftTone mod", presetCustom:"Custom", presetStockHint:"Stock CDJ-2000: 3 hot cues (A–C), no mod extras, no FLAC.", presetModHint:"RaftTone mod v1.1: Hot Cue Auto Load for the D–F bank and the 3-band waveform (3BAND mode).", presetCustomHint:"Your own choice of the options below.", advanced:"Advanced", diskTestOpt:"Short disk test before starting (write, read, format)", speedWhat:"What is this measurement?", sumTracks:"tracks written", sumSkipped:"files skipped", sumArt:"with artwork", sumNet:"{n} from the internet", sumTags:"tags filled from names", sumCache:"from the cache", sumTime:"total ({s} s per track)", sumDisk:"disk write speed, format {fs}", sumDiskOnly:"disk write speed", step4:"Playlist and options", plName:"Playlist name", start:"Analyze and write to USB stick", startEtap:"Start…", logTitle:"Log",
  results:"Analysis results", results50:"Analysis results — first 50 previews",
  resultsLegend:"Blue: full sound, orange: low frequencies (kick and bass), white lines: the beat grid written to the stick (first 6 s of the track). Lines should sit at the start of the kick hits.",
  quit:"Quit", quitDone:"CDJ Tool has quit", quitDesc:"You can close this tab.",
@@ -284,7 +323,7 @@ en: {
  skipped:"Skipped {name}: {text}", skippedTotal:"{n} files with errors were skipped in total (showing the first {m}).",
  trackInfo:"first beat", beatsWord:"beats",
  doneTitle:"Done: {n} tracks written", doneEject:"Eject the USB stick and put it into the CDJ-2000.", backupOf:"Backup of the previous library:",
- longOpt:"Long tracks and sets up to 3 h (analysed in sections; the grid can change tempo along a DJ set; without this option tracks longer than 45 min are skipped)", artNetOpt:"Missing artwork from the internet (sends artist and title to Deezer and Apple iTunes; the match may occasionally be wrong)", artOpt:"Album artwork from the file tags (shown on the player's screen when browsing and playing)", threeBand:"3-band waveform (.2EX file as rekordbox writes it: <b>test version</b>, for the mod's 3BAND mode and CDJ-3000 players over LINK; about 190 KB more per track)", autoloadOpt:"Hot Cue Auto Load: mark tracks \"ON\" as rekordbox does (used when the player's UTILITY is set to rekordbox SETTING; mod v1.1 needs it for the D–F bank)", oldFiles:"The stick contains old rekordbox files ({list}). The CDJ-2000 does not use them, but it is better to delete them.",
+ fullPowerOpt:"Full power: analyse on almost all CPU cores (faster for large libraries; the computer may run warmer)", longOpt:"Long tracks and sets up to 3 h (analysed in sections; the grid can change tempo along a DJ set; without this option tracks longer than 45 min are skipped)", artNetOpt:"Missing artwork from the internet (sends artist and title to Deezer and Apple iTunes; the match may occasionally be wrong)", artOpt:"Album artwork from the file tags (shown on the player's screen when browsing and playing)", threeBand:"3-band waveform (.2EX file as rekordbox writes it: <b>test version</b>, for the mod's 3BAND mode and CDJ-3000 players over LINK; about 190 KB more per track)", autoloadOpt:"Hot Cue Auto Load: mark tracks \"ON\" as rekordbox does (used when the player's UTILITY is set to rekordbox SETTING; mod v1.1 needs it for the D–F bank)", oldFiles:"The stick contains old rekordbox files ({list}). The CDJ-2000 does not use them, but it is better to delete them.",
  eject:"Eject USB stick", ejected:"USB stick ejected", ejectRetry:"Try ejecting again", ejecting:"Ejecting…",
  ejectOk:"The USB stick was ejected safely. You can unplug it now.", ejectFail:"Could not eject the USB stick. Do not unplug it yet. {e}", ejectFail2:"Could not confirm the eject. Do not unplug the stick yet. {e}", tryAgain:"Try again.",
  errTitle:"An error occurred", canceledTitle:"Cancelled", canceledDesc:"If writing to the stick had already started, run it again to get a complete set of files.",
@@ -316,7 +355,7 @@ de: {
  modeCopy:"MP3 kopieren", modeNoCopy:"ohne Kopieren",
  speedDetail:"RAM-Limit für die Analyse: etwa {ram} MB von {tot} MB; wird der Speicher knapp, reduziert die App die Zahl paralleler Titel selbst. Die tatsächliche Geschwindigkeit hängt auch von der CPU ({cores} Kerne) ab: darüber hinaus ist der Gewinn gering.",
  speedReady:"Bereit: Analyse von bis zu {n} Titeln gleichzeitig", speedReadyDesc:"RAM-Limit: etwa {ram} MB von {tot} MB. Modus: {mode}.",
- step4:"Name der Playlist", start:"Analysieren und auf USB-Stick schreiben", startEtap:"Start…", logTitle:"Protokoll",
+ settingsTitle:"Einstellungen (Musik, USB-Stick, Optionen)", stepMusic:"Musik", stepOpt:"Optionen", toolsTitle:"Werkzeuge", needMusic:"Füge einen Ordner mit Musik hinzu.", needStick:"Wähle den USB-Stick.", startSum:"{n} Titel → {stick}", sumCopy:"mit Kopieren der Musik", sumNoCopy:"ohne Kopieren", oCopy:"Musik auf den Stick kopieren", oReplace:"Inhalt des Sticks ersetzen", oPlFolders:"Unterordner als Playlists", oKey:"Tonart", oKeyTag:"Tonart aus Datei-Tags", oArt:"Cover", oArtNet:"Fehlende Cover aus dem Internet", oAutoload:"Hot Cue Auto Load", o3band:"3-Band-Wellenform", oFlac:"FLAC-Dateien (nur mit Mod)", oLong:"Lange Titel und Sets", oPower:"Volle CPU-Leistung", oNoSleep:"Computer wach halten", oCopyBg:"Während der Analyse im Hintergrund kopieren", oDiskTest:"Laufwerkstest vor dem Start", presetLabel:"Player:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 mit RaftTone-Mod", presetCustom:"Eigene", presetStockHint:"Normaler CDJ-2000: 3 Hot Cues (A–C), ohne Mod-Extras und ohne FLAC.", presetModHint:"RaftTone-Mod v1.1: Hot Cue Auto Load für die Bank D–F und 3-Band-Wellenform (3BAND-Modus).", presetCustomHint:"Eigene Auswahl der Optionen unten.", advanced:"Erweitert", diskTestOpt:"Kurzer Laufwerkstest vor dem Start (Schreiben, Lesen, Format)", speedWhat:"Was wird hier gemessen?", sumTracks:"Titel geschrieben", sumSkipped:"Dateien übersprungen", sumArt:"mit Cover", sumNet:"{n} aus dem Internet", sumTags:"Tags aus Namen ergänzt", sumCache:"aus dem Cache", sumTime:"gesamt ({s} s pro Titel)", sumDisk:"Schreibtempo, Format {fs}", sumDiskOnly:"Schreibtempo", step4:"Playlist und Optionen", plName:"Name der Playlist", start:"Analysieren und auf USB-Stick schreiben", startEtap:"Start…", logTitle:"Protokoll",
  results:"Analyseergebnisse", results50:"Analyseergebnisse — erste 50 Vorschauen",
  resultsLegend:"Blau: gesamter Klang, orange: tiefe Frequenzen (Kick und Bass), weiße Linien: auf den Stick geschriebenes Beatgrid (erste 6 s des Titels). Die Linien sollten am Anfang der Kick-Schläge stehen.",
  quit:"Programm beenden", quitDone:"CDJ Tool wurde beendet", quitDesc:"Sie können diesen Tab schließen.",
@@ -324,7 +363,7 @@ de: {
  skipped:"{name} übersprungen: {text}", skippedTotal:"Insgesamt wurden {n} Dateien mit Fehlern übersprungen (angezeigt: die ersten {m}).",
  trackInfo:"erster Beat", beatsWord:"Beats",
  doneTitle:"Fertig: {n} Titel geschrieben", doneEject:"USB-Stick auswerfen und in den CDJ-2000 stecken.", backupOf:"Sicherung der bisherigen Bibliothek:",
- longOpt:"Lange Titel und Sets bis 3 h (Analyse in Abschnitten; das Raster kann im DJ-Set das Tempo wechseln; ohne diese Option werden Titel über 45 min übersprungen)", artNetOpt:"Fehlende Cover aus dem Internet (sendet Interpret und Titel an Deezer und Apple iTunes; das Cover kann gelegentlich falsch sein)", artOpt:"Albumcover aus den Datei-Tags (auf dem Display des Players beim Suchen und Abspielen)", threeBand:"3-Band-Wellenform (.2EX-Datei wie bei rekordbox: <b>Testversion</b>, für den 3BAND-Modus des Mods und CDJ-3000 über LINK; ca. 190 KB mehr pro Titel)", autoloadOpt:"Hot Cue Auto Load: Titel wie rekordbox auf „ON“ setzen (wirkt, wenn im UTILITY des Players rekordbox SETTING eingestellt ist; Mod v1.1 braucht es für die Bank D–F)", oldFiles:"Auf dem Stick liegen alte rekordbox-Dateien ({list}). Der CDJ-2000 nutzt sie nicht, es ist aber besser, sie zu löschen.",
+ fullPowerOpt:"Volle Leistung: Analyse auf fast allen CPU-Kernen (schneller bei großen Bibliotheken; der Computer kann wärmer werden)", longOpt:"Lange Titel und Sets bis 3 h (Analyse in Abschnitten; das Raster kann im DJ-Set das Tempo wechseln; ohne diese Option werden Titel über 45 min übersprungen)", artNetOpt:"Fehlende Cover aus dem Internet (sendet Interpret und Titel an Deezer und Apple iTunes; das Cover kann gelegentlich falsch sein)", artOpt:"Albumcover aus den Datei-Tags (auf dem Display des Players beim Suchen und Abspielen)", threeBand:"3-Band-Wellenform (.2EX-Datei wie bei rekordbox: <b>Testversion</b>, für den 3BAND-Modus des Mods und CDJ-3000 über LINK; ca. 190 KB mehr pro Titel)", autoloadOpt:"Hot Cue Auto Load: Titel wie rekordbox auf „ON“ setzen (wirkt, wenn im UTILITY des Players rekordbox SETTING eingestellt ist; Mod v1.1 braucht es für die Bank D–F)", oldFiles:"Auf dem Stick liegen alte rekordbox-Dateien ({list}). Der CDJ-2000 nutzt sie nicht, es ist aber besser, sie zu löschen.",
  eject:"USB-Stick auswerfen", ejected:"USB-Stick ausgeworfen", ejectRetry:"Erneut auswerfen", ejecting:"Werfe aus…",
  ejectOk:"Der USB-Stick wurde sicher ausgeworfen. Sie können ihn jetzt abziehen.", ejectFail:"Auswerfen fehlgeschlagen. Stick noch nicht abziehen. {e}", ejectFail2:"Auswerfen konnte nicht bestätigt werden. Stick noch nicht abziehen. {e}", tryAgain:"Bitte erneut versuchen.",
  errTitle:"Es ist ein Fehler aufgetreten", canceledTitle:"Abgebrochen", canceledDesc:"Hat das Schreiben auf den Stick schon begonnen, starten Sie es erneut, um alle Dateien zu erhalten.",
@@ -356,7 +395,7 @@ fr: {
  modeCopy:"copie des MP3", modeNoCopy:"sans copie",
  speedDetail:"Limite de RAM pour l'analyse : environ {ram} Mo sur {tot} Mo ; si la mémoire manque, l'application réduit seule le nombre de morceaux en parallèle. La vitesse réelle dépend aussi du processeur ({cores} cœurs) : au-delà, le gain est faible.",
  speedReady:"Prêt : analyse de {n} morceaux maximum en parallèle", speedReadyDesc:"Limite de RAM : environ {ram} Mo sur {tot} Mo. Mode : {mode}.",
- step4:"Nom de la playlist", start:"Analyser et écrire sur la clé USB", startEtap:"Début…", logTitle:"Journal",
+ settingsTitle:"Réglages (musique, clé USB, options)", stepMusic:"Musique", stepOpt:"Options", toolsTitle:"Outils", needMusic:"Ajoutez un dossier de musique.", needStick:"Choisissez la clé USB.", startSum:"{n} morceaux → {stick}", sumCopy:"avec copie de la musique", sumNoCopy:"sans copie", oCopy:"Copier la musique sur la clé", oReplace:"Remplacer le contenu de la clé", oPlFolders:"Sous-dossiers en playlists", oKey:"Tonalité", oKeyTag:"Tonalité depuis les tags", oArt:"Pochettes", oArtNet:"Pochettes manquantes depuis Internet", oAutoload:"Hot Cue Auto Load", o3band:"Forme d'onde 3 bandes", oFlac:"Fichiers FLAC (mod uniquement)", oLong:"Morceaux longs et sets", oPower:"Pleine puissance du processeur", oNoSleep:"Empêcher la mise en veille", oCopyBg:"Copier en arrière-plan pendant l'analyse", oDiskTest:"Test du disque avant de commencer", presetLabel:"Lecteur :", presetStock:"CDJ-2000", presetMod:"CDJ-2000 avec mod RaftTone", presetCustom:"Personnalisé", presetStockHint:"CDJ-2000 standard : 3 hot cues (A–C), sans les extras du mod ni FLAC.", presetModHint:"Mod RaftTone v1.1 : Hot Cue Auto Load pour la banque D–F et forme d'onde 3 bandes (mode 3BAND).", presetCustomHint:"Votre propre choix des options ci-dessous.", advanced:"Avancé", diskTestOpt:"Court test du disque avant de commencer (écriture, lecture, format)", speedWhat:"Que mesure-t-on ici ?", sumTracks:"morceaux écrits", sumSkipped:"fichiers ignorés", sumArt:"avec pochette", sumNet:"{n} depuis Internet", sumTags:"tags complétés depuis les noms", sumCache:"depuis le cache", sumTime:"au total ({s} s par morceau)", sumDisk:"vitesse d'écriture, format {fs}", sumDiskOnly:"vitesse d'écriture", step4:"Playlist et options", plName:"Nom de la playlist", start:"Analyser et écrire sur la clé USB", startEtap:"Début…", logTitle:"Journal",
  results:"Résultats de l'analyse", results50:"Résultats de l'analyse — 50 premiers aperçus",
  resultsLegend:"Bleu : tout le son, orange : basses fréquences (grosse caisse et basse), lignes blanches : grille de battements écrite sur la clé (6 premières secondes). Les lignes doivent se trouver au début des coups de grosse caisse.",
  quit:"Quitter", quitDone:"CDJ Tool est fermé", quitDesc:"Vous pouvez fermer cet onglet.",
@@ -364,7 +403,7 @@ fr: {
  skipped:"{name} ignoré : {text}", skippedTotal:"{n} fichiers en erreur ont été ignorés au total (affichage des {m} premiers).",
  trackInfo:"premier temps", beatsWord:"temps",
  doneTitle:"Terminé : {n} morceaux écrits", doneEject:"Éjectez la clé USB et insérez-la dans le CDJ-2000.", backupOf:"Sauvegarde de la bibliothèque précédente :",
- longOpt:"Morceaux longs et sets jusqu'à 3 h (analyse par sections ; la grille peut changer de tempo au fil d'un set DJ ; sans cette option, les morceaux de plus de 45 min sont ignorés)", artNetOpt:"Pochettes manquantes depuis Internet (envoie l'artiste et le titre à Deezer et Apple iTunes ; la pochette peut parfois être erronée)", artOpt:"Pochettes d'album depuis les tags des fichiers (affichées sur l'écran du lecteur)", threeBand:"Forme d'onde 3 bandes (fichier .2EX comme rekordbox : <b>version de test</b>, pour le mode 3BAND du mod et les CDJ-3000 via LINK ; env. 190 Ko de plus par morceau)", autoloadOpt:"Hot Cue Auto Load : marquer les morceaux « ON » comme rekordbox (utilisé quand l'UTILITY du lecteur est sur rekordbox SETTING ; le mod v1.1 en a besoin pour la banque D–F)", oldFiles:"La clé contient d'anciens fichiers rekordbox ({list}). Le CDJ-2000 ne les utilise pas, mais il vaut mieux les supprimer.",
+ fullPowerOpt:"Pleine puissance : analyse sur presque tous les cœurs (plus rapide pour les grandes bibliothèques ; l'ordinateur peut chauffer davantage)", longOpt:"Morceaux longs et sets jusqu'à 3 h (analyse par sections ; la grille peut changer de tempo au fil d'un set DJ ; sans cette option, les morceaux de plus de 45 min sont ignorés)", artNetOpt:"Pochettes manquantes depuis Internet (envoie l'artiste et le titre à Deezer et Apple iTunes ; la pochette peut parfois être erronée)", artOpt:"Pochettes d'album depuis les tags des fichiers (affichées sur l'écran du lecteur)", threeBand:"Forme d'onde 3 bandes (fichier .2EX comme rekordbox : <b>version de test</b>, pour le mode 3BAND du mod et les CDJ-3000 via LINK ; env. 190 Ko de plus par morceau)", autoloadOpt:"Hot Cue Auto Load : marquer les morceaux « ON » comme rekordbox (utilisé quand l'UTILITY du lecteur est sur rekordbox SETTING ; le mod v1.1 en a besoin pour la banque D–F)", oldFiles:"La clé contient d'anciens fichiers rekordbox ({list}). Le CDJ-2000 ne les utilise pas, mais il vaut mieux les supprimer.",
  eject:"Éjecter la clé USB", ejected:"Clé USB éjectée", ejectRetry:"Réessayer l'éjection", ejecting:"Éjection…",
  ejectOk:"La clé USB a été éjectée en toute sécurité. Vous pouvez la débrancher.", ejectFail:"Impossible d'éjecter la clé USB. Ne la débranchez pas encore. {e}", ejectFail2:"Impossible de confirmer l'éjection. Ne débranchez pas encore la clé. {e}", tryAgain:"Réessayez.",
  errTitle:"Une erreur s'est produite", canceledTitle:"Annulé", canceledDesc:"Si l'écriture sur la clé avait déjà commencé, relancez-la pour obtenir tous les fichiers.",
@@ -396,7 +435,7 @@ es: {
  modeCopy:"copiar MP3", modeNoCopy:"sin copiar",
  speedDetail:"Límite de RAM para el análisis: unos {ram} MB de {tot} MB; si falta memoria, la aplicación reduce sola el número de pistas en paralelo. La velocidad real también depende del procesador ({cores} núcleos): más allá de eso la mejora es pequeña.",
  speedReady:"Listo: análisis de hasta {n} pistas a la vez", speedReadyDesc:"Límite de RAM: unos {ram} MB de {tot} MB. Modo: {mode}.",
- step4:"Nombre de la lista", start:"Analizar y escribir en la memoria USB", startEtap:"Inicio…", logTitle:"Registro",
+ settingsTitle:"Ajustes (música, memoria USB, opciones)", stepMusic:"Música", stepOpt:"Opciones", toolsTitle:"Herramientas", needMusic:"Añade una carpeta con música.", needStick:"Elige la memoria USB.", startSum:"{n} pistas → {stick}", sumCopy:"copiando la música", sumNoCopy:"sin copiar", oCopy:"Copiar la música a la memoria", oReplace:"Reemplazar el contenido de la memoria", oPlFolders:"Subcarpetas como listas", oKey:"Tonalidad", oKeyTag:"Tonalidad de las etiquetas", oArt:"Portadas", oArtNet:"Portadas que faltan desde internet", oAutoload:"Hot Cue Auto Load", o3band:"Forma de onda de 3 bandas", oFlac:"Archivos FLAC (solo con mod)", oLong:"Pistas largas y sets", oPower:"Máxima potencia del procesador", oNoSleep:"Mantener el ordenador activo", oCopyBg:"Copiar en segundo plano durante el análisis", oDiskTest:"Prueba del disco antes de empezar", presetLabel:"Reproductor:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 con mod RaftTone", presetCustom:"Personalizado", presetStockHint:"CDJ-2000 normal: 3 hot cues (A–C), sin extras del mod ni FLAC.", presetModHint:"Mod RaftTone v1.1: Hot Cue Auto Load para el banco D–F y forma de onda de 3 bandas (modo 3BAND).", presetCustomHint:"Tu propia selección de las opciones de abajo.", advanced:"Avanzado", diskTestOpt:"Prueba breve del disco antes de empezar (escritura, lectura, formato)", speedWhat:"¿Qué se mide aquí?", sumTracks:"pistas escritas", sumSkipped:"archivos omitidos", sumArt:"con portada", sumNet:"{n} de internet", sumTags:"etiquetas completadas desde los nombres", sumCache:"desde la caché", sumTime:"en total ({s} s por pista)", sumDisk:"velocidad de escritura, formato {fs}", sumDiskOnly:"velocidad de escritura", step4:"Lista y opciones", plName:"Nombre de la lista", start:"Analizar y escribir en la memoria USB", startEtap:"Inicio…", logTitle:"Registro",
  results:"Resultados del análisis", results50:"Resultados del análisis — primeras 50 vistas previas",
  resultsLegend:"Azul: todo el sonido, naranja: frecuencias graves (bombo y bajo), líneas blancas: cuadrícula de tiempos escrita en la memoria (primeros 6 s). Las líneas deben estar al comienzo de los golpes de bombo.",
  quit:"Salir", quitDone:"CDJ Tool se ha cerrado", quitDesc:"Puedes cerrar esta pestaña.",
@@ -404,7 +443,7 @@ es: {
  skipped:"Omitido {name}: {text}", skippedTotal:"En total se omitieron {n} archivos con errores (se muestran los primeros {m}).",
  trackInfo:"primer tiempo", beatsWord:"tiempos",
  doneTitle:"Listo: {n} pistas escritas", doneEject:"Expulsa la memoria USB e insértala en el CDJ-2000.", backupOf:"Copia de la biblioteca anterior:",
- longOpt:"Pistas largas y sets de hasta 3 h (análisis por secciones; la cuadrícula puede cambiar de tempo a lo largo de un set; sin esta opción se omiten las pistas de más de 45 min)", artNetOpt:"Portadas que faltan desde internet (envía artista y título a Deezer y Apple iTunes; a veces la portada puede no coincidir)", artOpt:"Portadas de álbum de las etiquetas de los archivos (se ven en la pantalla del reproductor)", threeBand:"Forma de onda de 3 bandas (archivo .2EX como rekordbox: <b>versión de prueba</b>, para el modo 3BAND del mod y los CDJ-3000 por LINK; unos 190 KB más por pista)", autoloadOpt:"Hot Cue Auto Load: marcar las pistas como «ON» como rekordbox (se usa cuando el UTILITY del reproductor está en rekordbox SETTING; el mod v1.1 lo necesita para el banco D–F)", oldFiles:"La memoria contiene archivos antiguos de rekordbox ({list}). El CDJ-2000 no los usa, pero es mejor borrarlos.",
+ fullPowerOpt:"Máxima potencia: análisis en casi todos los núcleos (más rápido con bibliotecas grandes; el ordenador puede calentarse más)", longOpt:"Pistas largas y sets de hasta 3 h (análisis por secciones; la cuadrícula puede cambiar de tempo a lo largo de un set; sin esta opción se omiten las pistas de más de 45 min)", artNetOpt:"Portadas que faltan desde internet (envía artista y título a Deezer y Apple iTunes; a veces la portada puede no coincidir)", artOpt:"Portadas de álbum de las etiquetas de los archivos (se ven en la pantalla del reproductor)", threeBand:"Forma de onda de 3 bandas (archivo .2EX como rekordbox: <b>versión de prueba</b>, para el modo 3BAND del mod y los CDJ-3000 por LINK; unos 190 KB más por pista)", autoloadOpt:"Hot Cue Auto Load: marcar las pistas como «ON» como rekordbox (se usa cuando el UTILITY del reproductor está en rekordbox SETTING; el mod v1.1 lo necesita para el banco D–F)", oldFiles:"La memoria contiene archivos antiguos de rekordbox ({list}). El CDJ-2000 no los usa, pero es mejor borrarlos.",
  eject:"Expulsar la memoria USB", ejected:"Memoria USB expulsada", ejectRetry:"Intentar expulsar de nuevo", ejecting:"Expulsando…",
  ejectOk:"La memoria USB se expulsó de forma segura. Ya puedes desconectarla.", ejectFail:"No se pudo expulsar la memoria USB. No la desconectes todavía. {e}", ejectFail2:"No se pudo confirmar la expulsión. No desconectes todavía la memoria. {e}", tryAgain:"Inténtalo de nuevo.",
  errTitle:"Se produjo un error", canceledTitle:"Cancelado", canceledDesc:"Si la escritura en la memoria ya había empezado, vuelve a ejecutarla para obtener todos los archivos.",
@@ -436,7 +475,7 @@ it: {
  modeCopy:"copia degli MP3", modeNoCopy:"senza copia",
  speedDetail:"Limite di RAM per l'analisi: circa {ram} MB su {tot} MB; se la memoria scarseggia, l'app riduce da sola il numero di brani in parallelo. La velocità reale dipende anche dal processore ({cores} core): oltre quel numero il vantaggio è minimo.",
  speedReady:"Pronto: analisi di fino a {n} brani alla volta", speedReadyDesc:"Limite di RAM: circa {ram} MB su {tot} MB. Modalità: {mode}.",
- step4:"Nome della playlist", start:"Analizza e scrivi sulla chiavetta USB", startEtap:"Avvio…", logTitle:"Registro",
+ settingsTitle:"Impostazioni (musica, chiavetta USB, opzioni)", stepMusic:"Musica", stepOpt:"Opzioni", toolsTitle:"Strumenti", needMusic:"Aggiungi una cartella di musica.", needStick:"Scegli la chiavetta USB.", startSum:"{n} brani → {stick}", sumCopy:"con copia della musica", sumNoCopy:"senza copia", oCopy:"Copia la musica sulla chiavetta", oReplace:"Sostituisci il contenuto della chiavetta", oPlFolders:"Sottocartelle come playlist", oKey:"Tonalità", oKeyTag:"Tonalità dai tag del file", oArt:"Copertine", oArtNet:"Copertine mancanti da internet", oAutoload:"Hot Cue Auto Load", o3band:"Forma d'onda a 3 bande", oFlac:"File FLAC (solo con mod)", oLong:"Brani lunghi e set", oPower:"Massima potenza del processore", oNoSleep:"Non sospendere il computer", oCopyBg:"Copia in background durante l'analisi", oDiskTest:"Test del disco prima di iniziare", presetLabel:"Lettore:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 con mod RaftTone", presetCustom:"Personalizzato", presetStockHint:"CDJ-2000 normale: 3 hot cue (A–C), senza extra della mod né FLAC.", presetModHint:"Mod RaftTone v1.1: Hot Cue Auto Load per il banco D–F e forma d'onda a 3 bande (modalità 3BAND).", presetCustomHint:"La tua scelta delle opzioni qui sotto.", advanced:"Avanzate", diskTestOpt:"Breve test del disco prima di iniziare (scrittura, lettura, formato)", speedWhat:"Che cosa si misura qui?", sumTracks:"brani scritti", sumSkipped:"file saltati", sumArt:"con copertina", sumNet:"{n} da internet", sumTags:"tag completati dai nomi", sumCache:"dalla cache", sumTime:"in totale ({s} s per brano)", sumDisk:"velocità di scrittura, formato {fs}", sumDiskOnly:"velocità di scrittura", step4:"Playlist e opzioni", plName:"Nome della playlist", start:"Analizza e scrivi sulla chiavetta USB", startEtap:"Avvio…", logTitle:"Registro",
  results:"Risultati dell'analisi", results50:"Risultati dell'analisi — prime 50 anteprime",
  resultsLegend:"Blu: tutto il suono, arancione: frequenze basse (cassa e basso), linee bianche: griglia dei battiti scritta sulla chiavetta (primi 6 s del brano). Le linee devono trovarsi all'inizio dei colpi di cassa.",
  quit:"Esci", quitDone:"CDJ Tool è stato chiuso", quitDesc:"Puoi chiudere questa scheda.",
@@ -444,7 +483,7 @@ it: {
  skipped:"Saltato {name}: {text}", skippedTotal:"In totale sono stati saltati {n} file con errori (mostro i primi {m}).",
  trackInfo:"primo battito", beatsWord:"battiti",
  doneTitle:"Fatto: scritti {n} brani", doneEject:"Espelli la chiavetta USB e inseriscila nel CDJ-2000.", backupOf:"Backup della libreria precedente:",
- longOpt:"Brani lunghi e set fino a 3 h (analisi a sezioni; la griglia può cambiare tempo lungo un set DJ; senza questa opzione i brani oltre 45 min vengono saltati)", artNetOpt:"Copertine mancanti da internet (invia artista e titolo a Deezer e Apple iTunes; a volte la copertina potrebbe non corrispondere)", artOpt:"Copertine dell'album dai tag dei file (visibili sullo schermo del lettore)", threeBand:"Forma d'onda a 3 bande (file .2EX come rekordbox: <b>versione di prova</b>, per la modalità 3BAND della mod e i CDJ-3000 via LINK; circa 190 KB in più per brano)", autoloadOpt:"Hot Cue Auto Load: segna i brani «ON» come rekordbox (vale quando nell'UTILITY del lettore è impostato rekordbox SETTING; la mod v1.1 lo richiede per il banco D–F)", oldFiles:"Sulla chiavetta ci sono vecchi file rekordbox ({list}). Il CDJ-2000 non li usa, ma è meglio eliminarli.",
+ fullPowerOpt:"Massima potenza: analisi su quasi tutti i core (più veloce con librerie grandi; il computer può scaldarsi di più)", longOpt:"Brani lunghi e set fino a 3 h (analisi a sezioni; la griglia può cambiare tempo lungo un set DJ; senza questa opzione i brani oltre 45 min vengono saltati)", artNetOpt:"Copertine mancanti da internet (invia artista e titolo a Deezer e Apple iTunes; a volte la copertina potrebbe non corrispondere)", artOpt:"Copertine dell'album dai tag dei file (visibili sullo schermo del lettore)", threeBand:"Forma d'onda a 3 bande (file .2EX come rekordbox: <b>versione di prova</b>, per la modalità 3BAND della mod e i CDJ-3000 via LINK; circa 190 KB in più per brano)", autoloadOpt:"Hot Cue Auto Load: segna i brani «ON» come rekordbox (vale quando nell'UTILITY del lettore è impostato rekordbox SETTING; la mod v1.1 lo richiede per il banco D–F)", oldFiles:"Sulla chiavetta ci sono vecchi file rekordbox ({list}). Il CDJ-2000 non li usa, ma è meglio eliminarli.",
  eject:"Espelli la chiavetta USB", ejected:"Chiavetta USB espulsa", ejectRetry:"Riprova a espellere", ejecting:"Espulsione…",
  ejectOk:"La chiavetta USB è stata espulsa in sicurezza. Ora puoi scollegarla.", ejectFail:"Impossibile espellere la chiavetta USB. Non scollegarla ancora. {e}", ejectFail2:"Impossibile confermare l'espulsione. Non scollegare ancora la chiavetta. {e}", tryAgain:"Riprova.",
  errTitle:"Si è verificato un errore", canceledTitle:"Annullato", canceledDesc:"Se la scrittura sulla chiavetta era già iniziata, eseguila di nuovo per ottenere tutti i file.",
@@ -492,6 +531,8 @@ function applyLang() {
   if (sel) sel.value = LANG;
   opisKopiowania();
   rysujFoldery();
+  document.querySelectorAll(".infobox:not(.hidden)").forEach(box => { box.innerHTML = t(box.dataset.info); });
+  if (typeof pokazZestaw === "function" && document.querySelector("#zestawy button.on")) pokazZestaw(document.querySelector("#zestawy button.on").dataset.z);
   if (pend) ustawPendrive(pend);
   if (formatInfo) opisFormatu();
   const fw = $("formatWynik");
@@ -571,7 +612,26 @@ function odswiezPrzycisk() {
   $("bMp3").disabled = trwa || kol; $("bPend").disabled = trwa || kol; $("bMp3Clear").disabled = trwa || kol;
   document.querySelectorAll(".fx").forEach(b => { b.disabled = trwa || kol; });
   $("bFormatInfo").disabled = !(pend && !trwa);
+  // jedno zdanie obok przycisku Start: czego brakuje albo co zostanie zrobione
+  let info = "";
+  if (trwa || kol) info = "";
+  else if (!gotowe) info = "";
+  else if (!mp3 || !(mp3.liczba > 0)) info = t("needMusic");
+  else if (!pend) info = t("needStick");
+  else if (!pomiarGotowy) info = b && b.stan === "blad" ? t("speedFail") : t("speedMeasuring");
+  else {
+    const z = document.querySelector("#zestawy button.on");
+    info = t("startSum", { n: mp3.liczba, stick: pend.sciezka.replace(/\/+$/, "").split("/").pop() }) + ", " +
+      t($("cKopiuj").checked ? "sumCopy" : "sumNoCopy") + (z ? ", " + z.textContent : "");
+  }
+  $("startInfo").textContent = info;
 }
+// "i" przy opcji: pokazuje pelny opis pod spodem
+document.querySelectorAll(".inf").forEach(b => { b.onclick = () => {
+  const box = b.closest(".opt").nextElementSibling;
+  box.classList.toggle("hidden");
+  if (!box.classList.contains("hidden")) box.innerHTML = t(box.dataset.info);
+}; });
 
 const kolejkaAktywna = () => !!(kolejka && !kolejka.koniec && !kolejka.przerwana);
 const flacWl = () => !!$("cFlac").checked;
@@ -697,7 +757,7 @@ async function startFolderu(i) {
     kopiuj_mp3: $("cKopiuj").checked, zastap_pioneer: i === 0 && $("cZastap").checked, flac: flacWl(),
     kopiuj_w_tle: $("cTlo").checked, nie_usypiaj: $("cNieUsypiaj").checked,
     tonacja: $("cTonacja").checked, notacja: $("sNotacja").value, tonacja_z_tagu: $("cTonTag").checked,
-    playlisty_z_folderow: $("cPlFoldery").checked, autoload: $("cAutoload").checked, trzy_pasma: $("cTrzyPasma").checked, okladki: $("cOkladki").checked, okladki_siec: $("cOkladki").checked && $("cOkladkiSiec").checked, dlugie: $("cDlugie").checked });
+    playlisty_z_folderow: $("cPlFoldery").checked, autoload: $("cAutoload").checked, trzy_pasma: $("cTrzyPasma").checked, okladki: $("cOkladki").checked, okladki_siec: $("cOkladki").checked && $("cOkladkiSiec").checked, dlugie: $("cDlugie").checked, pelna_moc: $("cPelnaMoc").checked, test_dysku: $("cTestDysku").checked });
   if (r.blad) { alert(r.blad); kolejka.przerwana = true; return false; }
   return true;
 }
@@ -710,6 +770,8 @@ $("bStart").onclick = async () => {
   kolejka = { lista: doZapisu, i: 0, lacznie: 0, kopia: null, pomiar: mp3.sciezka, koniec: false, przerwana: false,
               pominiete: foldery.filter(f => liczbaF(f) === 0).map(f => nazwaF(f.sciezka)) };
   odswiezPrzycisk();
+  $("ustawienia").open = false;  // w trakcie pracy na gorze sa postep, dziennik i wyniki
+  window.scrollTo(0, 0);
   await startFolderu(0);
   odswiezPrzycisk();
 };
@@ -847,8 +909,10 @@ async function odswiez() {
     $("eta").textContent = j.stan === "trwa" ? opisCzasu(j) : "";
     let ostrzezenia = (j.bledy || []).map(b => `<span class="warn">${esc(t("skipped", { name: b.nazwa, text: b.tekst }))}</span>`);
     if ((j.bledow_razem || 0) > ostrzezenia.length) ostrzezenia.push(`<span class="warn">${esc(t("skippedTotal", { n: j.bledow_razem, m: ostrzezenia.length }))}</span>`);
+    ostrzezenia = (j.ostrzezenia || []).map(o => `<span class="warn">⚠ ${esc(o)}</span>`).concat(ostrzezenia);
     $("postepOpis").innerHTML = ostrzezenia.join("<br>");
-    $("log").textContent = (j.log || []).join("\n");
+    { const el = $("log"), dol = el.scrollHeight - el.scrollTop - el.clientHeight < 30;  // przewijaj tylko gdy na dole
+      el.textContent = (j.log || []).join("\n"); if (dol) el.scrollTop = el.scrollHeight; }
     const nowe = [];
     (j.utwory || []).forEach(u => { const kl = (kolejka ? kolejka.i : 0) + ":" + u.i; if (!narysowane.has(kl)) { narysowane.add(kl); $("wyniki").classList.remove("hidden"); nowe.push(dodajUtwor(u)); } });
     if (kolejka && !kolejkaBusy && !kolejka.koniec && !kolejka.przerwana) {
@@ -882,6 +946,17 @@ async function odswiez() {
   } else if (j.stan === "gotowe") {
     k.classList.remove("hidden");
     let html = `<h2 class="ok">${esc(t("doneTitle", { n: kolejka && kolejka.lista.length > 1 ? kolejka.lacznie : (j.sukcesy || j.utwory.length) }))}</h2><p style="margin:0 0 8px">${esc(t("doneEject"))}</p>`;
+    const ps = j.podsumowanie;
+    if (ps && !(kolejka && kolejka.lista.length > 1)) {
+      const min = x => x >= 90 ? Math.round(x / 60) + " min" : Math.round(x) + " s";
+      const kaf = [[ps.utwory, t("sumTracks")], [ps.pominiete || 0, t("sumSkipped")],
+        [ps.okladki == null ? "–" : ps.okladki + (ps.okladki_z_sieci ? " (" + t("sumNet", { n: ps.okladki_z_sieci }) + ")" : ""), t("sumArt")],
+        [ps.tagi_z_nazw || 0, t("sumTags")], [ps.z_pamieci || 0, t("sumCache")],
+        [min(ps.czas_s || 0), t("sumTime", { s: ps.s_na_utwor })]];
+      if (ps.zapis_mb_s != null) kaf.push([ps.zapis_mb_s + " MB/s", ps.fs ? t("sumDisk", { fs: ps.fs.toUpperCase() }) : t("sumDiskOnly")]);
+      html += `<div class="sum">${kaf.map(([w, e]) => `<div><b>${esc(String(w))}</b><span>${esc(e)}</span></div>`).join("")}</div>`;
+      (ps.ostrzezenia || []).forEach(o => { html += `<p class="warn" style="font-size:13px;margin:0 0 8px">⚠ ${esc(o)}</p>`; });
+    }
     if (kolejka && (kolejka.pominiete || []).length) html += `<p class="warn" style="font-size:13px;margin:0 0 8px">${esc(t("queueSkipped", { list: kolejka.pominiete.join(", ") }))}</p>`;
     if (j.kopia) html += `<p class="m" style="color:var(--muted);font-size:13px;margin:0 0 8px">${esc(t("backupOf"))} ${esc(j.kopia)}</p>`;
     if ((j.stare_pliki || []).length) html += `<p class="warn" style="font-size:13px;margin:0 0 8px">${esc(t("oldFiles", { list: j.stare_pliki.join(", ") }))}</p>`;
@@ -921,7 +996,7 @@ async function odswiez() {
   odswiezPrzycisk();
 }
 // opcje zapamiętywane w tej przeglądarce (bez nich działają wartości domyślne)
-["cTlo", "cNieUsypiaj", "cTonacja", "cTonTag", "cPlFoldery", "cAutoload", "cTrzyPasma", "cOkladki", "cOkladkiSiec", "cDlugie"].forEach(id => {
+["cTlo", "cNieUsypiaj", "cTonacja", "cTonTag", "cPlFoldery", "cAutoload", "cTrzyPasma", "cOkladki", "cOkladkiSiec", "cDlugie", "cPelnaMoc", "cTestDysku"].forEach(id => {
   try { const v = localStorage.getItem("cdj_" + id); if (v !== null) $(id).checked = v === "1"; } catch (e) {}
   $(id).addEventListener("change", () => { try { localStorage.setItem("cdj_" + id, $(id).checked ? "1" : "0"); } catch (e) {} });
 });
@@ -930,6 +1005,29 @@ const odswiezStatystyki = () => document.querySelectorAll("#lista .tr").forEach(
 $("sNotacja").addEventListener("change", () => { try { localStorage.setItem("cdj_sNotacja", $("sNotacja").value); } catch (e) {} odswiezStatystyki(); });
 $("cTonacja").addEventListener("change", () => { $("sNotacja").disabled = $("cTonTag").disabled = !$("cTonacja").checked; odswiezStatystyki(); });
 $("sNotacja").disabled = $("cTonTag").disabled = !$("cTonacja").checked;
+// gotowe zestawy opcji: zwykly CDJ-2000 albo CDJ-2000 z modem RaftTone; reczna zmiana tych opcji = "Wlasne"
+const ZESTAWY = { cdj: { cAutoload: false, cTrzyPasma: false, cFlac: false }, mod: { cAutoload: true, cTrzyPasma: true } };
+let zestawUstawiam = false;
+function pokazZestaw(z) {
+  document.querySelectorAll("#zestawy button").forEach(b => b.classList.toggle("on", b.dataset.z === z));
+  $("zestawOpis").textContent = t(z === "cdj" ? "presetStockHint" : z === "mod" ? "presetModHint" : "presetCustomHint");
+  try { localStorage.setItem("cdj_zestaw", z); } catch (e) {}
+  if (typeof odswiezPrzycisk === "function" && typeof ostatniStan !== "undefined") odswiezPrzycisk();
+}
+function ustawZestaw(z) {
+  zestawUstawiam = true;
+  Object.entries(ZESTAWY[z] || {}).forEach(([id, v]) => { if ($(id).checked !== v) { $(id).checked = v; $(id).dispatchEvent(new Event("change")); } });
+  zestawUstawiam = false;
+  pokazZestaw(z);
+}
+function zestawZOpcji() {
+  for (const [z, o] of Object.entries(ZESTAWY)) if (Object.entries(o).every(([id, v]) => $(id).checked === v)) return z;
+  return "wlasne";
+}
+document.querySelectorAll("#zestawy button").forEach(b => b.addEventListener("click", () => ustawZestaw(b.dataset.z)));
+["cAutoload", "cTrzyPasma", "cFlac"].forEach(id => $(id).addEventListener("change", () => { if (!zestawUstawiam) pokazZestaw(zestawZOpcji()); }));
+{ let z = null; try { z = localStorage.getItem("cdj_zestaw"); } catch (e) {}
+  pokazZestaw(z === "wlasne" || (ZESTAWY[z] && zestawZOpcji() === z) ? z : zestawZOpcji()); }
 $("cOkladki").addEventListener("change", () => { $("cOkladkiSiec").disabled = !$("cOkladki").checked; });
 $("cOkladkiSiec").disabled = !$("cOkladki").checked;
 const tloDostepne = () => { $("cTlo").disabled = !$("cKopiuj").checked; };

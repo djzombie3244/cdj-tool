@@ -385,6 +385,8 @@ def metadane(sciezka: str) -> Dict[str, any]:
             "artysta": uzup["artysta"] or "Unknown Artist",
             "album": uzup["album"] or "Unknown Album",
             "rok": liczba("date") or liczba("year") or uzup["rok"],
+            "z_nazwy": [k for k, tag in (("wykonawca", "artist"), ("tytuł", "title"), ("album", "album"))
+                        if not tagi.get(tag) and uzup[{"wykonawca": "artysta", "tytuł": "tytul", "album": "album"}[k]]],
             "nr": liczba("track"),
             "dysk": liczba("disc"),
             "sr": sr,
@@ -447,37 +449,51 @@ def kopia_zapasowa_pdb(sciezka_pdb, korzen):
     return cel
 
 
-def kopia_zapasowa(pioneer, korzen):
-    """Backup starego PIONEER folder."""
+def kopia_zapasowa(pioneer, korzen, pominiete=None):
+    """Kopia zapasowa starego folderu PIONEER (w Dokumenty/CDJ-Tool-kopie). Pojedyncze pliki, ktorych nie da sie
+    odczytac (np. uszkodzony plik analizy), sa pomijane i dopisywane do listy `pominiete`; przerywa tylko wtedy,
+    gdy nie da sie skopiowac samej bazy (export.pdb) albo zapisac kopii na komputerze."""
     dzis = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     nazwa = re.sub(r'[/\\]', "_", os.path.basename(korzen.rstrip("/")) or "pendrive")
     cel = os.path.join(os.path.expanduser("~"), "Documents", "CDJ-Tool-kopie", f"{nazwa}_{dzis}")
-    os.makedirs(cel, exist_ok=True)
-    
-    def kopiuj_plik_z_pominieciem_sidecar(src, dst):
+    pominiete = pominiete if pominiete is not None else []
+    try:
+        os.makedirs(cel, exist_ok=True)
+    except OSError as e:
+        raise CDJError("backup dir failed: %s" % e, code="BACKUP_FAILED", user_message=(
+            "Nie mogę utworzyć kopii zapasowej w folderze Dokumenty (%s). Sprawdź wolne miejsce na dysku komputera "
+            "i czy aplikacja ma dostęp do folderu Dokumenty (Ustawienia systemowe → Prywatność i ochrona → Pliki "
+            "i foldery). Nic nie zostało zmienione na pendrivie." % (e.strerror or e))) from e
+
+    def kopiuj(src, dst):
         try:
             return shutil.copy2(src, dst)
-        except FileNotFoundError:
+        except OSError as e:
             if os.path.basename(src).startswith("._"):
                 return dst
-            raise
+            pominiete.append((os.path.relpath(src, pioneer), e.strerror or str(e)))
+            return dst
 
     try:
-        shutil.copytree(
-            pioneer,
-            os.path.join(cel, "PIONEER"),
-            ignore=shutil.ignore_patterns("._*", ".DS_Store"),
-            copy_function=kopiuj_plik_z_pominieciem_sidecar,
-        )
+        shutil.copytree(pioneer, os.path.join(cel, "PIONEER"), ignore=shutil.ignore_patterns("._*", ".DS_Store"),
+                        copy_function=kopiuj)
     except (shutil.Error, OSError) as e:
+        # copytree zbiera bledy katalogow (np. nieczytelny podfolder); pliki zgubione w ten sposob tez pomijamy
+        if isinstance(e, shutil.Error) and e.args and isinstance(e.args[0], list):
+            for src, _dst, why in e.args[0][:50]:
+                pominiete.append((os.path.relpath(str(src), pioneer), str(why)[:120]))
+        else:
+            pominiete.append((".", str(e)[:200]))
+    baza = os.path.join(cel, "PIONEER", "rekordbox", "export.pdb")
+    if os.path.isfile(os.path.join(pioneer, "rekordbox", "export.pdb")) and not os.path.isfile(baza):
+        szczeg = "; ".join("%s: %s" % p for p in pominiete[:3])
         raise CDJError(
-            "backup failed: %s" % str(e)[:300],
-            user_message=("Nie można odczytać dotychczasowego folderu PIONEER z pendrive'a (kopia zapasowa się nie powiodła). "
-                          "Najczęściej oznacza to uszkodzony system plików, np. po przerwanym zapisie lub wyjęciu pendrive'a bez wysunięcia. "
-                          "Sformatuj pendrive (krok 2: Formatowanie pendrive'a) albo napraw go w Narzędziu dyskowym (Pierwsza pomoc), potem spróbuj ponownie. "
-                          "Nic nie zostało zmienione na pendrivie."),
-            code="BACKUP_FAILED",
-        ) from e
+            "backup failed: %s" % szczeg[:300], code="BACKUP_FAILED",
+            user_message=("Nie mogę skopiować bazy (export.pdb) z pendrive'a do kopii zapasowej (%s). Pendrive może "
+                          "mieć uszkodzony system plików, np. po wyjęciu bez wysunięcia: napraw go w Narzędziu dyskowym "
+                          "(Pierwsza pomoc) i spróbuj ponownie. Uwaga: formatowanie usunęłoby też muzykę zapisaną na tym "
+                          "dysku. Nic nie zostało zmienione na pendrivie." % (szczeg[:200] or "nieznany błąd")))
+    return cel
     return cel
 
 
@@ -568,6 +584,30 @@ def _zadanie_proc(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, dz
         return ("blad", e.user_message, e.code)
     except Exception as e:  # noqa: BLE001
         return ("blad", str(e) or e.__class__.__name__, None)
+    finally:
+        _oddaj_pamiec()
+
+
+def _oddaj_pamiec():
+    """Po kazdym utworze proces roboczy oddaje systemowi zwolniona pamiec. Bez tego kazdy z kilku procesow
+    trzymal ok. 0,8-1 GB po najwiekszym utworze i na Macu z 16 GB system zaczynal uzywac pliku wymiany
+    (zmierzone 2026-11-08: 7 procesow, 6 GB wymiany, 25% czasu procesora na obsluge pamieci)."""
+    import gc
+    gc.collect()
+    if sys.platform == "darwin":
+        try:
+            import ctypes
+            libc = ctypes.CDLL("/usr/lib/libSystem.B.dylib")
+            libc.malloc_zone_pressure_relief.restype = ctypes.c_size_t
+            libc.malloc_zone_pressure_relief(None, ctypes.c_size_t(0))
+        except Exception:  # noqa: BLE001
+            pass
+    elif sys.platform.startswith("linux"):
+        try:
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _analizuj_jeden_proc(pula_proc, folder, root, nr, nazwa_wzgledna, kopiuj_mp3, dzis, nazwa_folderu=None):
@@ -605,6 +645,9 @@ def _analizuj_jeden_proc(pula_proc, folder, root, nr, nazwa_wzgledna, kopiuj_mp3
 # ------------------------------------------------- pamiec podreczna analiz ---
 # Utwor juz przeanalizowany (ten sam plik: sciezka, rozmiar, data zmiany; ta sama wersja analizy) nie jest liczony
 # drugi raz: gotowe DAT/EXT ida z dysku, podmieniana jest tylko sciezka na pendrive (tag PPTH).
+# Podnies, gdy zmienia sie cos w silniku, co wplywa na wynik analizy poza funkcjami hashowanymi w _cache_wersja
+# (np. metadane: wykrywanie MP3 bez naglowka LAME, ktore przycina poczatek dzwieku).
+WERSJA_ANALIZY_SILNIKA = 1
 _CACHE = {"katalog": None, "wersja": None}
 CACHE_MAKS_BAJTOW = int(os.environ.get("CDJ_CACHE_MB", "2048")) * 1024 * 1024
 
@@ -632,12 +675,23 @@ def _cache_wersja():
         import hashlib
         h = hashlib.sha1()
         tu = os.path.dirname(os.path.abspath(__file__))
-        for plik in ("gen_dat.py", "cue.py", "takt.py", "beatthis.py", "tonacja.py", "silnik.py", "config.json"):
+        for plik in ("gen_dat.py", "cue.py", "takt.py", "beatthis.py", "tonacja.py", "config.json"):
             try:
                 with open(os.path.join(tu, plik), "rb") as fh:
                     h.update(fh.read())
             except OSError:
                 pass
+        # z silnik.py tylko funkcje, ktore licza zapamietywane wyniki: zmiany w dzienniku, okladkach czy zapisie
+        # pendrive'a nie kasuja juz analiz calej biblioteki (2000 utworow = ok. 45 min liczenia od nowa)
+        h.update(("wersja-analizy-%d" % WERSJA_ANALIZY_SILNIKA).encode())
+        import inspect
+        for fn in (_analizuj_licz, _cue_od_dzwieku, _poczatek_dzwieku_ms, podglad):
+            try:
+                h.update(inspect.getsource(fn).encode("utf-8"))
+            except (OSError, TypeError):
+                with open(os.path.abspath(__file__), "rb") as fh:
+                    h.update(fh.read())
+                break
         _CACHE["wersja"] = h.hexdigest()[:16]
     return _CACHE["wersja"]
 
@@ -799,6 +853,103 @@ def _wybierz_tonacje(meta, wykryta):
     if wykryta:
         return [int(wykryta[0]), bool(wykryta[1]), float(wykryta[2]), "analiza"]
     return None
+
+
+SYSTEMY_PLIKOW_CDJ = ("msdos", "fat", "fat32", "fat16", "hfs")  # CDJ-2000 czyta FAT, FAT32 i HFS+
+
+
+def system_plikow(root):
+    """Typ systemu plikow dysku (np. "msdos", "exfat", "hfs", "apfs", "ntfs") albo "" gdy nie da sie ustalic."""
+    try:
+        if sys.platform == "darwin":
+            import plistlib
+            r = subprocess.run(["/usr/sbin/diskutil", "info", "-plist", root], capture_output=True, timeout=10)
+            if r.returncode == 0:
+                return str(plistlib.loads(r.stdout).get("FilesystemType") or "").lower()
+        elif sys.platform == "win32":
+            import ctypes
+            buf = ctypes.create_unicode_buffer(64)
+            dysk = os.path.splitdrive(os.path.abspath(root))[0] + "\\"
+            if ctypes.windll.kernel32.GetVolumeInformationW(dysk, None, 0, None, None, None, buf, 64):
+                return buf.value.lower()
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
+def test_dysku(root, folder, pliki, rozmiar=8 * 1024 * 1024):
+    """Krotki test przed dluga analiza: zapis i odczyt probki na pendrive, odczyt kilku plikow zrodlowych, format.
+    Zwraca {"zapis_mb_s", "fs", "ostrzezenia": [...]}; rzuca CDJError, gdy dysk nie nadaje sie do pracy."""
+    wynik = {"zapis_mb_s": None, "fs": system_plikow(root), "ostrzezenia": []}
+    probka = os.urandom(1024 * 1024) * max(1, rozmiar // (1024 * 1024))
+    tmp = os.path.join(root, ".cdj-tool-test.tmp")
+    try:
+        t = time.time()
+        with open(tmp, "wb") as fh:
+            fh.write(probka)
+            fh.flush()
+            os.fsync(fh.fileno())
+        dt = max(time.time() - t, 1e-3)
+        with open(tmp, "rb") as fh:
+            zgodne = fh.read() == probka
+        wynik["zapis_mb_s"] = round(len(probka) / 1e6 / dt, 1)
+    except OSError as e:
+        raise CDJError("disk write test failed: %s" % e, code="DYSK_TEST", user_message=(
+            "Test zapisu na pendrive nie powiódł się (%s). Sprawdź, czy dysk nie jest zablokowany do zapisu, czy ma "
+            "wolne miejsce i czy jest dobrze podłączony. Nic nie zostało zmienione." % (e.strerror or e))) from e
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    if not zgodne:
+        raise CDJError("disk verify failed", code="DYSK_TEST", user_message=(
+            "Pendrive zapisuje dane z błędami: próbka odczytana po zapisie różni się od zapisanej. Taki nośnik zgubi "
+            "utwory albo bazę. Użyj innego pendrive'a."))
+    # odczyt zrodla: poczatek pierwszego, srodkowego i ostatniego pliku
+    for rel in {pliki[0], pliki[len(pliki) // 2], pliki[-1]}:
+        try:
+            with open(os.path.join(folder, rel), "rb") as fh:
+                fh.read(1024 * 1024)
+        except OSError as e:
+            raise CDJError("source read test failed: %s" % e, code="DYSK_TEST", user_message=(
+                "Nie mogę odczytać pliku %s (%s). Sprawdź dysk z muzyką (kabel, Pierwsza pomoc w Narzędziu dyskowym)."
+                % (os.path.basename(rel), e.strerror or e))) from e
+    fs = wynik["fs"]
+    if fs and fs not in SYSTEMY_PLIKOW_CDJ:
+        wynik["ostrzezenia"].append(
+            "Dysk ma format %s. CDJ-2000 czyta tylko FAT32 (i HFS+): odtwarzacz może nie zobaczyć tego nośnika. "
+            "Sformatuj go w kroku 2 (to usuwa wszystkie pliki z dysku)." % fs.upper())
+    if wynik["zapis_mb_s"] is not None and wynik["zapis_mb_s"] < 3:
+        wynik["ostrzezenia"].append(
+            "Bardzo wolny zapis na pendrive (%.1f MB/s): kopiowanie muzyki potrwa długo." % wynik["zapis_mb_s"])
+    return wynik
+
+
+def _odlaczony(*sciezki):
+    """Nazwa dysku (wolumenu), ktory zniknal, gdy ktoras ze sciezek nie istnieje; inaczej None."""
+    for p in sciezki:
+        if p and not os.path.isdir(p):
+            if p.startswith("/Volumes/"):
+                return p.split("/")[2]
+            return p
+    return None
+
+
+def _opis_utworu(ev, u):
+    """Jedna linia dziennika o utworze: co znalezlismy i skad."""
+    m = u["meta"]
+    cz = ["%.2f BPM" % ev["bpm"]]
+    ton = ev.get("tonacja")
+    if ton:
+        cz.append("%s / %s (%s)" % (ton["klasyczna"], ton["camelot"], "z tagu" if ton.get("zrodlo") == "tag" else "analiza"))
+    if m.get("z_nazwy"):
+        cz.append("tagi z nazwy: " + ", ".join(m["z_nazwy"]))
+    if ev.get("z_pamieci"):
+        cz.append("z pamięci podręcznej")
+    if ev.get("dlugi"):
+        cz.append("długi utwór, %d odcinków" % ev["dlugi"]["odcinkow"])
+    return "✓ %s — %s: %s" % (m["artysta"], m["tytul"], ", ".join(cz))
 
 
 def _opis_tonacji(ton):
@@ -965,6 +1116,60 @@ def _nie_usypiaj():
     return False
 
 
+class OkladkiTla:
+    """Okladki szukane w tle, gdy kolejne utwory koncza analize: z tagow pliku, a gdy ich brak i opcja jest
+    wlaczona, z sieci. Przy duzej bibliotece wyszukiwanie w sieci szlo wczesniej dopiero po analizie
+    (276 utworow = kilka minut czekania); teraz konczy sie razem z nia."""
+
+    def __init__(self, z_sieci, emit=None):
+        self.emit = emit
+        self.pula = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+        self.fut = {}
+        self.siec = None
+        if z_sieci:
+            kc = _cache_katalog()
+            self.siec = okladki.Siec(os.path.join(os.path.dirname(kc), "okladki-siec") if kc else None)
+        self.szukano = 0
+        self.z_sieci = 0
+        self._lock = threading.Lock()
+
+    def _jedna(self, u):
+        ob = okladki.wyciagnij(u["src"])
+        if not ob and self.siec is not None:
+            m = u["meta"]
+            with self._lock:
+                self.szukano += 1
+            ob = self.siec.szukaj(m["artysta"], m["tytul"], m["album"], os.path.basename(u["src"]))
+            if ob:
+                with self._lock:
+                    self.z_sieci += 1
+            if self.emit:
+                self.emit({"typ": "log", "tekst": "%s okładka %s: %s — %s" % (
+                    "✓" if ob else "·", "z sieci" if ob else "nie znaleziona w sieci", m["artysta"], m["tytul"])})
+        elif not ob and self.emit:
+            m = u["meta"]
+            self.emit({"typ": "log", "tekst": "· brak okładki w pliku: %s — %s" % (m["artysta"], m["tytul"])})
+        return (okladki.skrot(ob), ob) if ob else None
+
+    def dodaj(self, i, u):
+        self.fut[i] = self.pula.submit(self._jedna, u)
+
+    def wynik(self, i, u):
+        f = self.fut.get(i)
+        try:
+            return f.result() if f is not None else self._jedna(u)
+        except Exception:  # noqa: BLE001  # okladka jest dodatkiem
+            return None
+
+    def zakoncz(self):
+        self.pula.shutdown(wait=True)
+
+    def przerwij(self):
+        for f in self.fut.values():
+            f.cancel()
+        self.pula.shutdown(wait=False)
+
+
 class KopiarkaTla:
     """Kopiuje pliki audio przeanalizowanych już utworów na pendrive, gdy analiza kolejnych trwa dalej.
 
@@ -1059,6 +1264,12 @@ def przetworz(a, emit):
     TONACJA_Z_TAGU["on"] = bool(a.get("tonacja_z_tagu", True))
     if a.get("nie_usypiaj", True):
         _nie_usypiaj()
+    blokada = threading.Lock()
+    emit_surowy = emit
+
+    def emit(ev):  # zdarzenia wysylaja tez watki w tle (okladki, kopiowanie): po jednej linii naraz
+        with blokada:
+            emit_surowy(ev)
     try:
         _przetworz(a, emit)
     finally:
@@ -1072,6 +1283,8 @@ def przetworz(a, emit):
 
 def _przetworz(a, emit):
     """a: slownik z folder_mp3, pendrive, playlista, kopiuj_mp3, zastap_pioneer, flac (opcjonalnie)."""
+    global _T0
+    _T0 = time.time()  # znaczniki [+N s] i czasy w dzienniku od startu tego zadania
     FLAC["on"] = bool(a.get("flac"))
     DLUGIE["on"] = bool(a.get("dlugie", True))
     os.environ["CDJ_FLAC"] = "1" if FLAC["on"] else "0"  # dziedziczone przez procesy robocze
@@ -1107,8 +1320,22 @@ def _przetworz(a, emit):
     
     emit({"typ": "start", "n": len(pliki)})
 
+    # krotki test dysku: klopot z nosnikiem ma wyjsc w kilka sekund, a nie po godzinie analizy
+    podsum = {"ostrzezenia": []}
+    if _na_wolumenie(root) and a.get("test_dysku", True):
+        emit({"typ": "etap", "tekst": "Sprawdzam dysk..."})
+        td = test_dysku(root, folder, pliki)
+        podsum.update(zapis_mb_s=td["zapis_mb_s"], fs=td["fs"], ostrzezenia=list(td["ostrzezenia"]))
+        emit({"typ": "log", "tekst": "Test dysku: zapis %s MB/s, odczyt i weryfikacja OK, format %s." % (
+            td["zapis_mb_s"], (td["fs"] or "nieznany").upper())})
+        for o in td["ostrzezenia"]:
+            emit({"typ": "log", "tekst": "⚠ " + o})
+            emit({"typ": "ostrzezenie", "tekst": o})
+
     # Limit pamieci: analiza zajmie najwyzej ulamek dostepnego RAM (domyslnie 35%).
-    budzet_mb = float(a.get("ram_limit_mb") or budzet_ram_mb())
+    pelna_moc = bool(a.get("pelna_moc", True))
+    # pelna moc: wiecej procesow analizy i wiekszy udzial wolnej pamieci (procesy zyja krotko)
+    budzet_mb = float(a.get("ram_limit_mb") or budzet_ram_mb(55 if pelna_moc else None))
     BRAMKA["obj"] = BramkaPamieci(budzet_mb * 1e6)
     SPOOL["katalog"] = tempfile.mkdtemp(prefix="cdj-spool-")
     potrzeba_spool = len(pliki) * 120 * 1024
@@ -1142,13 +1369,23 @@ def _przetworz(a, emit):
                 kopiarka = KopiarkaTla(root)
         except OSError:
             kopiarka = None
+
+    # okladki szukane w tle w trakcie analizy (z tagow i opcjonalnie z sieci), a nie dopiero po niej
+    zapisz_okladki = bool(a.get("okladki", True))
+    okl_tlo = OkladkiTla(bool(a.get("okladki_siec")), emit) if zapisz_okladki else None
     
     pula_proc = None
     if len(pliki) >= 4 and os.environ.get("CDJ_PROCESY", "1") == "1":
         try:
             import multiprocessing
             # Ogranicz do max polowy rdzeni zeby nie przegrzewac
-            n_proc = max(2, min((os.cpu_count() or 4) // 2, 6, workers, len(pliki)))
+            rdz = os.cpu_count() or 4
+            n_proc = max(2, min(rdz - 2 if pelna_moc else rdz // 2, 12 if pelna_moc else 6, workers, len(pliki)))
+            # numpy/Accelerate/ONNX w procesach roboczych po 1 watku (procesy dziedzicza srodowisko przy starcie):
+            # wiele procesow po 1 watku jest szybsze niz kilka wielowatkowych walczacych o rdzenie
+            for zm in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS",
+                       "NUMEXPR_NUM_THREADS"):
+                os.environ.setdefault(zm, "1")
             # forkserver jest szybszy niz spawn na macOS: serwer startuje raz, kolejne procesy sa
             # klonowane z gotowej kopii z zaladowanym Pythonem/numpy — eliminuje wielosekundowe
             # opoznienie przy uruchamianiu kazdego zadania.
@@ -1165,12 +1402,11 @@ def _przetworz(a, emit):
 
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pula:
-            if pula_proc is not None:
-                futures = [pula.submit(_analizuj_jeden_proc, pula_proc, folder, root, nr, rel, kopiuj_mp3, dzis, nazwa_folderu)
-                           for nr, rel in enumerate(pliki, 1)]
-            else:
-                futures = [pula.submit(_analizuj_jeden, folder, root, nr, rel, kopiuj_mp3, dzis, nazwa_folderu)
-                           for nr, rel in enumerate(pliki, 1)]
+            fn_an = (lambda *x: _analizuj_jeden_proc(pula_proc, *x)) if pula_proc is not None else _analizuj_jeden
+            nazwa_fut = {}
+            for nr, rel in enumerate(pliki, 1):
+                nazwa_fut[pula.submit(fn_an, folder, root, nr, rel, kopiuj_mp3, dzis, nazwa_folderu)] = rel
+            futures = list(nazwa_fut)
             for future in concurrent.futures.as_completed(futures):
                 try:
                     utwor, ev = future.result()
@@ -1183,9 +1419,16 @@ def _przetworz(a, emit):
                         else:
                             ev.pop("tonacja", None)
                         utwory_wg_indeksu[ev["i"]] = utwor
+                        podsum["z_pamieci"] = podsum.get("z_pamieci", 0) + (1 if ev.get("z_pamieci") else 0)
+                        podsum["tagi_z_nazw"] = podsum.get("tagi_z_nazw", 0) + (1 if utwor["meta"].get("z_nazwy") else 0)
+                        podsum["dlugie"] = podsum.get("dlugie", 0) + (1 if ev.get("dlugi") else 0)
                         if kopiarka is not None:
                             kopiarka.dodaj(utwor)
+                        if okl_tlo is not None:
+                            okl_tlo.dodaj(ev["i"], utwor)
                     emit(ev)
+                    if utwor:
+                        emit({"typ": "log", "tekst": _opis_utworu(ev, utwor)})
                     if ev.get("dlugi"):
                         tem = ev["dlugi"]["tempa"]
                         emit({"typ": "log", "tekst": "Długi utwór %s: %d min, analiza w %d odcinkach, %s." % (
@@ -1193,16 +1436,20 @@ def _przetworz(a, emit):
                             "stałe tempo %.2f BPM" % tem[0] if len(tem) == 1 else
                             "siatka dynamiczna, tempa: " + ", ".join("%.2f" % t for t in tem[:12])
                             + (" …" if len(tem) > 12 else ""))})
-                except CDJError as e:
-                    emit({
-                        "typ": "utwor_blad",
-                        "nazwa": "unknown",
-                        "tekst": e.user_message,
-                        "kod": e.code
-                    })
-                    errors.append(e)
-                except Exception as e:
-                    emit({"typ": "utwor_blad", "nazwa": "unknown", "tekst": str(e)})
+                except Exception as e:  # noqa: BLE001
+                    brak = _odlaczony(folder, root)
+                    if brak:  # dysk zniknal w trakcie: nie oznaczamy reszty utworow jako "zle MP3"
+                        for f in futures:
+                            f.cancel()
+                        raise CDJError("volume gone: %s" % brak, code="DYSK_ODLACZONY", user_message=(
+                            "Dysk %s został odłączony w trakcie pracy (przeanalizowano %d z %d utworów). Na pendrive nic "
+                            "nie zostało zapisane. Podłącz go ponownie i uruchom zapis jeszcze raz: przeanalizowane już "
+                            "utwory wezmę z pamięci podręcznej. Jeśli dysk odłącza się często, sprawdź kabel, użyj "
+                            "portu bez rozgałęźnika (dysk na USB może potrzebować więcej prądu) i wyłącz w Ustawieniach "
+                            "systemowych → Bateria/Energia usypianie dysków." % (brak, zakonczone, len(pliki))))
+                    emit({"typ": "utwor_blad", "nazwa": nazwa_fut.get(future, "?").replace(os.sep, "/"),
+                          "tekst": e.user_message if isinstance(e, CDJError) else str(e),
+                          **({"kod": e.code} if isinstance(e, CDJError) else {})})
                     errors.append(e)
             
                 zakonczone += 1
@@ -1211,12 +1458,23 @@ def _przetworz(a, emit):
     except BaseException:
         if kopiarka is not None:
             kopiarka.zakoncz(przerwij=True)
+        if okl_tlo is not None:
+            okl_tlo.przerwij()
+        if pula_proc is not None:
+            pula_proc.shutdown(wait=False)
         raise
     if pula_proc is not None:
         pula_proc.shutdown(wait=True)
+    t_analiza = time.time() - _T0
+    podsum.update(pominiete=len(errors), analiza_s=round(t_analiza), s_na_utwor=round(t_analiza / max(1, zakonczone), 2))
+    emit({"typ": "log", "tekst": "Analiza: %d utworów w %.1f min (%.1f s na utwór)." % (
+        zakonczone, t_analiza / 60, t_analiza / max(1, zakonczone))})
     if kopiarka is not None:
         emit({"typ": "etap", "tekst": "Kończę kopiowanie w tle..." + _t()})
+        t_k = time.time()
         kopiarka.zakoncz()
+        if kopiarka.bajtow:
+            emit({"typ": "log", "tekst": "Po analizie czekanie na kopiowanie: %.1f min." % ((time.time() - t_k) / 60)})
         emit({"typ": "log", "tekst": "W tle skopiowano %d plików (%.0f MB)%s." % (
             kopiarka.plikow, kopiarka.bajtow / 1e6,
             "; reszta zostanie skopiowana teraz (%s)" % kopiarka.blad if kopiarka.blad else "")})
@@ -1296,36 +1554,18 @@ def _przetworz(a, emit):
         return klucze[nm]
 
     # okladki z tagow plikow: miniatury 80/240 px w PIONEER/Artwork/00001, tabela 13 jak w rekordboxie
-    zapisz_okladki = bool(a.get("okladki", True))
     art_dla, art_pliki, art_wiersze = {}, [], []
     if zapisz_okladki:
         emit({"typ": "etap", "tekst": "Okładki albumów..." + _t()})
-
-        def _obraz(u):
-            ob = okladki.wyciagnij(u["src"])
-            return (okladki.skrot(ob), ob) if ob else None
-
+        obrazy = [okl_tlo.wynik(i, utwory_wg_indeksu[i]) for i in sorted(utwory_wg_indeksu)]
+        okl_tlo.zakoncz()
+        podsum.update(okladki=sum(1 for r in obrazy if r), okladki_z_sieci=okl_tlo.z_sieci,
+                      bez_okladki=sum(1 for r in obrazy if not r))
+        if okl_tlo.siec is not None and okl_tlo.szukano:
+            emit({"typ": "log", "tekst": "Okładki z sieci (Deezer, iTunes): znaleziono %d z %d%s." % (
+                okl_tlo.z_sieci, okl_tlo.szukano,
+                "; brak połączenia z siecią, pominięto resztę" if okl_tlo.siec.wylaczone else "")})
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pula:
-            obrazy = list(pula.map(_obraz, utwory))
-            z_sieci = 0
-            braki = [i for i, r in enumerate(obrazy) if not r]
-            if a.get("okladki_siec") and braki:
-                emit({"typ": "etap", "tekst": "Szukam okładek w sieci dla %d utworów..." % len(braki) + _t()})
-                kc = _cache_katalog()
-                siec = okladki.Siec(os.path.join(os.path.dirname(kc), "okladki-siec") if kc else None)
-
-                def _z_sieci(i):
-                    m = utwory[i]["meta"]
-                    ob = siec.szukaj(m["artysta"], m["tytul"], m["album"], os.path.basename(utwory[i]["src"]))
-                    return i, ob
-
-                with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pula_s:
-                    for i, ob in pula_s.map(_z_sieci, braki):
-                        if ob:
-                            obrazy[i] = (okladki.skrot(ob), ob)
-                            z_sieci += 1
-                emit({"typ": "log", "tekst": "Okładki z sieci (Deezer, iTunes): znaleziono %d z %d%s." % (
-                    z_sieci, len(braki), "; brak połączenia z siecią, pominięto resztę" if siec.wylaczone else "")})
             unikalne = {}
             for r in obrazy:
                 if r:
@@ -1538,8 +1778,12 @@ def _przetworz(a, emit):
     if a.get("zastap_pioneer", False) and os.path.isdir(pioneer):
         if na_dysku:
             emit({"typ": "etap", "tekst": "Robię kopię zapasową dotychczasowego folderu PIONEER..."})
-            cel = kopia_zapasowa(pioneer, root)
+            pominiete = []
+            cel = kopia_zapasowa(pioneer, root, pominiete)
             emit({"typ": "kopia", "sciezka": cel})
+            if pominiete:
+                emit({"typ": "log", "tekst": "Kopia zapasowa: pominięto %d nieczytelnych plików (zostaną zapisane od "
+                      "nowa), np. %s" % (len(pominiete), "; ".join("%s (%s)" % p for p in pominiete[:3]))})
             pliki_moda = {}
             for nm in PLIKI_MODA:
                 try:
@@ -1658,4 +1902,6 @@ def _przetworz(a, emit):
              if os.path.exists(os.path.join(pioneer, "rekordbox", n))]
     
     emit({"typ": "etap", "tekst": "Koniec zapisu" + _t()})
-    emit({"typ": "koniec", "ok": True, "liczba": len(utwory), "pendrive": root, "stare_pliki": stare})
+    podsum.update(utwory=len(utwory), czas_s=round(time.time() - _T0))
+    emit({"typ": "koniec", "ok": True, "liczba": len(utwory), "pendrive": root, "stare_pliki": stare,
+          "podsumowanie": podsum})
