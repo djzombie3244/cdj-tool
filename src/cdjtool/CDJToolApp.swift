@@ -2,9 +2,44 @@ import AppKit
 import Foundation
 import WebKit
 
+/// WKWebView, ktory przyjmuje foldery przeciagniete z Findera (strona nie zna ich pelnych sciezek).
+final class DropWebView: WKWebView {
+    var onFolders: (([URL]) -> Void)?
+
+    private func folders(_ sender: NSDraggingInfo) -> [URL] {
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        guard let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: options) as? [URL] else {
+            return []
+        }
+        return urls.filter { url in
+            var isDirectory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
+        }
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        return folders(sender).isEmpty ? super.draggingEntered(sender) : .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        return folders(sender).isEmpty ? super.draggingUpdated(sender) : .copy
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        return folders(sender).isEmpty ? super.prepareForDragOperation(sender) : true
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let dropped = folders(sender)
+        if dropped.isEmpty { return super.performDragOperation(sender) }
+        onFolders?(dropped)
+        return true
+    }
+}
+
 final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate, NSWindowDelegate {
     private var window: NSWindow!
-    private var webView: WKWebView!
+    private var webView: DropWebView!
     private var backend: Process?
     private var outputPipe: Pipe?
     private var outputBuffer = ""
@@ -20,8 +55,9 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
         controller.add(self, name: "cdjChoose")
         let configuration = WKWebViewConfiguration()
         configuration.userContentController = controller
-        webView = WKWebView(frame: .zero, configuration: configuration)
+        webView = DropWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = self
+        webView.onFolders = { [weak self] urls in self?.foldersDropped(urls) }
 
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1120, height: 860),
@@ -192,6 +228,24 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
                   let args = String(data: json, encoding: .utf8) else { return }
             self.webView.evaluateJavaScript("window.cdjFoldersSelected(\(args)[0], \(args)[1])")
         }
+    }
+
+    /// Upuszczone foldery: katalog glowny dysku w /Volumes to pendrive, pozostale to foldery z muzyka.
+    private func foldersDropped(_ urls: [URL]) {
+        var music: [String] = []
+        var stick: String? = nil
+        for url in urls {
+            let parts = url.standardizedFileURL.path.split(separator: "/")
+            if parts.count == 2 && parts[0] == "Volumes" && stick == nil {
+                stick = url.standardizedFileURL.path
+            } else {
+                music.append(url.path)
+            }
+        }
+        let payload: [Any] = [music, stick ?? NSNull()]
+        guard let json = try? JSONSerialization.data(withJSONObject: payload),
+              let args = String(data: json, encoding: .utf8) else { return }
+        webView.evaluateJavaScript("window.cdjUpuszczono && window.cdjUpuszczono(\(args)[0], \(args)[1])")
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {

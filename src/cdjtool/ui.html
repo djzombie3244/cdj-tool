@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CDJ Tool</title>
 <style>
+#formatBox.zablokowany { opacity: .5; pointer-events: none; }
 :root {
   --bg: #f4f5f7; --card: #ffffff; --txt: #1c1f24; --muted: #6b7280; --line: #e3e6ea;
   --acc: #2a7de1; --acc-txt: #ffffff; --ok: #1f9d55; --warn: #b7791f; --err: #c53030; --wave: #2a7de1; --low: #ff9f1c;
@@ -66,6 +67,22 @@ canvas.ov { height: 14px; margin-top: 3px; }
 .pasekStart { position: sticky; bottom: 0; z-index: 5; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
   background: var(--bg); padding: 12px 0; margin: 0 0 14px; border-top: 1px solid var(--line); }
 #narzedzia h2 { color: var(--muted); }
+#edLista { max-height: 260px; overflow: auto; margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; }
+#edLista div { padding: 6px 10px; border-top: 1px solid var(--line); cursor: pointer; font-size: 13px; }
+#edLista div:first-child { border-top: 0; }
+#edLista div:hover { background: var(--bg); }
+#edLista .m { color: var(--muted); }
+#edFala { height: 150px; cursor: grab; margin-top: 8px; }
+#edPrzeglad { height: 40px; cursor: pointer; }
+.edrow { gap: 6px; margin-top: 8px; }
+.edrow button { padding: 5px 10px; font-size: 13px; }
+.edgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+@media (max-width: 700px) { .edgrid { grid-template-columns: 1fr; } }
+.edbox { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--bg); }
+.edcue { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 13px; }
+.edcue .lit { width: 22px; height: 22px; border-radius: 6px; color: #000; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.edcue button { padding: 3px 8px; font-size: 12px; }
+.edcue .t { min-width: 76px; font-variant-numeric: tabular-nums; cursor: pointer; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; flex-wrap: wrap; }
 .seg button { border: 0; border-radius: 0; border-right: 1px solid var(--line); padding: 8px 14px; }
 .seg button:last-child { border-right: 0; }
@@ -126,6 +143,7 @@ canvas.ov { height: 14px; }
     <h2><span class="num">1</span><span data-i18n="stepMusic"></span></h2>
     <div class="row"><button id="bMp3" data-i18n="addFolder"></button><button id="bMp3Clear" class="hidden" data-i18n="clearFolders"></button></div>
     <div id="infoMp3" class="path" data-i18n="notChosen"></div>
+    <div id="dropInfo" class="legend hidden" data-i18n="dropHint"></div>
     <div id="ostrzFolder" class="warn" style="margin-top:6px;font-size:13px"></div>
     <div id="flacInfo" class="legend"></div>
   </div>
@@ -205,6 +223,54 @@ canvas.ov { height: 14px; }
   <div class="card hidden" id="wyniki"><h2 id="wynikiTytul" data-i18n="results"></h2><div id="lista"></div>
     <div class="legend" data-i18n="resultsLegend"></div></div>
 
+  <div class="card hidden" id="edytor">
+    <h2 data-i18n="edTitle"></h2>
+    <div class="row"><button id="edWczytaj" data-i18n="edLoad"></button>
+      <input type="text" id="edSzukaj" data-i18n-ph="edSearch" style="max-width:300px" class="hidden"></div>
+    <div id="edLista" class="hidden"></div>
+    <div id="edPanel" class="hidden">
+      <div class="row" style="justify-content:space-between;margin-top:10px">
+        <div><b id="edTytul"></b> <span id="edZnaczki"></span></div>
+        <button id="edZamknij" data-i18n="edClose"></button></div>
+      <canvas id="edFala" height="150"></canvas>
+      <canvas id="edPrzeglad" class="ov" height="40"></canvas>
+      <div class="row edrow">
+        <button id="edPlay" title="Spacja">▶</button>
+        <button id="edWstecz" data-i18n="edBack"></button><button id="edNaprzod" data-i18n="edFwd"></button>
+        <span class="legend" id="edCzas"></span>
+        <span style="flex:1"></span>
+        <label class="chk" style="margin:0"><input type="checkbox" id="edMetronom"><span data-i18n="edClick"></span></label>
+        <button id="edZoomM">−</button><button id="edZoomP">+</button>
+      </div>
+      <div class="edgrid">
+        <div class="edbox"><b data-i18n="edGrid"></b>
+          <div class="row edrow"><button data-p="-10">◀◀ 10 ms</button><button data-p="-1">◀ 1 ms</button><button data-p="1">1 ms ▶</button><button data-p="10">10 ms ▶▶</button></div>
+          <div class="row edrow"><button id="edDoKursora" data-i18n="edToCursor"></button><button id="edJeden" data-i18n="edDownbeat"></button></div>
+          <div class="row edrow" id="edBpmRzad"><span>BPM</span><input type="text" id="edBpm" style="max-width:90px">
+            <button data-b="-0.01">−0.01</button><button data-b="0.01">+0.01</button><button data-b="x2">×2</button><button data-b="d2">÷2</button></div>
+          <div class="legend" id="edDynInfo"></div>
+          <label class="chk"><input type="checkbox" id="edCueZSiatka" checked><span data-i18n="edMoveCues"></span></label>
+        </div>
+        <div class="edbox"><b data-i18n="edHot"></b>
+          <div id="edHotLista"></div>
+          <b style="display:block;margin-top:8px" data-i18n="edMem"></b>
+          <div id="edPamLista"></div>
+          <div class="row edrow"><button id="edPamDodaj" data-i18n="edMemAdd"></button></div>
+          <label class="chk"><input type="checkbox" id="edPrzyciagaj" checked><span data-i18n="edSnap"></span></label>
+        </div>
+      </div>
+      <div class="legend warn" id="edUwaga"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="primary" id="edZapisz" disabled data-i18n="edSave"></button>
+        <button id="edCofnij" disabled data-i18n="edUndoAll"></button>
+        <button id="edZapomnij" class="hidden" data-i18n="edForget"></button>
+        <span class="legend" id="edStatus"></span>
+      </div>
+      <div class="legend" data-i18n="edHelp"></div>
+      <audio id="edAudio" preload="auto"></audio>
+    </div>
+  </div>
+
   <div class="card" id="narzedzia"><h2 data-i18n="toolsTitle"></h2>
     <details id="formatBox">
       <summary data-i18n="fmtSummary"></summary>
@@ -212,12 +278,12 @@ canvas.ov { height: 14px; }
       <div class="row"><button id="bFormatInfo" disabled data-i18n="fmtPrepare"></button></div>
       <div id="formatPanel" class="hidden speed-result">
         <div id="formatOpis" class="speed-detail" style="color:var(--txt)"></div>
-        <label class="chk" style="display:block;margin-top:8px"><span data-i18n="fmtNewName"></span>
+        <div id="formatForm"><label class="chk" style="display:block;margin-top:8px"><span data-i18n="fmtNewName"></span>
           <input type="text" id="formatNazwa" value="CDJ" maxlength="11"></label>
         <label class="chk" style="display:block"><span data-i18n="fmtConfirm"></span> <b id="formatWymagana"></b>
           <input type="text" id="formatPotw" autocomplete="off"></label>
         <div class="row" style="margin-top:10px"><button id="bFormatuj" class="primary" disabled data-i18n="fmtDo"></button>
-          <button id="bFormatAnuluj" data-i18n="cancel"></button></div>
+          <button id="bFormatAnuluj" data-i18n="cancel"></button></div></div>
         <div id="formatWynik" class="legend" style="margin-top:8px"></div>
       </div>
     </details>
@@ -228,7 +294,7 @@ canvas.ov { height: 14px; }
     </details>
   </div>
 
-  <p class="legend" style="text-align:center">CDJ Tool · © 2026 Wiktor Bakowicz</p>
+  <p class="legend" style="text-align:center">CDJ Tool <span id="wersja">__WERSJA__</span> · © 2026 Wiktor Bakowicz</p>
   <p style="text-align:center"><button id="bZakoncz" data-i18n="quit"></button></p>
 </main>
 
@@ -246,6 +312,13 @@ canvas.ov { height: 14px; }
 <script>
 const TOKEN = "__TOKEN__";
 const NATIVE = __NATIVE__;
+// ustawienia okna: w pliku na komputerze (aplikacja startuje za kazdym razem na innym porcie, a localStorage
+// jest przypisany do portu), z localStorage jako zapasem, np. w przegladarce
+const USTAWIENIA = (() => { try { return __USTAWIENIA__; } catch (e) { return {}; } })();
+const PAM = {
+  getItem(k) { if (Object.prototype.hasOwnProperty.call(USTAWIENIA, k)) return USTAWIENIA[k]; try { return localStorage.getItem(k); } catch (e) { return null; } },
+  setItem(k, v) { USTAWIENIA[k] = String(v); try { localStorage.setItem(k, String(v)); } catch (e) {} api("/api/ustawienia", { klucz: k, wartosc: String(v) }).catch(() => {}); },
+};
 const $ = id => document.getElementById(id);
 let foldery = [], kolejka = null, kolejkaGen = 0, kolejkaBusy = false;
 let mp3 = null, pend = null, ostatniStan = null, stanWysuwania = null, ostatniKluczPomiaru = "";
@@ -275,7 +348,7 @@ pl: {
  modeCopy:"kopiowanie MP3", modeNoCopy:"bez kopiowania",
  speedDetail:"Limit pamięci RAM dla analizy: ok. {ram} MB z {tot} MB; gdy zabraknie miejsca, aplikacja sama zmniejsza liczbę równoległych utworów. Rzeczywiste tempo zależy też od procesora ({cores} rdzeni): ponad tę liczbę zadań przyspieszenie jest już niewielkie.",
  speedReady:"Gotowe: analiza do {n} utworów naraz", speedReadyDesc:"Limit pamięci RAM: ok. {ram} MB z {tot} MB. Tryb: {mode}.",
- settingsTitle:"Ustawienia (muzyka, pendrive, opcje)", stepMusic:"Muzyka", stepOpt:"Opcje", toolsTitle:"Narzędzia", needMusic:"Dodaj folder z muzyką.", needStick:"Wybierz pendrive.", startSum:"{n} utworów → {stick}", sumCopy:"z kopiowaniem muzyki", sumNoCopy:"bez kopiowania", oCopy:"Kopiuj muzykę na pendrive", oReplace:"Zastąp zawartość pendrive'a", oPlFolders:"Podfoldery jako playlisty", oKey:"Tonacja", oKeyTag:"Tonacja z tagów pliku", oArt:"Okładki", oArtNet:"Brakujące okładki z sieci", oAutoload:"Hot Cue Auto Load", o3band:"Waveform 3-pasmowy", oFlac:"Pliki FLAC (tylko z modem)", oLong:"Długie utwory i sety", oPower:"Pełna moc procesora", oNoSleep:"Nie usypiaj komputera", oCopyBg:"Kopiuj w tle podczas analizy", oDiskTest:"Test dysku przed startem", presetLabel:"Odtwarzacz:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 z modem RaftTone", presetCustom:"Własne", presetStockHint:"Zwykły CDJ-2000: 3 hot cue (A–C), bez dodatków moda i bez FLAC.", presetModHint:"Mod RaftTone v1.1: Hot Cue Auto Load dla banku D–F i waveform 3-pasmowy (tryb 3BAND).", presetCustomHint:"Własny wybór opcji poniżej.", advanced:"Zaawansowane", diskTestOpt:"Krótki test dysku przed startem (zapis, odczyt, format)", speedWhat:"Co to za pomiar?", sumTracks:"zapisanych utworów", sumSkipped:"pominiętych plików", sumArt:"z okładką", sumNet:"{n} z sieci", sumTags:"tagi uzupełnione z nazw", sumCache:"z pamięci podręcznej", sumTime:"łącznie ({s} s na utwór)", sumDisk:"zapis na dysk, format {fs}", sumDiskOnly:"zapis na dysk", step4:"Playlista i opcje", plName:"Nazwa playlisty", start:"Analizuj i zapisz na pendrive", startEtap:"Start…", logTitle:"Dziennik",
+ dropHint:"…albo przeciągnij folder z muzyką na okno (pendrive też można przeciągnąć).", edTitle:"Edytor siatki i cue", edLoad:"Wczytaj utwory z pendrive'a", edSearch:"Szukaj utworu…", edNone:"Brak utworów.", edClose:"Zamknij", edBack:"◀ 4 beaty", edFwd:"4 beaty ▶", edClick:"Metronom", edGrid:"Siatka", edToCursor:"Najbliższy beat do kursora", edDownbeat:"Tu jest „1” taktu", edMoveCues:"Przesuwaj cue razem z siatką", edHot:"Hot cue", edMem:"Memory cue", edMemAdd:"+ Memory cue przy kursorze", edSnap:"Przyciągaj cue do beatów", edSet:"Ustaw", edSave:"Zapisz na pendrive", edUndoAll:"Cofnij wszystkie zmiany", edForget:"Zapomnij moją poprawkę", edSaving:"Zapisuję…", edSaved:"Zapisano na pendrive ({bpm} BPM). Poprawka zostanie też użyta przy kolejnych zapisach tego utworu.", edForgotten:"Przy następnym zapisie pendrive'a ten utwór dostanie znowu automatyczną siatkę i cue.", edDiscard:"Masz niezapisane zmiany. Kliknij jeszcze raz, aby je porzucić.", edDynamic:"siatka dynamiczna", edEdited:"poprawiony w edytorze", edDynInfo:"Siatka dynamiczna (set): możesz ją przesuwać i zmieniać „1” taktu; BPM zmieniasz tylko w zwykłych utworach.", edMissingHot:"Brakuje hot cue {list}. Mod RaftTone zawiesza się przy pustym miejscu w banku D–F: ustaw wszystkie 6.", edHelp:"Przeciągnij waveform, żeby przesunąć kursor (biała linia). Spacja: odtwarzanie, Cmd+Z: cofnij. Czerwone linie to „1” taktu. Poprawka zrobiona na decku (MODGRID) dodaje się do tej siatki.", settingsTitle:"Ustawienia (muzyka, pendrive, opcje)", stepMusic:"Muzyka", stepOpt:"Opcje", toolsTitle:"Narzędzia", needMusic:"Dodaj folder z muzyką.", needStick:"Wybierz pendrive.", startSum:"{n} utworów → {stick}", sumCopy:"z kopiowaniem muzyki", sumNoCopy:"bez kopiowania", oCopy:"Kopiuj muzykę na pendrive", oReplace:"Zastąp zawartość pendrive'a", oPlFolders:"Podfoldery jako playlisty", oKey:"Tonacja", oKeyTag:"Tonacja z tagów pliku", oArt:"Okładki", oArtNet:"Brakujące okładki z sieci", oAutoload:"Hot Cue Auto Load", o3band:"Waveform 3-pasmowy", oFlac:"Pliki FLAC (tylko z modem)", oLong:"Długie utwory i sety", oPower:"Pełna moc procesora", oNoSleep:"Nie usypiaj komputera", oCopyBg:"Kopiuj w tle podczas analizy", oDiskTest:"Test dysku przed startem", presetLabel:"Odtwarzacz:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 z modem RaftTone", presetCustom:"Własne", presetStockHint:"Zwykły CDJ-2000: 3 hot cue (A–C), bez dodatków moda i bez FLAC.", presetModHint:"Mod RaftTone v1.1: Hot Cue Auto Load dla banku D–F i waveform 3-pasmowy (tryb 3BAND).", presetCustomHint:"Własny wybór opcji poniżej.", advanced:"Zaawansowane", diskTestOpt:"Krótki test dysku przed startem (zapis, odczyt, format)", speedWhat:"Co to za pomiar?", sumTracks:"zapisanych utworów", sumFolders:"folderów", fmtChecking:"Sprawdzam dysk (może to potrwać kilka sekund)…", speedCached:"Pliki z tego folderu były niedawno czytane, więc system trzyma je w pamięci i pomiar pokazuje szybkość pamięci, a nie dysku. Pokazuję poprzedni pomiar tego dysku, jeśli był. Dokładny pomiar: wybierz folder, który nie był ostatnio analizowany, albo uruchom komputer ponownie.", sumSkipped:"pominiętych plików", sumArt:"z okładką", sumNet:"{n} z sieci", sumTags:"tagi uzupełnione z nazw", sumCache:"z pamięci podręcznej", sumTime:"łącznie ({s} s na utwór)", sumDisk:"zapis na dysk, format {fs}", sumDiskOnly:"zapis na dysk", step4:"Playlista i opcje", plName:"Nazwa playlisty", start:"Analizuj i zapisz na pendrive", startEtap:"Start…", logTitle:"Dziennik",
  results:"Wyniki analizy", results50:"Wyniki analizy — pierwsze 50 podglądów",
  resultsLegend:"Niebieski: cały dźwięk, pomarańczowy: niskie tony (stopa i bas), białe linie: siatka beatów zapisana na pendrive (pierwsze 6 s utworu). Linie powinny stać na początku uderzeń stopy.",
  quit:"Zakończ program", quitDone:"CDJ Tool zakończony", quitDesc:"Możesz zamknąć tę kartę.",
@@ -315,7 +388,7 @@ en: {
  modeCopy:"copying MP3", modeNoCopy:"no copying",
  speedDetail:"RAM limit for analysis: about {ram} MB of {tot} MB; if memory runs short the app reduces the number of parallel tracks by itself. Real speed also depends on the CPU ({cores} cores): beyond that many tasks the gain is small.",
  speedReady:"Ready: analyzing up to {n} tracks at once", speedReadyDesc:"RAM limit: about {ram} MB of {tot} MB. Mode: {mode}.",
- settingsTitle:"Settings (music, USB stick, options)", stepMusic:"Music", stepOpt:"Options", toolsTitle:"Tools", needMusic:"Add a folder with music.", needStick:"Choose the USB stick.", startSum:"{n} tracks → {stick}", sumCopy:"copying the music", sumNoCopy:"no copying", oCopy:"Copy music to the stick", oReplace:"Replace the stick contents", oPlFolders:"Subfolders as playlists", oKey:"Key", oKeyTag:"Key from file tags", oArt:"Artwork", oArtNet:"Missing artwork from the internet", oAutoload:"Hot Cue Auto Load", o3band:"3-band waveform", oFlac:"FLAC files (mod only)", oLong:"Long tracks and sets", oPower:"Full CPU power", oNoSleep:"Keep the computer awake", oCopyBg:"Copy in the background while analysing", oDiskTest:"Disk test before starting", presetLabel:"Player:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 with RaftTone mod", presetCustom:"Custom", presetStockHint:"Stock CDJ-2000: 3 hot cues (A–C), no mod extras, no FLAC.", presetModHint:"RaftTone mod v1.1: Hot Cue Auto Load for the D–F bank and the 3-band waveform (3BAND mode).", presetCustomHint:"Your own choice of the options below.", advanced:"Advanced", diskTestOpt:"Short disk test before starting (write, read, format)", speedWhat:"What is this measurement?", sumTracks:"tracks written", sumSkipped:"files skipped", sumArt:"with artwork", sumNet:"{n} from the internet", sumTags:"tags filled from names", sumCache:"from the cache", sumTime:"total ({s} s per track)", sumDisk:"disk write speed, format {fs}", sumDiskOnly:"disk write speed", step4:"Playlist and options", plName:"Playlist name", start:"Analyze and write to USB stick", startEtap:"Start…", logTitle:"Log",
+ dropHint:"…or drag a music folder onto the window (you can drag the USB stick too).", edTitle:"Beat grid and cue editor", edLoad:"Load tracks from the stick", edSearch:"Search for a track…", edNone:"No tracks.", edClose:"Close", edBack:"◀ 4 beats", edFwd:"4 beats ▶", edClick:"Metronome", edGrid:"Beat grid", edToCursor:"Nearest beat to the cursor", edDownbeat:"This is the bar's “1”", edMoveCues:"Move cues with the grid", edHot:"Hot cues", edMem:"Memory cues", edMemAdd:"+ Memory cue at the cursor", edSnap:"Snap cues to beats", edSet:"Set", edSave:"Save to the stick", edUndoAll:"Undo all changes", edForget:"Forget my correction", edSaving:"Saving…", edSaved:"Saved to the stick ({bpm} BPM). The correction will also be used whenever this track is written again.", edForgotten:"The next time the stick is written, this track gets the automatic grid and cues again.", edDiscard:"You have unsaved changes. Click again to discard them.", edDynamic:"dynamic grid", edEdited:"edited", edDynInfo:"Dynamic grid (DJ set): you can shift it and change the bar's “1”; BPM can only be changed on normal tracks.", edMissingHot:"Hot cue {list} missing. The RaftTone mod freezes on an empty slot in the D–F bank: set all 6.", edHelp:"Drag the waveform to move the cursor (white line). Space: play, Cmd+Z: undo. Red lines mark the bar's “1”. A correction made on the deck (MODGRID) adds to this grid.", settingsTitle:"Settings (music, USB stick, options)", stepMusic:"Music", stepOpt:"Options", toolsTitle:"Tools", needMusic:"Add a folder with music.", needStick:"Choose the USB stick.", startSum:"{n} tracks → {stick}", sumCopy:"copying the music", sumNoCopy:"no copying", oCopy:"Copy music to the stick", oReplace:"Replace the stick contents", oPlFolders:"Subfolders as playlists", oKey:"Key", oKeyTag:"Key from file tags", oArt:"Artwork", oArtNet:"Missing artwork from the internet", oAutoload:"Hot Cue Auto Load", o3band:"3-band waveform", oFlac:"FLAC files (mod only)", oLong:"Long tracks and sets", oPower:"Full CPU power", oNoSleep:"Keep the computer awake", oCopyBg:"Copy in the background while analysing", oDiskTest:"Disk test before starting", presetLabel:"Player:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 with RaftTone mod", presetCustom:"Custom", presetStockHint:"Stock CDJ-2000: 3 hot cues (A–C), no mod extras, no FLAC.", presetModHint:"RaftTone mod v1.1: Hot Cue Auto Load for the D–F bank and the 3-band waveform (3BAND mode).", presetCustomHint:"Your own choice of the options below.", advanced:"Advanced", diskTestOpt:"Short disk test before starting (write, read, format)", speedWhat:"What is this measurement?", sumTracks:"tracks written", sumFolders:"folders", fmtChecking:"Checking the disk (this can take a few seconds)…", speedCached:"The files in this folder were read recently, so the system keeps them in memory and the test shows memory speed, not disk speed. The previous measurement of this disk is shown if there was one. For an accurate test, choose a folder that was not analysed recently or restart the computer.", sumSkipped:"files skipped", sumArt:"with artwork", sumNet:"{n} from the internet", sumTags:"tags filled from names", sumCache:"from the cache", sumTime:"total ({s} s per track)", sumDisk:"disk write speed, format {fs}", sumDiskOnly:"disk write speed", step4:"Playlist and options", plName:"Playlist name", start:"Analyze and write to USB stick", startEtap:"Start…", logTitle:"Log",
  results:"Analysis results", results50:"Analysis results — first 50 previews",
  resultsLegend:"Blue: full sound, orange: low frequencies (kick and bass), white lines: the beat grid written to the stick (first 6 s of the track). Lines should sit at the start of the kick hits.",
  quit:"Quit", quitDone:"CDJ Tool has quit", quitDesc:"You can close this tab.",
@@ -355,7 +428,7 @@ de: {
  modeCopy:"MP3 kopieren", modeNoCopy:"ohne Kopieren",
  speedDetail:"RAM-Limit für die Analyse: etwa {ram} MB von {tot} MB; wird der Speicher knapp, reduziert die App die Zahl paralleler Titel selbst. Die tatsächliche Geschwindigkeit hängt auch von der CPU ({cores} Kerne) ab: darüber hinaus ist der Gewinn gering.",
  speedReady:"Bereit: Analyse von bis zu {n} Titeln gleichzeitig", speedReadyDesc:"RAM-Limit: etwa {ram} MB von {tot} MB. Modus: {mode}.",
- settingsTitle:"Einstellungen (Musik, USB-Stick, Optionen)", stepMusic:"Musik", stepOpt:"Optionen", toolsTitle:"Werkzeuge", needMusic:"Füge einen Ordner mit Musik hinzu.", needStick:"Wähle den USB-Stick.", startSum:"{n} Titel → {stick}", sumCopy:"mit Kopieren der Musik", sumNoCopy:"ohne Kopieren", oCopy:"Musik auf den Stick kopieren", oReplace:"Inhalt des Sticks ersetzen", oPlFolders:"Unterordner als Playlists", oKey:"Tonart", oKeyTag:"Tonart aus Datei-Tags", oArt:"Cover", oArtNet:"Fehlende Cover aus dem Internet", oAutoload:"Hot Cue Auto Load", o3band:"3-Band-Wellenform", oFlac:"FLAC-Dateien (nur mit Mod)", oLong:"Lange Titel und Sets", oPower:"Volle CPU-Leistung", oNoSleep:"Computer wach halten", oCopyBg:"Während der Analyse im Hintergrund kopieren", oDiskTest:"Laufwerkstest vor dem Start", presetLabel:"Player:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 mit RaftTone-Mod", presetCustom:"Eigene", presetStockHint:"Normaler CDJ-2000: 3 Hot Cues (A–C), ohne Mod-Extras und ohne FLAC.", presetModHint:"RaftTone-Mod v1.1: Hot Cue Auto Load für die Bank D–F und 3-Band-Wellenform (3BAND-Modus).", presetCustomHint:"Eigene Auswahl der Optionen unten.", advanced:"Erweitert", diskTestOpt:"Kurzer Laufwerkstest vor dem Start (Schreiben, Lesen, Format)", speedWhat:"Was wird hier gemessen?", sumTracks:"Titel geschrieben", sumSkipped:"Dateien übersprungen", sumArt:"mit Cover", sumNet:"{n} aus dem Internet", sumTags:"Tags aus Namen ergänzt", sumCache:"aus dem Cache", sumTime:"gesamt ({s} s pro Titel)", sumDisk:"Schreibtempo, Format {fs}", sumDiskOnly:"Schreibtempo", step4:"Playlist und Optionen", plName:"Name der Playlist", start:"Analysieren und auf USB-Stick schreiben", startEtap:"Start…", logTitle:"Protokoll",
+ dropHint:"…oder einen Musikordner ins Fenster ziehen (auch den USB-Stick).", edTitle:"Editor für Beatgrid und Cues", edLoad:"Titel vom Stick laden", edSearch:"Titel suchen…", edNone:"Keine Titel.", edClose:"Schließen", edBack:"◀ 4 Beats", edFwd:"4 Beats ▶", edClick:"Metronom", edGrid:"Beatgrid", edToCursor:"Nächster Beat zum Cursor", edDownbeat:"Hier ist die „1“ des Takts", edMoveCues:"Cues mit dem Grid verschieben", edHot:"Hot Cues", edMem:"Memory Cues", edMemAdd:"+ Memory Cue am Cursor", edSnap:"Cues an Beats ausrichten", edSet:"Setzen", edSave:"Auf den Stick speichern", edUndoAll:"Alle Änderungen verwerfen", edForget:"Meine Korrektur vergessen", edSaving:"Speichere…", edSaved:"Auf dem Stick gespeichert ({bpm} BPM). Die Korrektur wird auch bei jedem weiteren Schreiben dieses Titels verwendet.", edForgotten:"Beim nächsten Schreiben bekommt dieser Titel wieder automatisches Grid und Cues.", edDiscard:"Ungespeicherte Änderungen. Zum Verwerfen erneut klicken.", edDynamic:"dynamisches Grid", edEdited:"bearbeitet", edDynInfo:"Dynamisches Grid (DJ-Set): verschieben und „1“ ändern möglich; BPM nur bei normalen Titeln.", edMissingHot:"Hot Cue {list} fehlt. Der RaftTone-Mod friert bei einem leeren Platz in der Bank D–F ein: alle 6 setzen.", edHelp:"Waveform ziehen, um den Cursor (weiße Linie) zu bewegen. Leertaste: Wiedergabe, Cmd+Z: rückgängig. Rote Linien markieren die „1“. Eine Korrektur am Deck (MODGRID) kommt zu diesem Grid hinzu.", settingsTitle:"Einstellungen (Musik, USB-Stick, Optionen)", stepMusic:"Musik", stepOpt:"Optionen", toolsTitle:"Werkzeuge", needMusic:"Füge einen Ordner mit Musik hinzu.", needStick:"Wähle den USB-Stick.", startSum:"{n} Titel → {stick}", sumCopy:"mit Kopieren der Musik", sumNoCopy:"ohne Kopieren", oCopy:"Musik auf den Stick kopieren", oReplace:"Inhalt des Sticks ersetzen", oPlFolders:"Unterordner als Playlists", oKey:"Tonart", oKeyTag:"Tonart aus Datei-Tags", oArt:"Cover", oArtNet:"Fehlende Cover aus dem Internet", oAutoload:"Hot Cue Auto Load", o3band:"3-Band-Wellenform", oFlac:"FLAC-Dateien (nur mit Mod)", oLong:"Lange Titel und Sets", oPower:"Volle CPU-Leistung", oNoSleep:"Computer wach halten", oCopyBg:"Während der Analyse im Hintergrund kopieren", oDiskTest:"Laufwerkstest vor dem Start", presetLabel:"Player:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 mit RaftTone-Mod", presetCustom:"Eigene", presetStockHint:"Normaler CDJ-2000: 3 Hot Cues (A–C), ohne Mod-Extras und ohne FLAC.", presetModHint:"RaftTone-Mod v1.1: Hot Cue Auto Load für die Bank D–F und 3-Band-Wellenform (3BAND-Modus).", presetCustomHint:"Eigene Auswahl der Optionen unten.", advanced:"Erweitert", diskTestOpt:"Kurzer Laufwerkstest vor dem Start (Schreiben, Lesen, Format)", speedWhat:"Was wird hier gemessen?", sumTracks:"Titel geschrieben", sumFolders:"Ordner", fmtChecking:"Datenträger wird geprüft (das kann einige Sekunden dauern)…", speedCached:"Die Dateien in diesem Ordner wurden vor Kurzem gelesen, daher hält das System sie im Speicher und der Test zeigt die Geschwindigkeit des Speichers, nicht des Datenträgers. Falls vorhanden, wird die vorherige Messung dieses Datenträgers angezeigt. Für eine genaue Messung einen Ordner wählen, der nicht kürzlich analysiert wurde, oder den Computer neu starten.", sumSkipped:"Dateien übersprungen", sumArt:"mit Cover", sumNet:"{n} aus dem Internet", sumTags:"Tags aus Namen ergänzt", sumCache:"aus dem Cache", sumTime:"gesamt ({s} s pro Titel)", sumDisk:"Schreibtempo, Format {fs}", sumDiskOnly:"Schreibtempo", step4:"Playlist und Optionen", plName:"Name der Playlist", start:"Analysieren und auf USB-Stick schreiben", startEtap:"Start…", logTitle:"Protokoll",
  results:"Analyseergebnisse", results50:"Analyseergebnisse — erste 50 Vorschauen",
  resultsLegend:"Blau: gesamter Klang, orange: tiefe Frequenzen (Kick und Bass), weiße Linien: auf den Stick geschriebenes Beatgrid (erste 6 s des Titels). Die Linien sollten am Anfang der Kick-Schläge stehen.",
  quit:"Programm beenden", quitDone:"CDJ Tool wurde beendet", quitDesc:"Sie können diesen Tab schließen.",
@@ -395,7 +468,7 @@ fr: {
  modeCopy:"copie des MP3", modeNoCopy:"sans copie",
  speedDetail:"Limite de RAM pour l'analyse : environ {ram} Mo sur {tot} Mo ; si la mémoire manque, l'application réduit seule le nombre de morceaux en parallèle. La vitesse réelle dépend aussi du processeur ({cores} cœurs) : au-delà, le gain est faible.",
  speedReady:"Prêt : analyse de {n} morceaux maximum en parallèle", speedReadyDesc:"Limite de RAM : environ {ram} Mo sur {tot} Mo. Mode : {mode}.",
- settingsTitle:"Réglages (musique, clé USB, options)", stepMusic:"Musique", stepOpt:"Options", toolsTitle:"Outils", needMusic:"Ajoutez un dossier de musique.", needStick:"Choisissez la clé USB.", startSum:"{n} morceaux → {stick}", sumCopy:"avec copie de la musique", sumNoCopy:"sans copie", oCopy:"Copier la musique sur la clé", oReplace:"Remplacer le contenu de la clé", oPlFolders:"Sous-dossiers en playlists", oKey:"Tonalité", oKeyTag:"Tonalité depuis les tags", oArt:"Pochettes", oArtNet:"Pochettes manquantes depuis Internet", oAutoload:"Hot Cue Auto Load", o3band:"Forme d'onde 3 bandes", oFlac:"Fichiers FLAC (mod uniquement)", oLong:"Morceaux longs et sets", oPower:"Pleine puissance du processeur", oNoSleep:"Empêcher la mise en veille", oCopyBg:"Copier en arrière-plan pendant l'analyse", oDiskTest:"Test du disque avant de commencer", presetLabel:"Lecteur :", presetStock:"CDJ-2000", presetMod:"CDJ-2000 avec mod RaftTone", presetCustom:"Personnalisé", presetStockHint:"CDJ-2000 standard : 3 hot cues (A–C), sans les extras du mod ni FLAC.", presetModHint:"Mod RaftTone v1.1 : Hot Cue Auto Load pour la banque D–F et forme d'onde 3 bandes (mode 3BAND).", presetCustomHint:"Votre propre choix des options ci-dessous.", advanced:"Avancé", diskTestOpt:"Court test du disque avant de commencer (écriture, lecture, format)", speedWhat:"Que mesure-t-on ici ?", sumTracks:"morceaux écrits", sumSkipped:"fichiers ignorés", sumArt:"avec pochette", sumNet:"{n} depuis Internet", sumTags:"tags complétés depuis les noms", sumCache:"depuis le cache", sumTime:"au total ({s} s par morceau)", sumDisk:"vitesse d'écriture, format {fs}", sumDiskOnly:"vitesse d'écriture", step4:"Playlist et options", plName:"Nom de la playlist", start:"Analyser et écrire sur la clé USB", startEtap:"Début…", logTitle:"Journal",
+ dropHint:"…ou faites glisser un dossier de musique sur la fenêtre (la clé USB aussi).", edTitle:"Éditeur de grille et de cues", edLoad:"Charger les morceaux de la clé", edSearch:"Rechercher un morceau…", edNone:"Aucun morceau.", edClose:"Fermer", edBack:"◀ 4 temps", edFwd:"4 temps ▶", edClick:"Métronome", edGrid:"Grille", edToCursor:"Temps le plus proche au curseur", edDownbeat:"Ici le « 1 » de la mesure", edMoveCues:"Déplacer les cues avec la grille", edHot:"Hot cues", edMem:"Memory cues", edMemAdd:"+ Memory cue au curseur", edSnap:"Aligner les cues sur les temps", edSet:"Placer", edSave:"Enregistrer sur la clé", edUndoAll:"Annuler toutes les modifications", edForget:"Oublier ma correction", edSaving:"Enregistrement…", edSaved:"Enregistré sur la clé ({bpm} BPM). La correction sera aussi utilisée à chaque nouvelle écriture de ce morceau.", edForgotten:"À la prochaine écriture, ce morceau retrouvera la grille et les cues automatiques.", edDiscard:"Modifications non enregistrées. Cliquez encore pour les abandonner.", edDynamic:"grille dynamique", edEdited:"modifié", edDynInfo:"Grille dynamique (set DJ) : vous pouvez la décaler et changer le « 1 » ; le BPM se change seulement sur les morceaux normaux.", edMissingHot:"Hot cue {list} manquant. Le mod RaftTone se bloque si un emplacement de la banque D–F est vide : placez les 6.", edHelp:"Faites glisser la forme d'onde pour déplacer le curseur (ligne blanche). Espace : lecture, Cmd+Z : annuler. Les lignes rouges marquent le « 1 ». Une correction faite sur la platine (MODGRID) s'ajoute à cette grille.", settingsTitle:"Réglages (musique, clé USB, options)", stepMusic:"Musique", stepOpt:"Options", toolsTitle:"Outils", needMusic:"Ajoutez un dossier de musique.", needStick:"Choisissez la clé USB.", startSum:"{n} morceaux → {stick}", sumCopy:"avec copie de la musique", sumNoCopy:"sans copie", oCopy:"Copier la musique sur la clé", oReplace:"Remplacer le contenu de la clé", oPlFolders:"Sous-dossiers en playlists", oKey:"Tonalité", oKeyTag:"Tonalité depuis les tags", oArt:"Pochettes", oArtNet:"Pochettes manquantes depuis Internet", oAutoload:"Hot Cue Auto Load", o3band:"Forme d'onde 3 bandes", oFlac:"Fichiers FLAC (mod uniquement)", oLong:"Morceaux longs et sets", oPower:"Pleine puissance du processeur", oNoSleep:"Empêcher la mise en veille", oCopyBg:"Copier en arrière-plan pendant l'analyse", oDiskTest:"Test du disque avant de commencer", presetLabel:"Lecteur :", presetStock:"CDJ-2000", presetMod:"CDJ-2000 avec mod RaftTone", presetCustom:"Personnalisé", presetStockHint:"CDJ-2000 standard : 3 hot cues (A–C), sans les extras du mod ni FLAC.", presetModHint:"Mod RaftTone v1.1 : Hot Cue Auto Load pour la banque D–F et forme d'onde 3 bandes (mode 3BAND).", presetCustomHint:"Votre propre choix des options ci-dessous.", advanced:"Avancé", diskTestOpt:"Court test du disque avant de commencer (écriture, lecture, format)", speedWhat:"Que mesure-t-on ici ?", sumTracks:"morceaux écrits", sumFolders:"dossiers", fmtChecking:"Vérification du disque (cela peut prendre quelques secondes)…", speedCached:"Les fichiers de ce dossier ont été lus récemment : le système les garde en mémoire et le test mesure la mémoire, pas le disque. La mesure précédente de ce disque est affichée s'il y en a une. Pour une mesure exacte, choisissez un dossier qui n'a pas été analysé récemment ou redémarrez l'ordinateur.", sumSkipped:"fichiers ignorés", sumArt:"avec pochette", sumNet:"{n} depuis Internet", sumTags:"tags complétés depuis les noms", sumCache:"depuis le cache", sumTime:"au total ({s} s par morceau)", sumDisk:"vitesse d'écriture, format {fs}", sumDiskOnly:"vitesse d'écriture", step4:"Playlist et options", plName:"Nom de la playlist", start:"Analyser et écrire sur la clé USB", startEtap:"Début…", logTitle:"Journal",
  results:"Résultats de l'analyse", results50:"Résultats de l'analyse — 50 premiers aperçus",
  resultsLegend:"Bleu : tout le son, orange : basses fréquences (grosse caisse et basse), lignes blanches : grille de battements écrite sur la clé (6 premières secondes). Les lignes doivent se trouver au début des coups de grosse caisse.",
  quit:"Quitter", quitDone:"CDJ Tool est fermé", quitDesc:"Vous pouvez fermer cet onglet.",
@@ -435,7 +508,7 @@ es: {
  modeCopy:"copiar MP3", modeNoCopy:"sin copiar",
  speedDetail:"Límite de RAM para el análisis: unos {ram} MB de {tot} MB; si falta memoria, la aplicación reduce sola el número de pistas en paralelo. La velocidad real también depende del procesador ({cores} núcleos): más allá de eso la mejora es pequeña.",
  speedReady:"Listo: análisis de hasta {n} pistas a la vez", speedReadyDesc:"Límite de RAM: unos {ram} MB de {tot} MB. Modo: {mode}.",
- settingsTitle:"Ajustes (música, memoria USB, opciones)", stepMusic:"Música", stepOpt:"Opciones", toolsTitle:"Herramientas", needMusic:"Añade una carpeta con música.", needStick:"Elige la memoria USB.", startSum:"{n} pistas → {stick}", sumCopy:"copiando la música", sumNoCopy:"sin copiar", oCopy:"Copiar la música a la memoria", oReplace:"Reemplazar el contenido de la memoria", oPlFolders:"Subcarpetas como listas", oKey:"Tonalidad", oKeyTag:"Tonalidad de las etiquetas", oArt:"Portadas", oArtNet:"Portadas que faltan desde internet", oAutoload:"Hot Cue Auto Load", o3band:"Forma de onda de 3 bandas", oFlac:"Archivos FLAC (solo con mod)", oLong:"Pistas largas y sets", oPower:"Máxima potencia del procesador", oNoSleep:"Mantener el ordenador activo", oCopyBg:"Copiar en segundo plano durante el análisis", oDiskTest:"Prueba del disco antes de empezar", presetLabel:"Reproductor:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 con mod RaftTone", presetCustom:"Personalizado", presetStockHint:"CDJ-2000 normal: 3 hot cues (A–C), sin extras del mod ni FLAC.", presetModHint:"Mod RaftTone v1.1: Hot Cue Auto Load para el banco D–F y forma de onda de 3 bandas (modo 3BAND).", presetCustomHint:"Tu propia selección de las opciones de abajo.", advanced:"Avanzado", diskTestOpt:"Prueba breve del disco antes de empezar (escritura, lectura, formato)", speedWhat:"¿Qué se mide aquí?", sumTracks:"pistas escritas", sumSkipped:"archivos omitidos", sumArt:"con portada", sumNet:"{n} de internet", sumTags:"etiquetas completadas desde los nombres", sumCache:"desde la caché", sumTime:"en total ({s} s por pista)", sumDisk:"velocidad de escritura, formato {fs}", sumDiskOnly:"velocidad de escritura", step4:"Lista y opciones", plName:"Nombre de la lista", start:"Analizar y escribir en la memoria USB", startEtap:"Inicio…", logTitle:"Registro",
+ dropHint:"…o arrastra una carpeta de música a la ventana (también la memoria USB).", edTitle:"Editor de cuadrícula y cues", edLoad:"Cargar pistas de la memoria", edSearch:"Buscar pista…", edNone:"No hay pistas.", edClose:"Cerrar", edBack:"◀ 4 tiempos", edFwd:"4 tiempos ▶", edClick:"Metrónomo", edGrid:"Cuadrícula", edToCursor:"Tiempo más cercano al cursor", edDownbeat:"Aquí está el «1» del compás", edMoveCues:"Mover los cues con la cuadrícula", edHot:"Hot cues", edMem:"Memory cues", edMemAdd:"+ Memory cue en el cursor", edSnap:"Ajustar cues a los tiempos", edSet:"Poner", edSave:"Guardar en la memoria", edUndoAll:"Deshacer todos los cambios", edForget:"Olvidar mi corrección", edSaving:"Guardando…", edSaved:"Guardado en la memoria ({bpm} BPM). La corrección también se usará cada vez que se vuelva a escribir esta pista.", edForgotten:"La próxima vez que se escriba la memoria, esta pista volverá a tener cuadrícula y cues automáticos.", edDiscard:"Hay cambios sin guardar. Haz clic otra vez para descartarlos.", edDynamic:"cuadrícula dinámica", edEdited:"editada", edDynInfo:"Cuadrícula dinámica (set): puedes desplazarla y cambiar el «1»; el BPM solo se cambia en pistas normales.", edMissingHot:"Falta el hot cue {list}. El mod RaftTone se bloquea con un hueco vacío en el banco D–F: pon los 6.", edHelp:"Arrastra la forma de onda para mover el cursor (línea blanca). Espacio: reproducir, Cmd+Z: deshacer. Las líneas rojas marcan el «1». Una corrección hecha en el reproductor (MODGRID) se suma a esta cuadrícula.", settingsTitle:"Ajustes (música, memoria USB, opciones)", stepMusic:"Música", stepOpt:"Opciones", toolsTitle:"Herramientas", needMusic:"Añade una carpeta con música.", needStick:"Elige la memoria USB.", startSum:"{n} pistas → {stick}", sumCopy:"copiando la música", sumNoCopy:"sin copiar", oCopy:"Copiar la música a la memoria", oReplace:"Reemplazar el contenido de la memoria", oPlFolders:"Subcarpetas como listas", oKey:"Tonalidad", oKeyTag:"Tonalidad de las etiquetas", oArt:"Portadas", oArtNet:"Portadas que faltan desde internet", oAutoload:"Hot Cue Auto Load", o3band:"Forma de onda de 3 bandas", oFlac:"Archivos FLAC (solo con mod)", oLong:"Pistas largas y sets", oPower:"Máxima potencia del procesador", oNoSleep:"Mantener el ordenador activo", oCopyBg:"Copiar en segundo plano durante el análisis", oDiskTest:"Prueba del disco antes de empezar", presetLabel:"Reproductor:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 con mod RaftTone", presetCustom:"Personalizado", presetStockHint:"CDJ-2000 normal: 3 hot cues (A–C), sin extras del mod ni FLAC.", presetModHint:"Mod RaftTone v1.1: Hot Cue Auto Load para el banco D–F y forma de onda de 3 bandas (modo 3BAND).", presetCustomHint:"Tu propia selección de las opciones de abajo.", advanced:"Avanzado", diskTestOpt:"Prueba breve del disco antes de empezar (escritura, lectura, formato)", speedWhat:"¿Qué se mide aquí?", sumTracks:"pistas escritas", sumFolders:"carpetas", fmtChecking:"Comprobando el disco (puede tardar unos segundos)…", speedCached:"Los archivos de esta carpeta se leyeron hace poco, así que el sistema los guarda en memoria y la prueba mide la memoria, no el disco. Se muestra la medición anterior de este disco si la hay. Para una medición exacta, elige una carpeta que no se haya analizado hace poco o reinicia el ordenador.", sumSkipped:"archivos omitidos", sumArt:"con portada", sumNet:"{n} de internet", sumTags:"etiquetas completadas desde los nombres", sumCache:"desde la caché", sumTime:"en total ({s} s por pista)", sumDisk:"velocidad de escritura, formato {fs}", sumDiskOnly:"velocidad de escritura", step4:"Lista y opciones", plName:"Nombre de la lista", start:"Analizar y escribir en la memoria USB", startEtap:"Inicio…", logTitle:"Registro",
  results:"Resultados del análisis", results50:"Resultados del análisis — primeras 50 vistas previas",
  resultsLegend:"Azul: todo el sonido, naranja: frecuencias graves (bombo y bajo), líneas blancas: cuadrícula de tiempos escrita en la memoria (primeros 6 s). Las líneas deben estar al comienzo de los golpes de bombo.",
  quit:"Salir", quitDone:"CDJ Tool se ha cerrado", quitDesc:"Puedes cerrar esta pestaña.",
@@ -475,7 +548,7 @@ it: {
  modeCopy:"copia degli MP3", modeNoCopy:"senza copia",
  speedDetail:"Limite di RAM per l'analisi: circa {ram} MB su {tot} MB; se la memoria scarseggia, l'app riduce da sola il numero di brani in parallelo. La velocità reale dipende anche dal processore ({cores} core): oltre quel numero il vantaggio è minimo.",
  speedReady:"Pronto: analisi di fino a {n} brani alla volta", speedReadyDesc:"Limite di RAM: circa {ram} MB su {tot} MB. Modalità: {mode}.",
- settingsTitle:"Impostazioni (musica, chiavetta USB, opzioni)", stepMusic:"Musica", stepOpt:"Opzioni", toolsTitle:"Strumenti", needMusic:"Aggiungi una cartella di musica.", needStick:"Scegli la chiavetta USB.", startSum:"{n} brani → {stick}", sumCopy:"con copia della musica", sumNoCopy:"senza copia", oCopy:"Copia la musica sulla chiavetta", oReplace:"Sostituisci il contenuto della chiavetta", oPlFolders:"Sottocartelle come playlist", oKey:"Tonalità", oKeyTag:"Tonalità dai tag del file", oArt:"Copertine", oArtNet:"Copertine mancanti da internet", oAutoload:"Hot Cue Auto Load", o3band:"Forma d'onda a 3 bande", oFlac:"File FLAC (solo con mod)", oLong:"Brani lunghi e set", oPower:"Massima potenza del processore", oNoSleep:"Non sospendere il computer", oCopyBg:"Copia in background durante l'analisi", oDiskTest:"Test del disco prima di iniziare", presetLabel:"Lettore:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 con mod RaftTone", presetCustom:"Personalizzato", presetStockHint:"CDJ-2000 normale: 3 hot cue (A–C), senza extra della mod né FLAC.", presetModHint:"Mod RaftTone v1.1: Hot Cue Auto Load per il banco D–F e forma d'onda a 3 bande (modalità 3BAND).", presetCustomHint:"La tua scelta delle opzioni qui sotto.", advanced:"Avanzate", diskTestOpt:"Breve test del disco prima di iniziare (scrittura, lettura, formato)", speedWhat:"Che cosa si misura qui?", sumTracks:"brani scritti", sumSkipped:"file saltati", sumArt:"con copertina", sumNet:"{n} da internet", sumTags:"tag completati dai nomi", sumCache:"dalla cache", sumTime:"in totale ({s} s per brano)", sumDisk:"velocità di scrittura, formato {fs}", sumDiskOnly:"velocità di scrittura", step4:"Playlist e opzioni", plName:"Nome della playlist", start:"Analizza e scrivi sulla chiavetta USB", startEtap:"Avvio…", logTitle:"Registro",
+ dropHint:"…oppure trascina una cartella di musica sulla finestra (anche la chiavetta USB).", edTitle:"Editor di griglia e cue", edLoad:"Carica i brani dalla chiavetta", edSearch:"Cerca un brano…", edNone:"Nessun brano.", edClose:"Chiudi", edBack:"◀ 4 battiti", edFwd:"4 battiti ▶", edClick:"Metronomo", edGrid:"Griglia", edToCursor:"Battito più vicino al cursore", edDownbeat:"Qui c'è l'«1» della battuta", edMoveCues:"Sposta i cue con la griglia", edHot:"Hot cue", edMem:"Memory cue", edMemAdd:"+ Memory cue al cursore", edSnap:"Allinea i cue ai battiti", edSet:"Imposta", edSave:"Salva sulla chiavetta", edUndoAll:"Annulla tutte le modifiche", edForget:"Dimentica la mia correzione", edSaving:"Salvataggio…", edSaved:"Salvato sulla chiavetta ({bpm} BPM). La correzione verrà usata anche a ogni nuova scrittura di questo brano.", edForgotten:"Alla prossima scrittura questo brano riavrà griglia e cue automatici.", edDiscard:"Modifiche non salvate. Clicca di nuovo per scartarle.", edDynamic:"griglia dinamica", edEdited:"modificato", edDynInfo:"Griglia dinamica (set DJ): puoi spostarla e cambiare l'«1»; il BPM si cambia solo nei brani normali.", edMissingHot:"Manca l'hot cue {list}. La mod RaftTone si blocca con un posto vuoto nel banco D–F: imposta tutti e 6.", edHelp:"Trascina la forma d'onda per spostare il cursore (linea bianca). Spazio: riproduci, Cmd+Z: annulla. Le linee rosse segnano l'«1». Una correzione fatta sul lettore (MODGRID) si somma a questa griglia.", settingsTitle:"Impostazioni (musica, chiavetta USB, opzioni)", stepMusic:"Musica", stepOpt:"Opzioni", toolsTitle:"Strumenti", needMusic:"Aggiungi una cartella di musica.", needStick:"Scegli la chiavetta USB.", startSum:"{n} brani → {stick}", sumCopy:"con copia della musica", sumNoCopy:"senza copia", oCopy:"Copia la musica sulla chiavetta", oReplace:"Sostituisci il contenuto della chiavetta", oPlFolders:"Sottocartelle come playlist", oKey:"Tonalità", oKeyTag:"Tonalità dai tag del file", oArt:"Copertine", oArtNet:"Copertine mancanti da internet", oAutoload:"Hot Cue Auto Load", o3band:"Forma d'onda a 3 bande", oFlac:"File FLAC (solo con mod)", oLong:"Brani lunghi e set", oPower:"Massima potenza del processore", oNoSleep:"Non sospendere il computer", oCopyBg:"Copia in background durante l'analisi", oDiskTest:"Test del disco prima di iniziare", presetLabel:"Lettore:", presetStock:"CDJ-2000", presetMod:"CDJ-2000 con mod RaftTone", presetCustom:"Personalizzato", presetStockHint:"CDJ-2000 normale: 3 hot cue (A–C), senza extra della mod né FLAC.", presetModHint:"Mod RaftTone v1.1: Hot Cue Auto Load per il banco D–F e forma d'onda a 3 bande (modalità 3BAND).", presetCustomHint:"La tua scelta delle opzioni qui sotto.", advanced:"Avanzate", diskTestOpt:"Breve test del disco prima di iniziare (scrittura, lettura, formato)", speedWhat:"Che cosa si misura qui?", sumTracks:"brani scritti", sumFolders:"cartelle", fmtChecking:"Controllo del disco (può richiedere qualche secondo)…", speedCached:"I file di questa cartella sono stati letti di recente, quindi il sistema li tiene in memoria e il test misura la memoria, non il disco. Se c'è, viene mostrata la misura precedente di questo disco. Per una misura esatta scegli una cartella non analizzata di recente o riavvia il computer.", sumSkipped:"file saltati", sumArt:"con copertina", sumNet:"{n} da internet", sumTags:"tag completati dai nomi", sumCache:"dalla cache", sumTime:"in totale ({s} s per brano)", sumDisk:"velocità di scrittura, formato {fs}", sumDiskOnly:"velocità di scrittura", step4:"Playlist e opzioni", plName:"Nome della playlist", start:"Analizza e scrivi sulla chiavetta USB", startEtap:"Avvio…", logTitle:"Registro",
  results:"Risultati dell'analisi", results50:"Risultati dell'analisi — prime 50 anteprime",
  resultsLegend:"Blu: tutto il suono, arancione: frequenze basse (cassa e basso), linee bianche: griglia dei battiti scritta sulla chiavetta (primi 6 s del brano). Le linee devono trovarsi all'inizio dei colpi di cassa.",
  quit:"Esci", quitDone:"CDJ Tool è stato chiuso", quitDesc:"Puoi chiudere questa scheda.",
@@ -494,7 +567,7 @@ it: {
 };
 
 let LANG = "pl";
-try { const s = localStorage.getItem("cdj_lang"); if (s && I18N[s]) LANG = s; else { const n = (navigator.language || "pl").slice(0, 2).toLowerCase(); if (I18N[n]) LANG = n; } } catch (e) {}
+try { const s = PAM.getItem("cdj_lang"); if (s && I18N[s]) LANG = s; else { const n = (navigator.language || "pl").slice(0, 2).toLowerCase(); if (I18N[n]) LANG = n; } } catch (e) {}
 function t(key, v) {
   let s = (I18N[LANG] && I18N[LANG][key]) || I18N.pl[key] || key;
   if (v) s = s.replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : m));
@@ -520,12 +593,152 @@ function trEtap(x) {
   if (x.startsWith("Robię kopię zapasową")) return t("e_backup");
   if (x.startsWith("Zapisuję pliki na pendrive")) return t("e_write");
   if (x.startsWith("Kończę zapis")) return t("e_flush");
-  return x;
+  return trM(x);
 }
+// Komunikaty silnika (dziennik, etapy, bledy) przychodza po polsku: tlumaczenie po stronie okna, wiec zmiana jezyka
+// dziala tez dla linii, ktore juz sa w dzienniku. Wzorzec po polsku -> szablon w innym jezyku ({1}, {2}: grupy z wzorca,
+// same tez tlumaczone, np. powod pominiecia pliku).
+const KOM = [
+ // ---- etapy
+ [/^Sprawdzam dysk\.\.\.$/, {en:"Checking the disk...", de:"Datenträger wird geprüft...", fr:"Vérification du disque...", es:"Comprobando el disco...", it:"Controllo del disco..."}],
+ [/^Analiza w (\d+) procesach \(szybsza dla dużych bibliotek\)$/, {en:"Analysis in {1} processes (faster for large libraries)", de:"Analyse in {1} Prozessen (schneller bei großen Bibliotheken)", fr:"Analyse dans {1} processus (plus rapide pour les grandes bibliothèques)", es:"Análisis en {1} procesos (más rápido en bibliotecas grandes)", it:"Analisi in {1} processi (più veloce per librerie grandi)"}],
+ [/^Okładki albumów\.\.\.$/, {en:"Album artwork...", de:"Albumcover...", fr:"Pochettes d'album...", es:"Carátulas de álbum...", it:"Copertine degli album..."}],
+ [/^Waveformy i baza CDJ: ([\d.]+) MB; MP3 do skopiowania: ([\d.]+) MB\. Zapisuję pliki\.\.\.$/, {en:"Waveforms and CDJ database: {1} MB; music to copy: {2} MB. Writing files...", de:"Waveforms und CDJ-Datenbank: {1} MB; zu kopierende Musik: {2} MB. Dateien werden geschrieben...", fr:"Formes d'onde et base CDJ : {1} Mo ; musique à copier : {2} Mo. Écriture des fichiers...", es:"Formas de onda y base de datos CDJ: {1} MB; música por copiar: {2} MB. Escribiendo archivos...", it:"Forme d'onda e database CDJ: {1} MB; musica da copiare: {2} MB. Scrittura dei file..."}],
+ [/^Waveformy i baza CDJ: ([\d.]+) MB\. Zapisuję pliki\.\.\.$/, {en:"Waveforms and CDJ database: {1} MB. Writing files...", de:"Waveforms und CDJ-Datenbank: {1} MB. Dateien werden geschrieben...", fr:"Formes d'onde et base CDJ : {1} Mo. Écriture des fichiers...", es:"Formas de onda y base de datos CDJ: {1} MB. Escribiendo archivos...", it:"Forme d'onda e database CDJ: {1} MB. Scrittura dei file..."}],
+ [/^Wybrany katalog nie jest pendrive'em, nie usuwam starego folderu PIONEER\.$/, {en:"The selected folder is not a USB stick, so the old PIONEER folder is not deleted.", de:"Der gewählte Ordner ist kein USB-Stick, der alte PIONEER-Ordner wird nicht gelöscht.", fr:"Le dossier choisi n'est pas une clé USB : l'ancien dossier PIONEER n'est pas supprimé.", es:"La carpeta elegida no es un pendrive: la carpeta PIONEER antigua no se borra.", it:"La cartella scelta non è una chiavetta USB: la vecchia cartella PIONEER non viene eliminata."}],
+ [/^Koniec zapisu$/, {en:"Writing finished", de:"Schreiben abgeschlossen", fr:"Écriture terminée", es:"Escritura terminada", it:"Scrittura completata"}],
+ // ---- dziennik
+ [/^Test dysku: zapis (\S+) MB\/s, odczyt i weryfikacja OK, format (.+)\.$/, {en:"Disk test: write {1} MB/s, read and verify OK, format {2}.", de:"Datenträgertest: Schreiben {1} MB/s, Lesen und Prüfung OK, Format {2}.", fr:"Test du disque : écriture {1} Mo/s, lecture et vérification OK, format {2}.", es:"Prueba del disco: escritura {1} MB/s, lectura y verificación OK, formato {2}.", it:"Test del disco: scrittura {1} MB/s, lettura e verifica OK, formato {2}."}],
+ [/^NIEZNANY$/, {en:"UNKNOWN", de:"UNBEKANNT", fr:"INCONNU", es:"DESCONOCIDO", it:"SCONOSCIUTO"}],
+ [/^Dysk ma format (.+)\. CDJ-2000 czyta tylko FAT32 \(i HFS\+\): odtwarzacz może nie zobaczyć tego nośnika\. Sformatuj go w kroku 2 \(to usuwa wszystkie pliki z dysku\)\.$/, {en:"The disk is formatted as {1}. The CDJ-2000 reads only FAT32 (and HFS+), so the player may not see it. Format it in step 2 (this deletes all files on the disk).", de:"Der Datenträger hat das Format {1}. Der CDJ-2000 liest nur FAT32 (und HFS+), der Player erkennt ihn eventuell nicht. Formatiere ihn in Schritt 2 (dabei werden alle Dateien gelöscht).", fr:"Le disque est au format {1}. Le CDJ-2000 ne lit que FAT32 (et HFS+) : le lecteur risque de ne pas le voir. Formatez-le à l'étape 2 (cela efface tous les fichiers du disque).", es:"El disco tiene formato {1}. El CDJ-2000 solo lee FAT32 (y HFS+): puede que el reproductor no lo vea. Formatéalo en el paso 2 (borra todos los archivos del disco).", it:"Il disco è formattato {1}. Il CDJ-2000 legge solo FAT32 (e HFS+): il lettore potrebbe non vederlo. Formattalo al passo 2 (cancella tutti i file del disco)."}],
+ [/^Bardzo wolny zapis na pendrive \(([\d.]+) MB\/s\): kopiowanie muzyki potrwa długo\.$/, {en:"Very slow writing to the USB stick ({1} MB/s): copying the music will take a long time.", de:"Sehr langsames Schreiben auf den USB-Stick ({1} MB/s): Das Kopieren der Musik dauert lange.", fr:"Écriture très lente sur la clé USB ({1} Mo/s) : la copie de la musique sera longue.", es:"Escritura muy lenta en el pendrive ({1} MB/s): copiar la música tardará mucho.", it:"Scrittura molto lenta sulla chiavetta ({1} MB/s): la copia della musica richiederà molto tempo."}],
+ [/^⚠ (.+): nie udało się zastosować poprawki z edytora \((.*)\)\.$/, {en:"⚠ {1}: could not apply the correction from the editor ({2}).", de:"⚠ {1}: Korrektur aus dem Editor konnte nicht angewendet werden ({2}).", fr:"⚠ {1} : impossible d'appliquer la correction de l'éditeur ({2}).", es:"⚠ {1}: no se pudo aplicar la corrección del editor ({2}).", it:"⚠ {1}: impossibile applicare la correzione dell'editor ({2})."}],
+ [/^⚠ (.+)$/, {en:"⚠ {1}", de:"⚠ {1}", fr:"⚠ {1}", es:"⚠ {1}", it:"⚠ {1}"}],
+ [/^✎ (.+): Twoja poprawka siatki i cue z edytora\.$/, {en:"✎ {1}: your grid and cue correction from the editor.", de:"✎ {1}: deine Raster- und Cue-Korrektur aus dem Editor.", fr:"✎ {1} : votre correction de grille et de cues depuis l'éditeur.", es:"✎ {1}: tu corrección de rejilla y cues del editor.", it:"✎ {1}: la tua correzione di griglia e cue dall'editor."}],
+ [/^✓ (.*): (\d+\.\d\d BPM.*)$/, {en:"✓ {1}: {2}", de:"✓ {1}: {2}", fr:"✓ {1} : {2}", es:"✓ {1}: {2}", it:"✓ {1}: {2}"}, "utwor"],
+ [/^Długi utwór (.+): (\d+) min, analiza w (\d+) odcinkach, (.+)\.$/, {en:"Long track {1}: {2} min, analysed in {3} sections, {4}.", de:"Langer Titel {1}: {2} min, Analyse in {3} Abschnitten, {4}.", fr:"Morceau long {1} : {2} min, analysé en {3} sections, {4}.", es:"Pista larga {1}: {2} min, análisis en {3} secciones, {4}.", it:"Brano lungo {1}: {2} min, analisi in {3} sezioni, {4}."}],
+ [/^stałe tempo ([\d.]+) BPM$/, {en:"constant tempo {1} BPM", de:"konstantes Tempo {1} BPM", fr:"tempo constant {1} BPM", es:"tempo constante {1} BPM", it:"tempo costante {1} BPM"}],
+ [/^siatka dynamiczna, tempa: (.+)$/, {en:"dynamic grid, tempos: {1}", de:"dynamisches Raster, Tempi: {1}", fr:"grille dynamique, tempos : {1}", es:"rejilla dinámica, tempos: {1}", it:"griglia dinamica, tempi: {1}"}],
+ [/^Analiza: (\d+) utworów w ([\d.]+) min \(([\d.]+) s na utwór\)\.$/, {en:"Analysis: {1} tracks in {2} min ({3} s per track).", de:"Analyse: {1} Titel in {2} min ({3} s pro Titel).", fr:"Analyse : {1} morceaux en {2} min ({3} s par morceau).", es:"Análisis: {1} pistas en {2} min ({3} s por pista).", it:"Analisi: {1} brani in {2} min ({3} s per brano)."}],
+ [/^Po analizie czekanie na kopiowanie: ([\d.]+) min\.$/, {en:"Waiting for copying after the analysis: {1} min.", de:"Warten auf das Kopieren nach der Analyse: {1} min.", fr:"Attente de la copie après l'analyse : {1} min.", es:"Espera de la copia tras el análisis: {1} min.", it:"Attesa della copia dopo l'analisi: {1} min."}],
+ [/^W tle skopiowano (\d+) plików \((\d+) MB\); reszta zostanie skopiowana teraz \((.*)\)\.$/, {en:"Copied in the background: {1} files ({2} MB); the rest will be copied now ({3}).", de:"Im Hintergrund kopiert: {1} Dateien ({2} MB); der Rest wird jetzt kopiert ({3}).", fr:"Copiés en arrière-plan : {1} fichiers ({2} Mo) ; le reste sera copié maintenant ({3}).", es:"Copiados en segundo plano: {1} archivos ({2} MB); el resto se copia ahora ({3}).", it:"Copiati in background: {1} file ({2} MB); il resto viene copiato ora ({3})."}],
+ [/^W tle skopiowano (\d+) plików \((\d+) MB\)\.$/, {en:"Copied in the background: {1} files ({2} MB).", de:"Im Hintergrund kopiert: {1} Dateien ({2} MB).", fr:"Copiés en arrière-plan : {1} fichiers ({2} Mo).", es:"Copiados en segundo plano: {1} archivos ({2} MB).", it:"Copiati in background: {1} file ({2} MB)."}],
+ [/^Okładki z sieci \(Deezer, iTunes\): znaleziono (\d+) z (\d+); brak połączenia z siecią, pominięto resztę\.$/, {en:"Online artwork (Deezer, iTunes): found {1} of {2}; no network connection, the rest was skipped.", de:"Cover aus dem Netz (Deezer, iTunes): {1} von {2} gefunden; keine Netzverbindung, der Rest wurde übersprungen.", fr:"Pochettes en ligne (Deezer, iTunes) : {1} trouvées sur {2} ; pas de connexion, le reste a été ignoré.", es:"Carátulas de internet (Deezer, iTunes): encontradas {1} de {2}; sin conexión, se omitió el resto.", it:"Copertine dalla rete (Deezer, iTunes): trovate {1} su {2}; nessuna connessione, il resto è stato saltato."}],
+ [/^Okładki z sieci \(Deezer, iTunes\): znaleziono (\d+) z (\d+)\.$/, {en:"Online artwork (Deezer, iTunes): found {1} of {2}.", de:"Cover aus dem Netz (Deezer, iTunes): {1} von {2} gefunden.", fr:"Pochettes en ligne (Deezer, iTunes) : {1} trouvées sur {2}.", es:"Carátulas de internet (Deezer, iTunes): encontradas {1} de {2}.", it:"Copertine dalla rete (Deezer, iTunes): trovate {1} su {2}."}],
+ [/^Okładki: (\d+) utworów z okładką \((\d+) różnych obrazów\), (\d+) bez okładki\.$/, {en:"Artwork: {1} tracks with artwork ({2} different images), {3} without.", de:"Cover: {1} Titel mit Cover ({2} verschiedene Bilder), {3} ohne.", fr:"Pochettes : {1} morceaux avec pochette ({2} images différentes), {3} sans.", es:"Carátulas: {1} pistas con carátula ({2} imágenes distintas), {3} sin carátula.", it:"Copertine: {1} brani con copertina ({2} immagini diverse), {3} senza."}],
+ [/^✓ okładka z sieci: (.+)$/, {en:"✓ artwork from the web: {1}", de:"✓ Cover aus dem Netz: {1}", fr:"✓ pochette trouvée en ligne : {1}", es:"✓ carátula de internet: {1}", it:"✓ copertina dalla rete: {1}"}],
+ [/^· okładka nie znaleziona w sieci: (.+)$/, {en:"· artwork not found online: {1}", de:"· kein Cover im Netz gefunden: {1}", fr:"· pochette introuvable en ligne : {1}", es:"· carátula no encontrada en internet: {1}", it:"· copertina non trovata in rete: {1}"}],
+ [/^· brak okładki w pliku: (.+)$/, {en:"· no artwork in the file: {1}", de:"· kein Cover in der Datei: {1}", fr:"· pas de pochette dans le fichier : {1}", es:"· sin carátula en el archivo: {1}", it:"· nessuna copertina nel file: {1}"}],
+ [/^Kopia zapasowa: pominięto (\d+) nieczytelnych plików \(zostaną zapisane od nowa\), np\. (.+)$/, {en:"Backup: skipped {1} unreadable files (they will be written again), e.g. {2}", de:"Sicherung: {1} unlesbare Dateien übersprungen (werden neu geschrieben), z. B. {2}", fr:"Sauvegarde : {1} fichiers illisibles ignorés (ils seront réécrits), p. ex. {2}", es:"Copia de seguridad: se omitieron {1} archivos ilegibles (se escribirán de nuevo), p. ej. {2}", it:"Backup: saltati {1} file illeggibili (verranno riscritti), ad es. {2}"}],
+ [/^Zachowano pliki moda RaftTone \((.+)\): siatka i hot cue poprawione na decku\.$/, {en:"Kept the RaftTone mod files ({1}): grid and hot cues corrected on the deck.", de:"RaftTone-Mod-Dateien behalten ({1}): am Deck korrigiertes Raster und Hot Cues.", fr:"Fichiers du mod RaftTone conservés ({1}) : grille et hot cues corrigés sur la platine.", es:"Se conservaron los archivos del mod RaftTone ({1}): rejilla y hot cues corregidos en el reproductor.", it:"File della mod RaftTone mantenuti ({1}): griglia e hot cue corretti sul lettore."}],
+ // ---- pominiete pliki i powody
+ [/^Plik '(.+)' nie jest ważnym MP3\. ?(.*)$/, {en:"File '{1}' cannot be used. {2}", de:"Datei '{1}' kann nicht verwendet werden. {2}", fr:"Le fichier « {1} » ne peut pas être utilisé. {2}", es:"El archivo '{1}' no se puede usar. {2}", it:"Il file '{1}' non può essere usato. {2}"}],
+ [/^utwór dłuższy niż (\d+) min jest pomijany \(włącz opcję długich utworów, by analizować sety do (\d+) min\)$/, {en:"tracks longer than {1} min are skipped (turn on the long tracks option to analyse sets up to {2} min)", de:"Titel länger als {1} min werden übersprungen (Option für lange Titel einschalten, um Sets bis {2} min zu analysieren)", fr:"les morceaux de plus de {1} min sont ignorés (activez l'option morceaux longs pour analyser des sets jusqu'à {2} min)", es:"las pistas de más de {1} min se omiten (activa la opción de pistas largas para analizar sets de hasta {2} min)", it:"i brani più lunghi di {1} min vengono saltati (attiva l'opzione brani lunghi per analizzare set fino a {2} min)"}],
+ [/^utwór dłuższy niż (\d+) min jest pomijany$/, {en:"tracks longer than {1} min are skipped", de:"Titel länger als {1} min werden übersprungen", fr:"les morceaux de plus de {1} min sont ignorés", es:"las pistas de más de {1} min se omiten", it:"i brani più lunghi di {1} min vengono saltati"}],
+ [/^Nie można odczytać czasu trwania$/, {en:"Cannot read the duration", de:"Dauer kann nicht gelesen werden", fr:"Impossible de lire la durée", es:"No se puede leer la duración", it:"Impossibile leggere la durata"}],
+ [/^ALAC nie jest obsługiwany przez CDJ-2000 \(użyj MP3, AAC, WAV lub AIFF\)$/, {en:"ALAC is not supported by the CDJ-2000 (use MP3, AAC, WAV or AIFF)", de:"ALAC wird vom CDJ-2000 nicht unterstützt (MP3, AAC, WAV oder AIFF verwenden)", fr:"ALAC n'est pas pris en charge par le CDJ-2000 (utilisez MP3, AAC, WAV ou AIFF)", es:"El CDJ-2000 no admite ALAC (usa MP3, AAC, WAV o AIFF)", it:"ALAC non è supportato dal CDJ-2000 (usa MP3, AAC, WAV o AIFF)"}],
+ [/^FLAC gra tylko CDJ-2000 z modem \(rafttone\.com\/cdj2000\); włącz opcję FLAC albo użyj MP3, AAC, WAV lub AIFF$/, {en:"FLAC plays only on a CDJ-2000 with the mod (rafttone.com/cdj2000); turn on the FLAC option or use MP3, AAC, WAV or AIFF", de:"FLAC spielt nur ein CDJ-2000 mit Mod (rafttone.com/cdj2000); FLAC-Option einschalten oder MP3, AAC, WAV bzw. AIFF verwenden", fr:"Le FLAC n'est lu que par un CDJ-2000 avec le mod (rafttone.com/cdj2000) ; activez l'option FLAC ou utilisez MP3, AAC, WAV ou AIFF", es:"FLAC solo lo reproduce un CDJ-2000 con el mod (rafttone.com/cdj2000); activa la opción FLAC o usa MP3, AAC, WAV o AIFF", it:"Il FLAC è riprodotto solo da un CDJ-2000 con la mod (rafttone.com/cdj2000); attiva l'opzione FLAC o usa MP3, AAC, WAV o AIFF"}],
+ [/^ten ffmpeg nie obsługuje FLAC \(zbuduj go ponownie: tools\/build_ffmpeg\.sh\)$/, {en:"this ffmpeg does not support FLAC (rebuild it: tools/build_ffmpeg.sh)", de:"dieses ffmpeg unterstützt kein FLAC (neu bauen: tools/build_ffmpeg.sh)", fr:"ce ffmpeg ne prend pas en charge le FLAC (recompilez-le : tools/build_ffmpeg.sh)", es:"este ffmpeg no admite FLAC (vuelve a compilarlo: tools/build_ffmpeg.sh)", it:"questo ffmpeg non supporta il FLAC (ricompilalo: tools/build_ffmpeg.sh)"}],
+ [/^FLAC w modzie CDJ-2000: tylko stereo$/, {en:"FLAC on the modded CDJ-2000: stereo only", de:"FLAC auf dem CDJ-2000 mit Mod: nur Stereo", fr:"FLAC sur le CDJ-2000 modifié : stéréo uniquement", es:"FLAC en el CDJ-2000 con mod: solo estéreo", it:"FLAC sul CDJ-2000 con mod: solo stereo"}],
+ [/^FLAC w modzie CDJ-2000: tylko 16 lub 24 bity$/, {en:"FLAC on the modded CDJ-2000: 16 or 24 bit only", de:"FLAC auf dem CDJ-2000 mit Mod: nur 16 oder 24 Bit", fr:"FLAC sur le CDJ-2000 modifié : 16 ou 24 bits uniquement", es:"FLAC en el CDJ-2000 con mod: solo 16 o 24 bits", it:"FLAC sul CDJ-2000 con mod: solo 16 o 24 bit"}],
+ [/^Format (.+) nie jest obsługiwany \(CDJ-2000: WAV\/AIFF 16 lub 24 bity\)$/, {en:"Format {1} is not supported (CDJ-2000: WAV/AIFF 16 or 24 bit)", de:"Format {1} wird nicht unterstützt (CDJ-2000: WAV/AIFF 16 oder 24 Bit)", fr:"Le format {1} n'est pas pris en charge (CDJ-2000 : WAV/AIFF 16 ou 24 bits)", es:"El formato {1} no es compatible (CDJ-2000: WAV/AIFF de 16 o 24 bits)", it:"Il formato {1} non è supportato (CDJ-2000: WAV/AIFF a 16 o 24 bit)"}],
+ [/^Format: (.+) nie jest obsługiwany przez CDJ-2000$/, {en:"Format {1} is not supported by the CDJ-2000", de:"Format {1} wird vom CDJ-2000 nicht unterstützt", fr:"Le format {1} n'est pas pris en charge par le CDJ-2000", es:"El CDJ-2000 no admite el formato {1}", it:"Il formato {1} non è supportato dal CDJ-2000"}],
+ [/^Rozszerzenie (.+) nie pasuje do zawartości \((.+)\)$/, {en:"The extension {1} does not match the content ({2})", de:"Die Endung {1} passt nicht zum Inhalt ({2})", fr:"L'extension {1} ne correspond pas au contenu ({2})", es:"La extensión {1} no coincide con el contenido ({2})", it:"L'estensione {1} non corrisponde al contenuto ({2})"}],
+ [/^Sample rate (\d+) Hz nie obsługiwany$/, {en:"Sample rate {1} Hz is not supported", de:"Abtastrate {1} Hz wird nicht unterstützt", fr:"Fréquence d'échantillonnage {1} Hz non prise en charge", es:"Frecuencia de muestreo de {1} Hz no compatible", it:"Frequenza di campionamento {1} Hz non supportata"}],
+ [/^za długi dla dostępnej pamięci RAM \(zwolnij pamięć lub skróć utwór\)$/, {en:"too long for the available RAM (free some memory or shorten the track)", de:"zu lang für den verfügbaren Arbeitsspeicher (Speicher freigeben oder Titel kürzen)", fr:"trop long pour la mémoire disponible (libérez de la mémoire ou raccourcissez le morceau)", es:"demasiado larga para la RAM disponible (libera memoria o acorta la pista)", it:"troppo lungo per la RAM disponibile (libera memoria o accorcia il brano)"}],
+ // ---- bledy zadania
+ [/^Żaden utwór nie został przeanalizowany\. Błędy: (.*)$/, {en:"No track was analysed. Errors: {1}", de:"Kein Titel wurde analysiert. Fehler: {1}", fr:"Aucun morceau n'a été analysé. Erreurs : {1}", es:"No se analizó ninguna pista. Errores: {1}", it:"Nessun brano è stato analizzato. Errori: {1}"}],
+ [/^Żaden utwór nie został przeanalizowany\.$/, {en:"No track was analysed.", de:"Kein Titel wurde analysiert.", fr:"Aucun morceau n'a été analysé.", es:"No se analizó ninguna pista.", it:"Nessun brano è stato analizzato."}],
+ [/^Dysk (.+) został odłączony w trakcie pracy \(przeanalizowano (\d+) z (\d+) utworów\)\..*$/, {en:"The disk {1} was disconnected during the run ({2} of {3} tracks analysed). Nothing was written to the USB stick. Reconnect it and start writing again: tracks already analysed come from the cache. If the disk disconnects often, check the cable, use a port without a hub (a USB disk may need more power) and turn off disk sleep in System Settings → Battery/Energy.", de:"Der Datenträger {1} wurde während der Arbeit getrennt ({2} von {3} Titeln analysiert). Auf den USB-Stick wurde nichts geschrieben. Schließe ihn wieder an und starte das Schreiben erneut: bereits analysierte Titel kommen aus dem Cache. Trennt er sich oft, prüfe das Kabel, nutze einen Anschluss ohne Hub (USB-Laufwerke brauchen evtl. mehr Strom) und schalte in den Systemeinstellungen → Batterie/Energie den Ruhezustand für Festplatten aus.", fr:"Le disque {1} a été déconnecté pendant le travail ({2} morceaux analysés sur {3}). Rien n'a été écrit sur la clé USB. Reconnectez-le et relancez l'écriture : les morceaux déjà analysés viennent du cache. S'il se déconnecte souvent, vérifiez le câble, utilisez un port sans hub (un disque USB peut demander plus de courant) et désactivez la mise en veille des disques dans Réglages Système → Batterie/Énergie.", es:"El disco {1} se desconectó durante el trabajo ({2} de {3} pistas analizadas). No se escribió nada en el pendrive. Vuelve a conectarlo e inicia la escritura otra vez: las pistas ya analizadas salen de la caché. Si se desconecta a menudo, revisa el cable, usa un puerto sin hub (un disco USB puede necesitar más corriente) y desactiva la suspensión de discos en Ajustes del Sistema → Batería/Energía.", it:"Il disco {1} è stato scollegato durante il lavoro ({2} brani analizzati su {3}). Sulla chiavetta non è stato scritto nulla. Ricollegalo e avvia di nuovo la scrittura: i brani già analizzati arrivano dalla cache. Se si scollega spesso, controlla il cavo, usa una porta senza hub (un disco USB può richiedere più corrente) e disattiva lo stop dei dischi in Impostazioni di Sistema → Batteria/Energia."}],
+ [/^Test zapisu na pendrive nie powiódł się \((.*)\)\..*$/, {en:"The write test on the USB stick failed ({1}). Check that the disk is not write-protected, has free space and is connected properly. Nothing was changed.", de:"Der Schreibtest auf dem USB-Stick ist fehlgeschlagen ({1}). Prüfe, ob der Datenträger schreibgeschützt ist, freien Platz hat und richtig angeschlossen ist. Es wurde nichts geändert.", fr:"Le test d'écriture sur la clé USB a échoué ({1}). Vérifiez que le disque n'est pas protégé en écriture, qu'il a de l'espace libre et qu'il est bien branché. Rien n'a été modifié.", es:"La prueba de escritura en el pendrive falló ({1}). Comprueba que el disco no esté protegido contra escritura, que tenga espacio libre y que esté bien conectado. No se cambió nada.", it:"Il test di scrittura sulla chiavetta non è riuscito ({1}). Controlla che il disco non sia protetto da scrittura, che abbia spazio libero e che sia collegato bene. Non è stato modificato nulla."}],
+ [/^Pendrive zapisuje dane z błędami: .*$/, {en:"The USB stick writes data with errors: the sample read back after writing differs from what was written. Such a stick will lose tracks or the database. Use another USB stick.", de:"Der USB-Stick schreibt fehlerhafte Daten: Die nach dem Schreiben gelesene Probe weicht vom Original ab. Ein solcher Stick verliert Titel oder die Datenbank. Verwende einen anderen USB-Stick.", fr:"La clé USB écrit des données erronées : l'échantillon relu après écriture diffère de l'original. Une telle clé perdra des morceaux ou la base. Utilisez une autre clé USB.", es:"El pendrive escribe datos con errores: la muestra leída tras escribir difiere de la escrita. Un pendrive así perderá pistas o la base de datos. Usa otro pendrive.", it:"La chiavetta scrive dati con errori: il campione riletto dopo la scrittura è diverso da quello scritto. Una chiavetta così perderà brani o il database. Usa un'altra chiavetta."}],
+ [/^Nie mogę odczytać pliku (.+) \((.*)\)\. Sprawdź dysk z muzyką.*$/, {en:"Cannot read the file {1} ({2}). Check the music disk (cable, First Aid in Disk Utility).", de:"Datei {1} kann nicht gelesen werden ({2}). Prüfe den Musik-Datenträger (Kabel, Erste Hilfe im Festplattendienstprogramm).", fr:"Impossible de lire le fichier {1} ({2}). Vérifiez le disque de musique (câble, S.O.S. dans Utilitaire de disque).", es:"No se puede leer el archivo {1} ({2}). Revisa el disco de música (cable, Primera ayuda en Utilidad de Discos).", it:"Impossibile leggere il file {1} ({2}). Controlla il disco della musica (cavo, S.O.S. in Utility Disco)."}],
+ [/^Nie mogę utworzyć kopii zapasowej w folderze Dokumenty \((.*)\)\..*$/, {en:"Cannot create the backup in the Documents folder ({1}). Check the free space on the computer and that the app may access the Documents folder (System Settings → Privacy & Security → Files and Folders). Nothing was changed on the USB stick.", de:"Die Sicherung im Ordner Dokumente kann nicht erstellt werden ({1}). Prüfe den freien Speicher des Computers und ob die App auf den Ordner Dokumente zugreifen darf (Systemeinstellungen → Datenschutz & Sicherheit → Dateien und Ordner). Auf dem USB-Stick wurde nichts geändert.", fr:"Impossible de créer la sauvegarde dans le dossier Documents ({1}). Vérifiez l'espace libre de l'ordinateur et que l'app peut accéder au dossier Documents (Réglages Système → Confidentialité et sécurité → Fichiers et dossiers). Rien n'a été modifié sur la clé USB.", es:"No se puede crear la copia de seguridad en la carpeta Documentos ({1}). Comprueba el espacio libre del ordenador y que la app tenga acceso a Documentos (Ajustes del Sistema → Privacidad y seguridad → Archivos y carpetas). No se cambió nada en el pendrive.", it:"Impossibile creare il backup nella cartella Documenti ({1}). Controlla lo spazio libero del computer e che l'app possa accedere a Documenti (Impostazioni di Sistema → Privacy e sicurezza → File e cartelle). Sulla chiavetta non è stato modificato nulla."}],
+ [/^Nie mogę skopiować bazy \(export\.pdb\) z pendrive'a do kopii zapasowej \((.*)\)\..*$/, {en:"Cannot copy the database (export.pdb) from the USB stick to the backup ({1}). The stick may have a damaged file system, e.g. after being pulled out without ejecting: repair it in Disk Utility (First Aid) and try again. Note: formatting would also delete the music on this disk. Nothing was changed on the USB stick.", de:"Die Datenbank (export.pdb) kann nicht vom USB-Stick in die Sicherung kopiert werden ({1}). Das Dateisystem ist evtl. beschädigt, z. B. nach dem Abziehen ohne Auswerfen: Repariere es im Festplattendienstprogramm (Erste Hilfe) und versuche es erneut. Achtung: Formatieren würde auch die Musik auf diesem Datenträger löschen. Auf dem USB-Stick wurde nichts geändert.", fr:"Impossible de copier la base (export.pdb) de la clé USB vers la sauvegarde ({1}). Le système de fichiers est peut-être endommagé, p. ex. après un retrait sans éjection : réparez-le dans Utilitaire de disque (S.O.S.) et réessayez. Attention : le formatage effacerait aussi la musique de ce disque. Rien n'a été modifié sur la clé USB.", es:"No se puede copiar la base de datos (export.pdb) del pendrive a la copia de seguridad ({1}). Puede que el sistema de archivos esté dañado, p. ej. tras sacarlo sin expulsarlo: repáralo en Utilidad de Discos (Primera ayuda) y vuelve a intentarlo. Ojo: formatear borraría también la música de este disco. No se cambió nada en el pendrive.", it:"Impossibile copiare il database (export.pdb) dalla chiavetta al backup ({1}). Il file system potrebbe essere danneggiato, ad es. dopo averla tolta senza espellerla: riparalo in Utility Disco (S.O.S.) e riprova. Attenzione: la formattazione cancellerebbe anche la musica del disco. Sulla chiavetta non è stato modificato nulla."}],
+ [/^Nie mogę bezpiecznie odczytać biblioteki zapisanej już na pendrive \((.*)\)\..*$/, {en:"Cannot safely read the library already on the USB stick ({1}). Nothing was changed. Choose the option to replace the contents (a backup is made) or use another USB stick.", de:"Die bereits auf dem USB-Stick gespeicherte Bibliothek kann nicht sicher gelesen werden ({1}). Es wurde nichts geändert. Wähle die Option zum Ersetzen des Inhalts (es wird gesichert) oder verwende einen anderen USB-Stick.", fr:"Impossible de lire de façon sûre la bibliothèque déjà présente sur la clé USB ({1}). Rien n'a été modifié. Choisissez l'option de remplacement du contenu (une sauvegarde est faite) ou utilisez une autre clé USB.", es:"No se puede leer con seguridad la biblioteca que ya está en el pendrive ({1}). No se cambió nada. Elige la opción de reemplazar el contenido (se hace copia de seguridad) o usa otro pendrive.", it:"Impossibile leggere in sicurezza la libreria già presente sulla chiavetta ({1}). Non è stato modificato nulla. Scegli l'opzione di sostituzione del contenuto (viene fatto un backup) o usa un'altra chiavetta."}],
+ [/^Tryb bez kopiowania wymaga, aby folder z MP3 znajdował się na wybranym pendrivie\.$|^Bez kopiowania folder MP3 musi znajdować się na wybranym pendrivie\.$/, {en:"Without copying, the music folder must be on the selected USB stick.", de:"Ohne Kopieren muss der Musikordner auf dem gewählten USB-Stick liegen.", fr:"Sans copie, le dossier de musique doit se trouver sur la clé USB choisie.", es:"Sin copiar, la carpeta de música debe estar en el pendrive elegido.", it:"Senza copia, la cartella della musica deve trovarsi sulla chiavetta scelta."}],
+ [/^W trybie bez kopiowania wybierz folder z MP3 poza folderem PIONEER\.$/, {en:"Without copying, choose a music folder outside the PIONEER folder.", de:"Ohne Kopieren einen Musikordner außerhalb des PIONEER-Ordners wählen.", fr:"Sans copie, choisissez un dossier de musique hors du dossier PIONEER.", es:"Sin copiar, elige una carpeta de música fuera de la carpeta PIONEER.", it:"Senza copia, scegli una cartella della musica fuori dalla cartella PIONEER."}],
+ [/^Nie znaleziono wybranego pendrive'a\.$/, {en:"The selected USB stick was not found.", de:"Der gewählte USB-Stick wurde nicht gefunden.", fr:"La clé USB choisie est introuvable.", es:"No se encontró el pendrive elegido.", it:"La chiavetta scelta non è stata trovata."}],
+ [/^Za mało miejsca na dysku komputera na wyniki tymczasowe: potrzeba ok\. (\d+) MB, wolne (\d+) MB\.$/, {en:"Not enough space on the computer's disk for temporary results: about {1} MB needed, {2} MB free.", de:"Zu wenig Platz auf dem Computer für temporäre Ergebnisse: etwa {1} MB nötig, {2} MB frei.", fr:"Pas assez d'espace sur le disque de l'ordinateur pour les résultats temporaires : environ {1} Mo nécessaires, {2} Mo libres.", es:"No hay espacio suficiente en el disco del ordenador para resultados temporales: se necesitan unos {1} MB, libres {2} MB.", it:"Spazio insufficiente sul disco del computer per i risultati temporanei: servono circa {1} MB, liberi {2} MB."}],
+ [/^W folderze „(.+)” nie ma obsługiwanych plików audio \(MP3, AAC, WAV, AIFF\)\. Są w nim pliki FLAC: .*$/, {en:"The folder “{1}” has no supported audio files (MP3, AAC, WAV, AIFF). It has FLAC files: turn on the FLAC option if your CDJ-2000 has the mod.", de:"Im Ordner „{1}“ gibt es keine unterstützten Audiodateien (MP3, AAC, WAV, AIFF). Er enthält FLAC-Dateien: Schalte die FLAC-Option ein, wenn dein CDJ-2000 den Mod hat.", fr:"Le dossier « {1} » ne contient aucun fichier audio pris en charge (MP3, AAC, WAV, AIFF). Il contient des fichiers FLAC : activez l'option FLAC si votre CDJ-2000 a le mod.", es:"La carpeta «{1}» no tiene archivos de audio compatibles (MP3, AAC, WAV, AIFF). Tiene archivos FLAC: activa la opción FLAC si tu CDJ-2000 tiene el mod.", it:"La cartella «{1}» non contiene file audio supportati (MP3, AAC, WAV, AIFF). Contiene file FLAC: attiva l'opzione FLAC se il tuo CDJ-2000 ha la mod."}],
+ [/^W folderze „(.+)” nie ma obsługiwanych plików audio \(MP3, AAC, WAV, AIFF\)\.$/, {en:"The folder “{1}” has no supported audio files (MP3, AAC, WAV, AIFF).", de:"Im Ordner „{1}“ gibt es keine unterstützten Audiodateien (MP3, AAC, WAV, AIFF).", fr:"Le dossier « {1} » ne contient aucun fichier audio pris en charge (MP3, AAC, WAV, AIFF).", es:"La carpeta «{1}» no tiene archivos de audio compatibles (MP3, AAC, WAV, AIFF).", it:"La cartella «{1}» non contiene file audio supportati (MP3, AAC, WAV, AIFF)."}],
+ [/^Program FFmpeg nie znaleziony lub błąd\. Zainstaluj: brew install ffmpeg$/, {en:"FFmpeg not found or failed. Install it: brew install ffmpeg", de:"FFmpeg nicht gefunden oder fehlerhaft. Installieren: brew install ffmpeg", fr:"FFmpeg introuvable ou en erreur. Installez-le : brew install ffmpeg", es:"FFmpeg no encontrado o con error. Instálalo: brew install ffmpeg", it:"FFmpeg non trovato o in errore. Installalo: brew install ffmpeg"}],
+ [/^Za mało miejsca\. Potrzeba ([\d.]+) MB, dostępne ([\d.]+) MB\.$/, {en:"Not enough space. {1} MB needed, {2} MB available.", de:"Zu wenig Platz. {1} MB nötig, {2} MB verfügbar.", fr:"Pas assez d'espace. {1} Mo nécessaires, {2} Mo disponibles.", es:"No hay espacio suficiente. Se necesitan {1} MB, disponibles {2} MB.", it:"Spazio insufficiente. Servono {1} MB, disponibili {2} MB."}],
+ [/^Ścieżka pliku zbyt długa \(> (\d+) znaków\)\. Skróć nazwy artysty\/albumu\.$/, {en:"File path too long (> {1} characters). Shorten the artist/album names.", de:"Dateipfad zu lang (> {1} Zeichen). Künstler-/Albumnamen kürzen.", fr:"Chemin de fichier trop long (> {1} caractères). Raccourcissez les noms d'artiste/d'album.", es:"Ruta de archivo demasiado larga (> {1} caracteres). Acorta los nombres de artista/álbum.", it:"Percorso del file troppo lungo (> {1} caratteri). Accorcia i nomi di artista/album."}],
+ [/^(.+) zajęło zbyt długo \(>(\d+)s\)\. Spróbuj ponownie\.$/, {en:"{1} took too long (>{2} s). Try again.", de:"{1} hat zu lange gedauert (>{2} s). Versuche es erneut.", fr:"{1} a pris trop de temps (>{2} s). Réessayez.", es:"{1} tardó demasiado (>{2} s). Inténtalo de nuevo.", it:"{1} ha impiegato troppo (>{2} s). Riprova."}],
+ [/^Nie mogę wiarygodnie wyznaczyć BPM '(.+)'\. Sprawdź utwór ręcznie\.$/, {en:"Cannot reliably detect the BPM of '{1}'. Check the track manually.", de:"BPM von '{1}' kann nicht zuverlässig bestimmt werden. Titel manuell prüfen.", fr:"Impossible de déterminer le BPM de « {1} » de façon fiable. Vérifiez le morceau manuellement.", es:"No se puede determinar con fiabilidad el BPM de '{1}'. Revisa la pista a mano.", it:"Impossibile determinare con affidabilità il BPM di '{1}'. Controlla il brano a mano."}],
+ [/^Przekroczono pojemność indeksu bazy CDJ \(około (\d+) stron danych\)\..*$/, {en:"The CDJ database index is full (about {1} data pages). Split the tracks across several USB sticks.", de:"Der Index der CDJ-Datenbank ist voll (etwa {1} Datenseiten). Verteile die Titel auf mehrere USB-Sticks.", fr:"L'index de la base CDJ est plein (environ {1} pages de données). Répartissez les morceaux sur plusieurs clés USB.", es:"El índice de la base de datos CDJ está lleno (unas {1} páginas de datos). Reparte las pistas en varios pendrives.", it:"L'indice del database CDJ è pieno (circa {1} pagine di dati). Dividi i brani su più chiavette."}],
+ [/^Błąd odczytu dysku z muzyką \((.*)\)\..*$/, {en:"Error reading the music disk ({1}). The disk was disconnected or is damaged. Reconnect it, check it in Disk Utility (First Aid) and start writing again: tracks already analysed come from the cache.", de:"Fehler beim Lesen des Musik-Datenträgers ({1}). Er wurde getrennt oder ist beschädigt. Schließe ihn wieder an, prüfe ihn im Festplattendienstprogramm (Erste Hilfe) und starte das Schreiben erneut: bereits analysierte Titel kommen aus dem Cache.", fr:"Erreur de lecture du disque de musique ({1}). Le disque a été déconnecté ou est endommagé. Reconnectez-le, vérifiez-le dans Utilitaire de disque (S.O.S.) et relancez l'écriture : les morceaux déjà analysés viennent du cache.", es:"Error al leer el disco de música ({1}). El disco se desconectó o está dañado. Vuelve a conectarlo, revísalo en Utilidad de Discos (Primera ayuda) e inicia la escritura otra vez: las pistas ya analizadas salen de la caché.", it:"Errore di lettura del disco della musica ({1}). Il disco si è scollegato o è danneggiato. Ricollegalo, controllalo in Utility Disco (S.O.S.) e avvia di nuovo la scrittura: i brani già analizzati arrivano dalla cache."}],
+ [/^Na pendrive (.+) skończyło się miejsce\..*$/, {en:"The USB stick {1} is full. Free up space or use a bigger USB stick and start writing again.", de:"Der USB-Stick {1} ist voll. Gib Speicher frei oder verwende einen größeren USB-Stick und starte das Schreiben erneut.", fr:"La clé USB {1} est pleine. Libérez de l'espace ou utilisez une clé plus grande et relancez l'écriture.", es:"El pendrive {1} está lleno. Libera espacio o usa un pendrive más grande e inicia la escritura otra vez.", it:"La chiavetta {1} è piena. Libera spazio o usa una chiavetta più grande e avvia di nuovo la scrittura."}],
+ [/^Pendrive (.+) odłączył się w trakcie zapisu\..*$/, {en:"The USB stick {1} was disconnected while writing. The write is incomplete. Reconnect it and start writing again: tracks already analysed come from the cache. If this keeps happening, plug the stick directly into the computer (no hub) or use another one.", de:"Der USB-Stick {1} wurde während des Schreibens getrennt. Das Schreiben ist unvollständig. Schließe ihn wieder an und starte das Schreiben erneut: bereits analysierte Titel kommen aus dem Cache. Passiert das öfter, stecke den Stick direkt am Computer an (ohne Hub) oder verwende einen anderen.", fr:"La clé USB {1} a été déconnectée pendant l'écriture. L'écriture est incomplète. Reconnectez-la et relancez l'écriture : les morceaux déjà analysés viennent du cache. Si cela se répète, branchez la clé directement sur l'ordinateur (sans hub) ou utilisez-en une autre.", es:"El pendrive {1} se desconectó durante la escritura. La escritura está incompleta. Vuelve a conectarlo e inicia la escritura otra vez: las pistas ya analizadas salen de la caché. Si se repite, conecta el pendrive directamente al ordenador (sin hub) o usa otro.", it:"La chiavetta {1} si è scollegata durante la scrittura. La scrittura è incompleta. Ricollegala e avvia di nuovo la scrittura: i brani già analizzati arrivano dalla cache. Se succede spesso, collega la chiavetta direttamente al computer (senza hub) o usane un'altra."}],
+ [/^Błąd zapisu na pendrive (.+) \((.*)\)\. Pendrive mógł.*$/, {en:"Error writing to the USB stick {1} ({2}). The stick may have disconnected for a moment or is faulty, and the write is incomplete. Eject it, plug it in again, check it in Disk Utility (First Aid) and start writing again: tracks already analysed come from the cache. If the error comes back, use another USB stick.", de:"Fehler beim Schreiben auf den USB-Stick {1} ({2}). Der Stick wurde evtl. kurz getrennt oder ist defekt, das Schreiben ist unvollständig. Wirf ihn aus, schließe ihn wieder an, prüfe ihn im Festplattendienstprogramm (Erste Hilfe) und starte das Schreiben erneut: bereits analysierte Titel kommen aus dem Cache. Kommt der Fehler wieder, verwende einen anderen USB-Stick.", fr:"Erreur d'écriture sur la clé USB {1} ({2}). La clé s'est peut-être déconnectée un instant ou est défectueuse, et l'écriture est incomplète. Éjectez-la, rebranchez-la, vérifiez-la dans Utilitaire de disque (S.O.S.) et relancez l'écriture : les morceaux déjà analysés viennent du cache. Si l'erreur revient, utilisez une autre clé.", es:"Error al escribir en el pendrive {1} ({2}). Puede que se desconectara un momento o que esté defectuoso, y la escritura está incompleta. Expúlsalo, vuelve a conectarlo, revísalo en Utilidad de Discos (Primera ayuda) e inicia la escritura otra vez: las pistas ya analizadas salen de la caché. Si el error vuelve, usa otro pendrive.", it:"Errore di scrittura sulla chiavetta {1} ({2}). La chiavetta potrebbe essersi scollegata per un attimo o essere difettosa, e la scrittura è incompleta. Espellila, ricollegala, controllala in Utility Disco (S.O.S.) e avvia di nuovo la scrittura: i brani già analizzati arrivano dalla cache. Se l'errore ritorna, usa un'altra chiavetta."}],
+ [/^Nieoczekiwany błąd: (.*)$/, {en:"Unexpected error: {1}", de:"Unerwarteter Fehler: {1}", fr:"Erreur inattendue : {1}", es:"Error inesperado: {1}", it:"Errore imprevisto: {1}"}],
+ [/^Proces zakonczyl sie nieoczekiwanie \(kod (.+)\)\.$/, {en:"The process ended unexpectedly (code {1}).", de:"Der Prozess wurde unerwartet beendet (Code {1}).", fr:"Le processus s'est arrêté de façon inattendue (code {1}).", es:"El proceso terminó inesperadamente (código {1}).", it:"Il processo è terminato in modo imprevisto (codice {1})."}],
+ // ---- okno: pomiar, edytor, formatowanie, skladniki
+ [/^Najpierw zmierz szybkość ponownie dla wybranego trybu kopiowania\.$/, {en:"First measure the speed again for the selected copy mode.", de:"Miss zuerst die Geschwindigkeit für den gewählten Kopiermodus erneut.", fr:"Mesurez d'abord à nouveau la vitesse pour le mode de copie choisi.", es:"Primero vuelve a medir la velocidad para el modo de copia elegido.", it:"Prima misura di nuovo la velocità per la modalità di copia scelta."}],
+ [/^Skladniki jeszcze nie sa gotowe\.$|^Składniki aplikacji nie są jeszcze gotowe\.$/, {en:"The app components are not ready yet.", de:"Die App-Komponenten sind noch nicht bereit.", fr:"Les composants de l'app ne sont pas encore prêts.", es:"Los componentes de la app aún no están listos.", it:"I componenti dell'app non sono ancora pronti."}],
+ [/^Nie znaleziono wybranych folderow\.$/, {en:"The selected folders were not found.", de:"Die gewählten Ordner wurden nicht gefunden.", fr:"Les dossiers choisis sont introuvables.", es:"No se encontraron las carpetas elegidas.", it:"Le cartelle scelte non sono state trovate."}],
+ [/^Poczekaj, aż skończy się zapis pendrive'a\.$|^Trwa zapis\. Poczekaj na koniec\.$/, {en:"Wait until the USB stick has been written.", de:"Warte, bis der USB-Stick fertig geschrieben ist.", fr:"Attendez la fin de l'écriture de la clé USB.", es:"Espera a que termine la escritura del pendrive.", it:"Attendi la fine della scrittura della chiavetta."}],
+ [/^Na tym pendrivie nie ma jeszcze biblioteki CDJ Tool\.$/, {en:"This USB stick has no CDJ Tool library yet.", de:"Auf diesem USB-Stick gibt es noch keine CDJ-Tool-Bibliothek.", fr:"Cette clé USB n'a pas encore de bibliothèque CDJ Tool.", es:"Este pendrive aún no tiene biblioteca de CDJ Tool.", it:"Questa chiavetta non ha ancora una libreria CDJ Tool."}],
+ [/^Najpierw wybierz folder MP3 i pendrive\.$/, {en:"First choose a music folder and a USB stick.", de:"Wähle zuerst einen Musikordner und einen USB-Stick.", fr:"Choisissez d'abord un dossier de musique et une clé USB.", es:"Primero elige una carpeta de música y un pendrive.", it:"Prima scegli una cartella della musica e una chiavetta."}],
+ [/^W wybranym folderze nie ma plików MP3 do pomiaru\.$/, {en:"The selected folder has no music files to measure.", de:"Im gewählten Ordner gibt es keine Musikdateien zum Messen.", fr:"Le dossier choisi ne contient aucun fichier de musique à mesurer.", es:"La carpeta elegida no tiene archivos de música para medir.", it:"La cartella scelta non contiene file musicali da misurare."}],
+ [/^Wpisana nazwa nie zgadza się z nazwą pendrive'a\.$/, {en:"The name you typed does not match the USB stick's name.", de:"Der eingegebene Name stimmt nicht mit dem Namen des USB-Sticks überein.", fr:"Le nom saisi ne correspond pas à celui de la clé USB.", es:"El nombre escrito no coincide con el del pendrive.", it:"Il nome inserito non corrisponde a quello della chiavetta."}],
+ [/^To nie jest pendrive \(brak w \/Volumes\)\.$/, {en:"This is not a USB stick (not in /Volumes).", de:"Das ist kein USB-Stick (nicht in /Volumes).", fr:"Ce n'est pas une clé USB (absente de /Volumes).", es:"No es un pendrive (no está en /Volumes).", it:"Non è una chiavetta USB (non è in /Volumes)."}],
+ [/^To nie jest pendrive \((.*)\)\.$/, {en:"This is not a USB stick ({1}).", de:"Das ist kein USB-Stick ({1}).", fr:"Ce n'est pas une clé USB ({1}).", es:"No es un pendrive ({1}).", it:"Non è una chiavetta USB ({1})."}],
+ [/^To dysk wewnętrzny lub systemowy\. Formatowanie zablokowane\.$|^To dysk systemowy\. Formatowanie zablokowane\.$/, {en:"This is an internal or system disk. Formatting is blocked.", de:"Das ist ein internes oder Systemlaufwerk. Formatieren ist gesperrt.", fr:"C'est un disque interne ou système. Le formatage est bloqué.", es:"Es un disco interno o del sistema. El formateo está bloqueado.", it:"È un disco interno o di sistema. La formattazione è bloccata."}],
+ [/^Nie rozpoznano zewnętrznego nośnika wymiennego\. Formatowanie zablokowane\.$|^To nie jest dysk USB\. Formatowanie zablokowane\.$|^To nie jest pendrive \(dysk systemowy lub nieobsługiwany\)\. Formatowanie zablokowane\.$/, {en:"No external removable drive was recognised. Formatting is blocked.", de:"Kein externes Wechsellaufwerk erkannt. Formatieren ist gesperrt.", fr:"Aucun support amovible externe reconnu. Le formatage est bloqué.", es:"No se reconoció ninguna unidad extraíble externa. El formateo está bloqueado.", it:"Nessuna unità rimovibile esterna riconosciuta. La formattazione è bloccata."}],
+ [/^Nie udało się odczytać rozmiaru dysku\.$/, {en:"Could not read the disk size.", de:"Größe des Datenträgers konnte nicht gelesen werden.", fr:"Impossible de lire la taille du disque.", es:"No se pudo leer el tamaño del disco.", it:"Impossibile leggere la dimensione del disco."}],
+ [/^Dysk większy niż 2 TB: FAT32 tego nie obsługuje\.$/, {en:"The disk is larger than 2 TB: FAT32 does not support that.", de:"Datenträger größer als 2 TB: FAT32 unterstützt das nicht.", fr:"Disque de plus de 2 To : FAT32 ne le prend pas en charge.", es:"Disco de más de 2 TB: FAT32 no lo admite.", it:"Disco più grande di 2 TB: FAT32 non lo supporta."}],
+ [/^Windows formatuje FAT32 tylko do 32 GB\. Ten dysk ma (\d+) GB.*$/, {en:"Windows formats FAT32 only up to 32 GB. This disk has {1} GB: use a smaller USB stick or format it on a Mac.", de:"Windows formatiert FAT32 nur bis 32 GB. Dieser Datenträger hat {1} GB: Verwende einen kleineren USB-Stick oder formatiere ihn auf einem Mac.", fr:"Windows ne formate en FAT32 que jusqu'à 32 Go. Ce disque fait {1} Go : utilisez une clé plus petite ou formatez-la sur un Mac.", es:"Windows solo formatea FAT32 hasta 32 GB. Este disco tiene {1} GB: usa un pendrive más pequeño o formatéalo en un Mac.", it:"Windows formatta in FAT32 solo fino a 32 GB. Questo disco ha {1} GB: usa una chiavetta più piccola o formattala su un Mac."}],
+ [/^Formatowanie anulowano lub Windows nie dał uprawnień administratora\.$/, {en:"Formatting was cancelled or Windows did not grant administrator rights.", de:"Formatieren abgebrochen oder Windows hat keine Administratorrechte erteilt.", fr:"Formatage annulé ou Windows n'a pas accordé les droits d'administrateur.", es:"Se canceló el formateo o Windows no concedió permisos de administrador.", it:"Formattazione annullata o Windows non ha concesso i diritti di amministratore."}],
+ [/^Formatowanie się nie powiodło \(nie widać nowego dysku (.+)\)\.$/, {en:"Formatting failed (the new disk {1} is not visible).", de:"Formatieren fehlgeschlagen (neuer Datenträger {1} nicht sichtbar).", fr:"Le formatage a échoué (le nouveau disque {1} n'est pas visible).", es:"El formateo falló (no se ve el nuevo disco {1}).", it:"Formattazione non riuscita (il nuovo disco {1} non è visibile)."}],
+ [/^To nie jest dysk z literą \(np\. E:\)\.$/, {en:"This is not a disk with a drive letter (e.g. E:).", de:"Das ist kein Laufwerk mit Buchstaben (z. B. E:).", fr:"Ce n'est pas un disque avec une lettre (p. ex. E:).", es:"No es un disco con letra (p. ej. E:).", it:"Non è un disco con lettera (ad es. E:)."}],
+ [/^Pendrive wysunięty\. Możesz go teraz odłączyć\.$/, {en:"USB stick ejected. You can unplug it now.", de:"USB-Stick ausgeworfen. Du kannst ihn jetzt abziehen.", fr:"Clé USB éjectée. Vous pouvez la débrancher.", es:"Pendrive expulsado. Ya puedes desconectarlo.", it:"Chiavetta espulsa. Ora puoi scollegarla."}],
+ [/^Wolumin (.+): jest używany przez inny program.*$/, {en:"Volume {1}: is in use by another program (e.g. File Explorer or an antivirus).", de:"Laufwerk {1}: wird von einem anderen Programm verwendet (z. B. Explorer oder Virenschutz).", fr:"Le volume {1}: est utilisé par un autre programme (p. ex. l'Explorateur ou un antivirus).", es:"El volumen {1}: está en uso por otro programa (p. ej. el Explorador o un antivirus).", it:"Il volume {1}: è usato da un altro programma (ad es. Esplora file o un antivirus)."}],
+ [/^Siatka musi mieć co najmniej dwa beaty\.$/, {en:"The grid needs at least two beats.", de:"Das Raster braucht mindestens zwei Beats.", fr:"La grille doit avoir au moins deux temps.", es:"La rejilla necesita al menos dos beats.", it:"La griglia deve avere almeno due battute."}],
+ [/^Nie znaleziono utworu (.+) w bazie\.$|^Nie ma takiego utworu na pendrive\.$/, {en:"The track was not found on the USB stick.", de:"Der Titel wurde auf dem USB-Stick nicht gefunden.", fr:"Morceau introuvable sur la clé USB.", es:"No se encontró la pista en el pendrive.", it:"Brano non trovato sulla chiavetta."}],
+ [/^Nie ma takiego pliku na pendrive\.$/, {en:"There is no such file on the USB stick.", de:"Diese Datei gibt es auf dem USB-Stick nicht.", fr:"Ce fichier n'existe pas sur la clé USB.", es:"Ese archivo no existe en el pendrive.", it:"Questo file non esiste sulla chiavetta."}],
+ [/^nie znaleziono$/, {en:"not found", de:"nicht gefunden", fr:"introuvable", es:"no encontrado", it:"non trovato"}],
+ [/^brak autoryzacji$/, {en:"not authorised", de:"nicht autorisiert", fr:"non autorisé", es:"no autorizado", it:"non autorizzato"}],
+ [/^Nie udało się uruchomić dołączonych bibliotek: (.*)$/, {en:"Could not start the bundled libraries: {1}", de:"Die mitgelieferten Bibliotheken konnten nicht gestartet werden: {1}", fr:"Impossible de démarrer les bibliothèques incluses : {1}", es:"No se pudieron iniciar las bibliotecas incluidas: {1}", it:"Impossibile avviare le librerie incluse: {1}"}],
+ [/^W pakiecie brakuje programu FFmpeg\.$/, {en:"FFmpeg is missing from the package.", de:"FFmpeg fehlt im Paket.", fr:"FFmpeg est absent du paquet.", es:"Falta FFmpeg en el paquete.", it:"Manca FFmpeg nel pacchetto."}],
+ [/^Dołączony FFmpeg nie uruchamia się\.$/, {en:"The bundled FFmpeg does not start.", de:"Das mitgelieferte FFmpeg startet nicht.", fr:"Le FFmpeg inclus ne démarre pas.", es:"El FFmpeg incluido no se inicia.", it:"L'FFmpeg incluso non si avvia."}],
+ [/^Nie znaleziono działającego programu ffmpeg\. ?(.*)$/, {en:"No working ffmpeg was found. {1}", de:"Kein funktionierendes ffmpeg gefunden. {1}", fr:"Aucun ffmpeg fonctionnel trouvé. {1}", es:"No se encontró un ffmpeg que funcione. {1}", it:"Nessun ffmpeg funzionante trovato. {1}"}],
+ [/^Nie udalo sie utworzyc srodowiska Pythona\.$/, {en:"Could not create the Python environment.", de:"Die Python-Umgebung konnte nicht erstellt werden.", fr:"Impossible de créer l'environnement Python.", es:"No se pudo crear el entorno de Python.", it:"Impossibile creare l'ambiente Python."}],
+ [/^Instalacja skladnikow nie powiodla sie\. Sprawdz polaczenie z internetem\.$/, {en:"Installing the components failed. Check the internet connection.", de:"Installation der Komponenten fehlgeschlagen. Internetverbindung prüfen.", fr:"L'installation des composants a échoué. Vérifiez la connexion Internet.", es:"Falló la instalación de los componentes. Revisa la conexión a internet.", it:"Installazione dei componenti non riuscita. Controlla la connessione a internet."}],
+];
+// czesci linii o utworze ("✓ wykonawca — tytul: 120.00 BPM, Am / 8A (z tagu), ...")
+const KOM_UTWOR = [
+ [/\(z tagu\)/g, {en:"(from tag)", de:"(aus Tag)", fr:"(du tag)", es:"(de la etiqueta)", it:"(dal tag)"}],
+ [/\(analiza\)/g, {en:"(analysis)", de:"(Analyse)", fr:"(analyse)", es:"(análisis)", it:"(analisi)"}],
+ [/tagi z nazwy: /g, {en:"tags from file name: ", de:"Tags aus Dateiname: ", fr:"tags tirés du nom : ", es:"etiquetas del nombre: ", it:"tag dal nome: "}],
+ [/\bwykonawca\b/g, {en:"artist", de:"Interpret", fr:"artiste", es:"artista", it:"artista"}],
+ [/tytuł/g, {en:"title", de:"Titel", fr:"titre", es:"título", it:"titolo"}],
+ [/z pamięci podręcznej/g, {en:"from cache", de:"aus dem Cache", fr:"depuis le cache", es:"de la caché", it:"dalla cache"}],
+ [/długi utwór, (\d+) odcinków/g, {en:"long track, $1 sections", de:"langer Titel, $1 Abschnitte", fr:"morceau long, $1 sections", es:"pista larga, $1 secciones", it:"brano lungo, $1 sezioni"}],
+];
+function trM(s) {
+  if (!s || LANG === "pl" || typeof s !== "string") return s;
+  const m0 = s.match(/^([\s\S]*?)(\s+\[\+\d+ s\])$/);  // znacznik czasu etapu zostaje bez zmian
+  if (m0) return trM(m0[1]) + m0[2];
+  for (const [re, tr, rodzaj] of KOM) {
+    const m = s.match(re);
+    if (!m) continue;
+    const wz = tr[LANG] || tr.en;
+    return wz.replace(/\{(\d)\}/g, (x, i) => {
+      let g = m[+i] == null ? "" : m[+i];
+      if (rodzaj === "utwor" && +i === 2) { KOM_UTWOR.forEach(([r, t2]) => { g = g.replace(r, t2[LANG] || t2.en); }); return g; }
+      return +i === 1 && rodzaj === "utwor" ? g : trM(g);
+    });
+  }
+  return s;
+}
+
 function applyLang() {
   document.documentElement.lang = LANG;
   document.querySelectorAll("[data-i18n]").forEach(e => { e.textContent = t(e.dataset.i18n); });
   document.querySelectorAll("[data-i18n-html]").forEach(e => { e.innerHTML = t(e.dataset.i18nHtml); });
+  document.querySelectorAll("[data-i18n-ph]").forEach(e => { e.placeholder = t(e.dataset.i18nPh); });
   const sel = $("lang");
   if (sel && !sel.options.length) Object.keys(I18N).forEach(k => { const o = document.createElement("option"); o.value = k; o.textContent = I18N[k].name; sel.appendChild(o); });
   if (sel) sel.value = LANG;
@@ -572,10 +785,13 @@ function opisFormatu() {
 }
 async function formatPrzygotuj() {
   $("formatWynik").textContent = ""; delete $("formatWynik").dataset.ok;
-  const r = await api("/api/formatuj-info", { sciezka: pend.sciezka });
-  if (r.blad) { $("formatPanel").classList.remove("hidden"); $("formatOpis").innerHTML = '<span class="err">' + esc(r.blad) + "</span>"; $("bFormatuj").disabled = true; return; }
+  $("formatPanel").classList.remove("hidden"); $("formatForm").classList.add("hidden"); $("formatOpis").classList.remove("hidden");
+  $("formatOpis").innerHTML = '<span class="wait">' + esc(t("fmtChecking")) + "</span>"; $("bFormatInfo").disabled = true;
+  let r;
+  try { r = await api("/api/formatuj-info", { sciezka: pend.sciezka }); } finally { $("bFormatInfo").disabled = false; }
+  if (r.blad) { $("formatPanel").classList.remove("hidden"); $("formatForm").classList.add("hidden"); $("formatOpis").classList.remove("hidden"); $("formatOpis").innerHTML = '<span class="err">' + esc(trM(r.blad)) + "</span>"; $("bFormatuj").disabled = true; return; }
   formatInfo = r;
-  $("formatPanel").classList.remove("hidden");
+  $("formatPanel").classList.remove("hidden"); $("formatForm").classList.remove("hidden"); $("formatOpis").classList.remove("hidden");
   opisFormatu();
   $("formatWymagana").textContent = r.nazwa; $("formatPotw").value = ""; $("bFormatuj").disabled = true;
 }
@@ -587,11 +803,12 @@ $("bFormatuj").onclick = async () => {
   $("bFormatuj").disabled = true; $("bFormatInfo").disabled = true;
   delete $("formatWynik").dataset.ok; $("formatWynik").textContent = t("fmtWorking");
   const r = await api("/api/formatuj", { sciezka: formatInfo.sciezka, potwierdzenie: $("formatPotw").value.trim(), nowa_nazwa: $("formatNazwa").value });
-  if (r.blad || !r.ok) { $("formatWynik").innerHTML = '<span class="err">' + esc(t("fmtFail", { e: r.blad || "" })) + "</span><br>" + esc(t("fmtHint")); $("bFormatInfo").disabled = false; return; }
+  if (r.blad || !r.ok) { $("formatWynik").innerHTML = '<span class="err">' + esc(t("fmtFail", { e: trM(r.blad || "") })) + "</span><br>" + esc(t("fmtHint")); $("bFormatInfo").disabled = false; return; }
   formatInfo = null;
   // po udanym formatowaniu poprzednie wyniki dotyczą danych, których już nie ma
   narysowane.clear(); $("lista").innerHTML = ""; $("wyniki").classList.add("hidden"); $("koniec").classList.add("hidden"); stanWysuwania = null;
   $("formatWynik").dataset.ok = r.nazwa;
+  $("formatForm").classList.add("hidden"); $("formatOpis").classList.add("hidden");  // opis dotyczyl dysku sprzed formatowania
   $("formatWynik").innerHTML = '<span class="ok">' + esc(t("fmtOk", { name: r.nazwa })) + "</span>";
   $("formatPanel").querySelectorAll("input").forEach(i => i.value = "");
   ostatniKluczPomiaru = "";
@@ -611,7 +828,9 @@ function odswiezPrzycisk() {
   $("bPredkosc").disabled = !(mp3 && mp3.liczba > 0 && pend && gotowe && !trwa && (!b || b.stan !== "trwa"));
   $("bMp3").disabled = trwa || kol; $("bPend").disabled = trwa || kol; $("bMp3Clear").disabled = trwa || kol;
   document.querySelectorAll(".fx").forEach(b => { b.disabled = trwa || kol; });
-  $("bFormatInfo").disabled = !(pend && !trwa);
+  $("bFormatInfo").disabled = !(pend && !trwa && !kol);
+  if ((trwa || kol) && formatInfo) { formatInfo = null; $("formatPanel").classList.add("hidden"); }
+  $("formatBox").classList.toggle("zablokowany", !!(trwa || kol));
   // jedno zdanie obok przycisku Start: czego brakuje albo co zostanie zrobione
   let info = "";
   if (trwa || kol) info = "";
@@ -625,7 +844,292 @@ function odswiezPrzycisk() {
       t($("cKopiuj").checked ? "sumCopy" : "sumNoCopy") + (z ? ", " + z.textContent : "");
   }
   $("startInfo").textContent = info;
+  if (typeof edPokazKarte === "function") edPokazKarte();
 }
+
+// ===================================================== edytor siatki i cue =====
+const OFFSET_RB = 0.0512;  // os czasu pendrive'a (rekordbox) = czas dzwieku + 51,2 ms (config.json)
+const KOLORY_HOT = ["#3ecf8e", "#ff4f6d", "#ff9f1c", "#4a94f0", "#c77dff", "#f5d90a", "#7ae3ff", "#ff7ab6"];
+let ed = null;          // stan otwartego utworu
+let edUtwory = [];
+function edLiterka(n) { return "ABCDEFGH"[n - 1] || String(n); }
+function edFmt(t) { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return m + ":" + (s < 10 ? "0" : "") + s.toFixed(3); }
+function edPokazKarte() {
+  const st = ostatniStan && ostatniStan.job.stan;
+  const ok = pend && (pend.ma_pioneer || st === "gotowe") && st !== "trwa";
+  $("edytor").classList.toggle("hidden", !ok);
+}
+async function edWczytajListe() {
+  $("edWczytaj").disabled = true;
+  const r = await api("/api/edytor/lista", { pendrive: pend.sciezka });
+  $("edWczytaj").disabled = false;
+  if (r.blad) { $("edLista").classList.remove("hidden"); $("edLista").innerHTML = `<div class="err">${esc(trM(r.blad))}</div>`; return; }
+  edUtwory = r.utwory; $("edSzukaj").classList.remove("hidden"); $("edLista").classList.remove("hidden"); edRysujListe();
+}
+function edRysujListe() {
+  const q = $("edSzukaj").value.trim().toLowerCase();
+  const lista = edUtwory.filter(u => !q || (u.artysta + " " + u.tytul).toLowerCase().includes(q)).slice(0, 300);
+  $("edLista").innerHTML = lista.map(u => `<div data-id="${u.id}">${esc(u.artysta ? u.artysta + " — " : "")}<b>${esc(u.tytul)}</b> <span class="m">· ${u.bpm.toFixed(2)} BPM · ${Math.floor(u.czas / 60)}:${String(u.czas % 60).padStart(2, "0")}</span></div>`).join("")
+    || `<div class="m">${esc(t("edNone"))}</div>`;
+  $("edLista").querySelectorAll("[data-id]").forEach(d => { d.onclick = () => edOtworz(+d.dataset.id); });
+}
+async function edOtworz(id) {
+  if (!edMoznaPorzucic()) return;
+  const r = await api("/api/edytor/utwor", { pendrive: pend.sciezka, id });
+  if (r.blad) { $("edStatus").textContent = trM(r.blad); return; }
+  const surowe = Uint8Array.from(atob(r.waveform.dane || ""), c => c.charCodeAt(0));
+  const kol = [];
+  if (r.waveform.typ === "pwv5") for (let i = 0; i + 1 < surowe.length; i += 2) {
+    const w = (surowe[i] << 8) | surowe[i + 1];
+    kol.push([(w >> 2) & 31, ((w >> 13) & 7) * 36, ((w >> 10) & 7) * 36, ((w >> 7) & 7) * 36]);
+  } else for (const b of surowe) kol.push([b & 31, 60, 150, 255]);
+  edZatrzymaj();
+  ed = { id, dane: r, kol, koniec: kol.length / 150 || r.czas, beaty: r.beaty.map(b => b.slice()), hot: r.hot.map(h => h.slice()),
+         pamiec: r.pamiec.slice(), poz: r.beaty.length ? r.beaty[0][0] : 0, zoom: 6, zmiany: false, historia: [] };
+  $("edTytul").textContent = r.tytul;
+  $("edZnaczki").innerHTML = (r.dynamiczna ? `<span class="tag">${esc(t("edDynamic"))}</span> ` : "") + (r.korekta ? `<span class="tag">${esc(t("edEdited"))}</span>` : "");
+  $("edZapomnij").classList.toggle("hidden", !r.korekta);
+  $("edBpmRzad").style.display = r.dynamiczna ? "none" : "";
+  $("edDynInfo").textContent = r.dynamiczna ? t("edDynInfo") : "";
+  $("edAudio").src = "/api/edytor/audio?t=" + encodeURIComponent(TOKEN) + "&p=" + encodeURIComponent(pend.sciezka) + "&f=" + encodeURIComponent(r.sciezka);
+  $("edPanel").classList.remove("hidden"); $("edStatus").textContent = "";
+  edOdswiez();
+  $("edPanel").scrollIntoView({ block: "start" });
+}
+// confirm() nie dziala w oknie aplikacji (WKWebView): drugie klikniecie porzuca niezapisane zmiany
+function edMoznaPorzucic() {
+  if (!ed || !ed.zmiany || ed.ostrzezony) return true;
+  ed.ostrzezony = true; $("edStatus").innerHTML = `<span class="warn">${esc(t("edDiscard"))}</span>`; return false;
+}
+function edZmiana() { ed.ostrzezony = false; ed.zmiany = true; $("edZapisz").disabled = false; $("edCofnij").disabled = false; edOdswiez(); }
+function edZapamietaj() { ed.historia.push(JSON.stringify([ed.beaty, ed.hot, ed.pamiec])); if (ed.historia.length > 50) ed.historia.shift(); }
+function edBpmGlowne() {
+  const licz = {}; ed.beaty.forEach(b => { const k = b[2].toFixed(2); licz[k] = (licz[k] || 0) + 1; });
+  return +Object.entries(licz).sort((a, b) => b[1] - a[1])[0][0];
+}
+function edNajblizszy(tt) {
+  let best = 0, d = 1e9;
+  ed.beaty.forEach((b, i) => { const x = Math.abs(b[0] - tt); if (x < d) { d = x; best = i; } });
+  return best;
+}
+function edPrzyciagnij(tt) { return $("edPrzyciagaj").checked && ed.beaty.length ? ed.beaty[edNajblizszy(tt)][0] : tt; }
+// stala siatka od nowa: kotwica (beat o indeksie k) zostaje w miejscu i zachowuje numer w takcie
+function edSiatkaStala(bpm, k) {
+  const kot = ed.beaty[k], okres = 60 / bpm, nowa = [];
+  const start = Math.ceil((0 - kot[0]) / okres);
+  for (let j = start; ; j++) {
+    const tt = kot[0] + j * okres;
+    if (tt > ed.koniec - 0.05) break;
+    nowa.push([tt, (((kot[1] - 1 + j) % 4) + 4) % 4 + 1, bpm]);
+  }
+  ed.beaty = nowa;
+}
+// ÷2 / ×2 na istniejacych beatach: "1" taktu najblizsza kursorowi zostaje w miejscu,
+// pozostale beaty nie przeskakuja na nowa siatke (brak przesuniecia fazy wzgledem stopy)
+function edJedynka() {
+  let best = -1, d = 1e9;
+  ed.beaty.forEach((b, i) => { const x = Math.abs(b[0] - ed.poz); if (b[1] === 1 && x < d) { d = x; best = i; } });
+  return best >= 0 ? best : edNajblizszy(ed.poz);
+}
+function edPolowa() {
+  const a = edJedynka(), nowa = [];
+  let kot = 0;
+  ed.beaty.forEach((b, i) => { if ((i - a) % 2 === 0) { if (i === a) kot = nowa.length; nowa.push([b[0], 0, b[2] / 2]); } });
+  nowa.forEach((b, i) => { b[1] = (((i - kot) % 4) + 4) % 4 + 1; });
+  ed.beaty = nowa;
+}
+function edPodwojnie() {
+  const a = edJedynka(), stare = ed.beaty, nowa = [];
+  stare.forEach((b, i) => {
+    nowa.push([b[0], 0, b[2] * 2]);
+    const nast = i + 1 < stare.length ? stare[i + 1][0] : b[0] + 60 / b[2];
+    const srodek = (b[0] + nast) / 2;
+    if (srodek < ed.koniec - 0.05) nowa.push([srodek, 0, b[2] * 2]);
+  });
+  nowa.forEach((b, i) => { b[1] = (((i - 2 * a) % 4) + 4) % 4 + 1; });
+  ed.beaty = nowa;
+}
+function edPrzesun(ms) {
+  edZapamietaj();
+  const d = ms / 1000;
+  ed.beaty.forEach(b => { b[0] += d; });
+  ed.beaty = ed.beaty.filter(b => b[0] >= 0 && b[0] < ed.koniec);
+  if ($("edCueZSiatka").checked) {
+    ed.hot.forEach(h => { h[1] = Math.max(0, Math.round(h[1] + ms)); });
+    ed.pamiec = ed.pamiec.map(m => Math.max(0, Math.round(m + ms)));
+  }
+  edZmiana();
+}
+function edOdswiez() {
+  if (!ed) return;
+  $("edBpm").value = edBpmGlowne().toFixed(2);
+  const hot = new Map(ed.hot.map(h => [h[0], h[1]]));
+  $("edHotLista").innerHTML = [1, 2, 3, 4, 5, 6].map(n => {
+    const ms = hot.get(n);
+    return `<div class="edcue"><span class="lit" style="background:${KOLORY_HOT[n - 1]}">${edLiterka(n)}</span>` +
+      (ms != null ? `<span class="t" data-sk="${ms}">${edFmt(ms / 1000)}</span>` : `<span class="t m" style="color:var(--muted)">—</span>`) +
+      `<button data-ust="${n}">${esc(t("edSet"))}</button>` + (ms != null ? `<button data-us="${n}">✕</button>` : "") + `</div>`;
+  }).join("");
+  $("edPamLista").innerHTML = ed.pamiec.map((ms, i) => `<div class="edcue"><span class="lit" style="background:#ff4f4f">M</span><span class="t" data-sk="${ms}">${edFmt(ms / 1000)}</span><button data-up="${i}">✕</button></div>`).join("")
+    || `<div class="legend">—</div>`;
+  $("edHotLista").querySelectorAll("[data-ust]").forEach(b => b.onclick = () => {
+    edZapamietaj(); const n = +b.dataset.ust, ms = Math.round(edPrzyciagnij(ed.poz) * 1000);
+    ed.hot = ed.hot.filter(h => h[0] !== n).concat([[n, ms]]).sort((a, b) => a[0] - b[0]); edZmiana(); });
+  $("edHotLista").querySelectorAll("[data-us]").forEach(b => b.onclick = () => { edZapamietaj(); ed.hot = ed.hot.filter(h => h[0] !== +b.dataset.us); edZmiana(); });
+  $("edPamLista").querySelectorAll("[data-up]").forEach(b => b.onclick = () => { edZapamietaj(); ed.pamiec.splice(+b.dataset.up, 1); edZmiana(); });
+  document.querySelectorAll("#edPanel [data-sk]").forEach(e => e.onclick = () => edSkocz(+e.dataset.sk / 1000));
+  const brak = [1, 2, 3, 4, 5, 6].filter(n => !hot.has(n)).map(edLiterka);
+  $("edUwaga").textContent = brak.length ? t("edMissingHot", { list: brak.join(", ") }) : "";
+  edRysuj();
+}
+function edRysuj() {
+  if (!ed) return;
+  const css = getComputedStyle(document.documentElement);
+  const dpr = window.devicePixelRatio || 1;
+  // glowny widok: zoom sekund wokol kursora
+  const c = $("edFala"), w = c.clientWidth, h = c.clientHeight;
+  c.width = w * dpr; c.height = h * dpr;
+  const g = c.getContext("2d"); g.scale(dpr, dpr);
+  g.fillStyle = css.getPropertyValue("--canvas"); g.fillRect(0, 0, w, h);
+  const od = ed.poz - ed.zoom / 2, pps = w / ed.zoom, mid = h * 0.55;
+  const i0 = Math.max(0, Math.floor(od * 150)), i1 = Math.min(ed.kol.length, Math.ceil((od + ed.zoom) * 150));
+  const sz = Math.max(1, pps / 150);
+  for (let i = i0; i < i1; i++) {
+    const k = ed.kol[i], x = (i / 150 - od) * pps, hh = k[0] / 31 * (h * 0.42);
+    g.fillStyle = `rgb(${k[1]},${k[2]},${k[3]})`; g.fillRect(x, mid - hh, sz + 0.5, hh * 2);
+  }
+  g.font = "10px -apple-system, sans-serif";
+  ed.beaty.forEach(b => {
+    if (b[0] < od || b[0] > od + ed.zoom) return;
+    const x = (b[0] - od) * pps;
+    g.fillStyle = b[1] === 1 ? "rgba(255,80,80,0.95)" : "rgba(255,255,255,0.55)";
+    g.fillRect(x, 0, b[1] === 1 ? 2 : 1, h);
+    if (b[1] === 1) g.fillText(String(b[1]), x + 3, 11);
+  });
+  ed.pamiec.forEach(ms => { const x = (ms / 1000 - od) * pps; if (x < -10 || x > w + 10) return;
+    g.fillStyle = "#ff4f4f"; g.beginPath(); g.moveTo(x - 6, h); g.lineTo(x + 6, h); g.lineTo(x, h - 9); g.fill(); });
+  ed.hot.forEach(([n, ms]) => { const x = (ms / 1000 - od) * pps; if (x < -20 || x > w + 20) return;
+    g.fillStyle = KOLORY_HOT[n - 1]; g.fillRect(x, 0, 2, h); g.fillRect(x, 14, 14, 14);
+    g.fillStyle = "#000"; g.font = "bold 11px -apple-system, sans-serif"; g.fillText(edLiterka(n), x + 3, 25); });
+  g.fillStyle = "#ffffff"; g.fillRect(w / 2 - 1, 0, 2, h);
+  // przeglad calego utworu
+  const o = $("edPrzeglad"), ow = o.clientWidth, oh = o.clientHeight;
+  o.width = ow * dpr; o.height = oh * dpr;
+  const q = o.getContext("2d"); q.scale(dpr, dpr);
+  q.fillStyle = css.getPropertyValue("--canvas"); q.fillRect(0, 0, ow, oh);
+  if (!ed.przeglad || ed.przeglad.w !== ow) {
+    const n = ed.kol.length, kol = [];
+    for (let x = 0; x < ow; x++) { let m = 0, kk = [0, 60, 150, 255];
+      for (let i = Math.floor(x * n / ow); i < Math.floor((x + 1) * n / ow); i++) if (ed.kol[i][0] >= m) { m = ed.kol[i][0]; kk = ed.kol[i]; }
+      kol.push(kk); }
+    ed.przeglad = { w: ow, kol };
+  }
+  ed.przeglad.kol.forEach((k, x) => { const hh = k[0] / 31 * (oh * 0.45); q.fillStyle = `rgb(${k[1]},${k[2]},${k[3]})`; q.fillRect(x, oh / 2 - hh, 1, hh * 2); });
+  const skala = ow / ed.koniec;
+  ed.hot.forEach(([n, ms]) => { q.fillStyle = KOLORY_HOT[n - 1]; q.fillRect(ms / 1000 * skala, 0, 2, oh); });
+  q.fillStyle = "rgba(255,255,255,0.18)"; q.fillRect(od * skala, 0, ed.zoom * skala, oh);
+  q.fillStyle = "#fff"; q.fillRect(ed.poz * skala - 1, 0, 2, oh);
+  $("edCzas").textContent = edFmt(ed.poz) + " / " + edFmt(ed.koniec);
+}
+// ---- odtwarzanie i metronom
+let edAudioCtx = null, edZaplan = 0, edKlatka = 0;
+function edSkocz(tt) {
+  ed.poz = Math.max(0, Math.min(ed.koniec, tt));
+  const a = $("edAudio"); if (a.readyState >= 1) a.currentTime = Math.max(0, ed.poz - OFFSET_RB);
+  edZaplan = ed.poz; edRysuj();
+}
+function edZatrzymaj() { const a = $("edAudio"); if (!a.paused) a.pause(); $("edPlay").textContent = "▶"; cancelAnimationFrame(edKlatka); }
+function edGraj() {
+  const a = $("edAudio");
+  if (!a.paused) return edZatrzymaj();
+  a.currentTime = Math.max(0, ed.poz - OFFSET_RB);
+  a.play().catch(e => { $("edStatus").textContent = String(e); });
+  $("edPlay").textContent = "⏸"; edZaplan = ed.poz;
+  const krok = () => {
+    if (a.paused) return;
+    ed.poz = a.currentTime + OFFSET_RB;
+    if ($("edMetronom").checked) edKlik();
+    edRysuj(); edKlatka = requestAnimationFrame(krok);
+  };
+  edKlatka = requestAnimationFrame(krok);
+}
+function edKlik() {
+  if (!edAudioCtx) edAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const ctx = edAudioCtx, teraz = ed.poz, do_ = teraz + 0.15;
+  ed.beaty.forEach(b => {
+    if (b[0] <= edZaplan || b[0] > do_) return;
+    const o = ctx.createOscillator(), gg = ctx.createGain(), kiedy = ctx.currentTime + Math.max(0, b[0] - teraz);
+    o.frequency.value = b[1] === 1 ? 1760 : 1100; gg.gain.setValueAtTime(0.35, kiedy); gg.gain.exponentialRampToValueAtTime(0.001, kiedy + 0.04);
+    o.connect(gg).connect(ctx.destination); o.start(kiedy); o.stop(kiedy + 0.05);
+  });
+  edZaplan = Math.max(edZaplan, do_);
+}
+// ---- obsluga przyciskow
+$("edWczytaj").onclick = edWczytajListe;
+$("edSzukaj").oninput = edRysujListe;
+$("edZamknij").onclick = () => { if (!edMoznaPorzucic()) return; edZatrzymaj(); ed = null; $("edPanel").classList.add("hidden"); };
+$("edPlay").onclick = edGraj;
+$("edWstecz").onclick = () => { const b = ed.beaty[Math.max(0, edNajblizszy(ed.poz) - 4)]; if (b) edSkocz(b[0]); };
+$("edNaprzod").onclick = () => { const b = ed.beaty[Math.min(ed.beaty.length - 1, edNajblizszy(ed.poz) + 4)]; if (b) edSkocz(b[0]); };
+$("edZoomM").onclick = () => { ed.zoom = Math.min(30, ed.zoom * 1.5); edRysuj(); };
+$("edZoomP").onclick = () => { ed.zoom = Math.max(1, ed.zoom / 1.5); edRysuj(); };
+document.querySelectorAll("#edPanel [data-p]").forEach(b => b.onclick = () => edPrzesun(+b.dataset.p));
+document.querySelectorAll("#edPanel [data-b]").forEach(b => b.onclick = () => {
+  const bpm = edBpmGlowne(), v = b.dataset.b;
+  const nowy = v === "x2" ? bpm * 2 : v === "d2" ? bpm / 2 : Math.round((bpm + +v) * 100) / 100;
+  if (nowy < 40 || nowy > 300) return;
+  edZapamietaj();
+  if (v === "d2") edPolowa(); else if (v === "x2") edPodwojnie(); else edSiatkaStala(nowy, edNajblizszy(ed.poz));
+  edZmiana();
+});
+$("edBpm").onchange = () => {
+  const v = parseFloat($("edBpm").value.replace(",", "."));
+  if (!(v >= 40 && v <= 300)) return edOdswiez();
+  edZapamietaj(); edSiatkaStala(Math.round(v * 100) / 100, edNajblizszy(ed.poz)); edZmiana();
+};
+$("edDoKursora").onclick = () => { const b = ed.beaty[edNajblizszy(ed.poz)]; if (b) edPrzesun(Math.round((ed.poz - b[0]) * 1000)); };
+$("edJeden").onclick = () => {
+  edZapamietaj(); const k = edNajblizszy(ed.poz), r = ed.beaty[k][1] - 1;
+  ed.beaty.forEach(b => { b[1] = ((b[1] - 1 - r) % 4 + 4) % 4 + 1; }); edZmiana();
+};
+$("edPamDodaj").onclick = () => { edZapamietaj(); const ms = Math.round(edPrzyciagnij(ed.poz) * 1000);
+  if (!ed.pamiec.includes(ms)) ed.pamiec = ed.pamiec.concat([ms]).sort((a, b) => a - b).slice(0, 10); edZmiana(); };
+$("edCofnij").onclick = () => { if (!ed) return; const r = ed.dane;
+  ed.beaty = r.beaty.map(b => b.slice()); ed.hot = r.hot.map(h => h.slice()); ed.pamiec = r.pamiec.slice();
+  ed.zmiany = false; ed.historia = []; $("edZapisz").disabled = true; $("edCofnij").disabled = true; edOdswiez(); };
+$("edZapisz").onclick = async () => {
+  $("edZapisz").disabled = true; $("edStatus").textContent = t("edSaving");
+  const r = await api("/api/edytor/zapisz", { pendrive: pend.sciezka, id: ed.id, edycja: { beaty: ed.beaty, hot: ed.hot, pamiec: ed.pamiec } });
+  if (r.blad) { $("edStatus").innerHTML = `<span class="err">${esc(trM(r.blad))}</span>`; $("edZapisz").disabled = false; return; }
+  ed.zmiany = false; ed.dane.beaty = ed.beaty.map(b => b.slice()); ed.dane.hot = ed.hot.map(h => h.slice()); ed.dane.pamiec = ed.pamiec.slice();
+  $("edCofnij").disabled = true; $("edZapomnij").classList.remove("hidden");
+  $("edZnaczki").innerHTML = (ed.dane.dynamiczna ? `<span class="tag">${esc(t("edDynamic"))}</span> ` : "") + `<span class="tag">${esc(t("edEdited"))}</span>`;
+  $("edStatus").innerHTML = `<span class="ok">${esc(t("edSaved", { bpm: r.bpm.toFixed(2) }))}</span>`;
+  const u = edUtwory.find(x => x.id === ed.id); if (u) { u.bpm = r.bpm; edRysujListe(); }
+};
+$("edZapomnij").onclick = async () => {
+  const r = await api("/api/edytor/zapomnij", { pendrive: pend.sciezka, id: ed.id });
+  if (!r.blad) { $("edZapomnij").classList.add("hidden"); $("edStatus").textContent = t("edForgotten"); }
+};
+// przeciaganie po waveformie przesuwa kursor; klik w przeglad skacze
+{ let ciagnie = null;
+  $("edFala").addEventListener("mousedown", e => { if (!ed) return; ciagnie = { x: e.clientX, poz: ed.poz }; });
+  window.addEventListener("mousemove", e => { if (!ciagnie || !ed) return;
+    edSkocz(ciagnie.poz - (e.clientX - ciagnie.x) / ($("edFala").clientWidth / ed.zoom)); });
+  window.addEventListener("mouseup", () => { ciagnie = null; });
+  $("edFala").addEventListener("wheel", e => { if (!ed) return; e.preventDefault();
+    edSkocz(ed.poz + (e.deltaX || e.deltaY) / ($("edFala").clientWidth / ed.zoom)); }, { passive: false });
+  $("edPrzeglad").addEventListener("click", e => { if (!ed) return;
+    const r = $("edPrzeglad").getBoundingClientRect(); edSkocz((e.clientX - r.left) / r.width * ed.koniec); });
+}
+document.addEventListener("keydown", e => {
+  if (!ed || $("edPanel").classList.contains("hidden") || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if (e.code === "Space") { e.preventDefault(); edGraj(); }
+  else if ((e.metaKey || e.ctrlKey) && e.key === "z" && ed.historia.length) {
+    e.preventDefault(); [ed.beaty, ed.hot, ed.pamiec] = JSON.parse(ed.historia.pop()); edZmiana(); }
+});
+window.addEventListener("resize", () => { if (ed) { ed.przeglad = null; edRysuj(); } });
+
 // "i" przy opcji: pokazuje pelny opis pod spodem
 document.querySelectorAll(".inf").forEach(b => { b.onclick = () => {
   const box = b.closest(".opt").nextElementSibling;
@@ -633,6 +1137,22 @@ document.querySelectorAll(".inf").forEach(b => { b.onclick = () => {
   if (!box.classList.contains("hidden")) box.innerHTML = t(box.dataset.info);
 }; });
 
+// podsumowanie kolejki kilku folderow: sumy liczb, sredni czas na utwor, najwolniejszy zapis, ostrzezenia bez powtorzen
+function dodajPodsumowanie(a, b) {
+  if (!b) return a;
+  if (!a) return Object.assign({}, b, { ostrzezenia: (b.ostrzezenia || []).slice() });
+  const suma = k => (a[k] || 0) + (b[k] || 0);
+  const n = suma("utwory");
+  return {
+    utwory: n, pominiete: suma("pominiete"), tagi_z_nazw: suma("tagi_z_nazw"), z_pamieci: suma("z_pamieci"),
+    okladki: a.okladki == null && b.okladki == null ? null : suma("okladki"), okladki_z_sieci: suma("okladki_z_sieci"),
+    czas_s: suma("czas_s"),
+    s_na_utwor: n ? Math.round(((a.s_na_utwor || 0) * (a.utwory || 0) + (b.s_na_utwor || 0) * (b.utwory || 0)) / n * 100) / 100 : 0,
+    zapis_mb_s: a.zapis_mb_s == null ? b.zapis_mb_s : b.zapis_mb_s == null ? a.zapis_mb_s : Math.min(a.zapis_mb_s, b.zapis_mb_s),
+    fs: b.fs || a.fs,
+    ostrzezenia: [...new Set([...(a.ostrzezenia || []), ...(b.ostrzezenia || [])])],
+  };
+}
 const kolejkaAktywna = () => !!(kolejka && !kolejka.koniec && !kolejka.przerwana);
 const flacWl = () => !!$("cFlac").checked;
 const liczbaF = f => f.liczba + (flacWl() ? (f.flac || 0) : 0);
@@ -714,11 +1234,20 @@ function ustawPendrive(r) {
   $("ostrzPend").textContent = o.join(" ");
   sprawdzWolumenKopiowania();
   odswiezPrzycisk();
+  if (typeof edPokazKarte === "function") edPokazKarte();
 }
 function wybierzFolderNative(co) {
   window.webkit.messageHandlers.cdjChoose.postMessage(co);
 }
 window.cdjFolderCancelled = () => {};
+// foldery upuszczone na okno (aplikacja na Macu): katalog glowny dysku = pendrive, reszta = muzyka
+window.cdjUpuszczono = async (foldery, pendrive) => {
+  if ((ostatniStan && ostatniStan.job.stan === "trwa") || kolejkaAktywna()) return;
+  $("ustawienia").open = true;
+  for (const sciezka of foldery) ustawMp3(await api("/api/wybierz", { co: "mp3", sciezka }));
+  if (pendrive) ustawPendrive(await api("/api/wybierz", { co: "pendrive", sciezka: pendrive }));
+};
+if (NATIVE) $("dropInfo").classList.remove("hidden");
 window.cdjFoldersSelected = async (co, sciezki) => {
   for (const sciezka of sciezki) {
     const r = await api("/api/wybierz", { co, sciezka });
@@ -742,7 +1271,7 @@ $("bPredkosc").onclick = async () => {
   const kopiuj = $("cKopiuj").checked;
   $("wynikPredkosci").innerHTML = '<div class="speed-lead">' + esc(t("speedMeasuring")) + "</div>";
   const r = await api("/api/predkosc", { folder_mp3: mp3.sciezka, pendrive: pend.sciezka, kopiuj_mp3: kopiuj });
-  if (r.blad) $("wynikPredkosci").innerHTML = `<div class="speed-lead err">${esc(t("speedFail"))}</div><div class="speed-detail">${esc(r.blad)}</div>`;
+  if (r.blad) $("wynikPredkosci").innerHTML = `<div class="speed-lead err">${esc(t("speedFail"))}</div><div class="speed-detail">${esc(trM(r.blad))}</div>`;
 };
 function nazwaFolderu(sciezka, i) {
   const baza = (sciezka.replace(/\/+$/, "").split("/").pop() || "Tracks").slice(0, 50);
@@ -758,7 +1287,7 @@ async function startFolderu(i) {
     kopiuj_w_tle: $("cTlo").checked, nie_usypiaj: $("cNieUsypiaj").checked,
     tonacja: $("cTonacja").checked, notacja: $("sNotacja").value, tonacja_z_tagu: $("cTonTag").checked,
     playlisty_z_folderow: $("cPlFoldery").checked, autoload: $("cAutoload").checked, trzy_pasma: $("cTrzyPasma").checked, okladki: $("cOkladki").checked, okladki_siec: $("cOkladki").checked && $("cOkladkiSiec").checked, dlugie: $("cDlugie").checked, pelna_moc: $("cPelnaMoc").checked, test_dysku: $("cTestDysku").checked });
-  if (r.blad) { alert(r.blad); kolejka.przerwana = true; return false; }
+  if (r.blad) { alert(trM(r.blad)); kolejka.przerwana = true; return false; }
   return true;
 }
 $("bStart").onclick = async () => {
@@ -767,7 +1296,7 @@ $("bStart").onclick = async () => {
   const nazwaF = s => s.replace(/\/+$/, "").split("/").pop() || s;
   const doZapisu = foldery.filter(f => liczbaF(f) > 0);
   if (!doZapisu.length) return;
-  kolejka = { lista: doZapisu, i: 0, lacznie: 0, kopia: null, pomiar: mp3.sciezka, koniec: false, przerwana: false,
+  kolejka = { lista: doZapisu, i: 0, lacznie: 0, sum: null, kopia: null, pomiar: mp3.sciezka, koniec: false, przerwana: false,
               pominiete: foldery.filter(f => liczbaF(f) === 0).map(f => nazwaF(f.sciezka)) };
   odswiezPrzycisk();
   $("ustawienia").open = false;  // w trakcie pracy na gorze sa postep, dziennik i wyniki
@@ -871,7 +1400,7 @@ async function odswiez() {
   if (st.stan === "gotowe") kart.classList.add("hidden");
   else {
     kart.classList.remove("hidden");
-    if (st.stan === "blad") { $("setupTytul").textContent = t("setupFail"); $("setupOpis").innerHTML = '<span class="err">' + esc(st.blad || "") + "</span>"; }
+    if (st.stan === "blad") { $("setupTytul").textContent = t("setupFail"); $("setupOpis").innerHTML = '<span class="err">' + esc(trM(st.blad || "")) + "</span>"; }
     else if (st.stan === "instalacja") $("setupTytul").textContent = t("setupInstall");
     $("setupLog").textContent = (st.log || []).join("\n");
   }
@@ -892,9 +1421,10 @@ async function odswiez() {
     if (!b.maks_mb_s) {
       $("wynikPredkosci").innerHTML = `<div class="speed-lead ok">${esc(t("speedReady", { n: b.workers }))}</div><div class="speed-detail">${esc(t("speedReadyDesc", Object.assign({ mode: tryb }, ramv)))}</div>`;
     } else
-    $("wynikPredkosci").innerHTML = `<div class="speed-lead ok">${esc(t("speedLead", { mode: tryb, cel: b.cel_mb_s }))}</div><div class="speed-rows"><span>${t("speedMax", { v: b.maks_mb_s })}</span><span>${t("speedUse")}</span><span>${t("speedPar", { n: b.workers })}</span></div><div class="speed-detail">${esc(t("speedDetail", ramv))}</div><div class="speed-detail">${esc(warianty)}</div>`;
+    $("wynikPredkosci").innerHTML = `<div class="speed-lead ok">${esc(t("speedLead", { mode: tryb, cel: b.cel_mb_s }))}</div><div class="speed-rows"><span>${t("speedMax", { v: b.maks_mb_s })}</span><span>${t("speedUse")}</span><span>${t("speedPar", { n: b.workers })}</span></div><div class="speed-detail">${esc(t("speedDetail", ramv))}</div><div class="speed-detail">${esc(warianty)}</div>` +
+      (b.z_pamieci ? `<div class="speed-detail warn">${esc(t("speedCached"))}</div>` : "");
   } else if (pomiarPasuje && b.stan === "blad") {
-    $("wynikPredkosci").innerHTML = `<div class="speed-lead err">${esc(t("speedFail"))}</div><div class="speed-detail">${esc(b.blad || t("tryAgain"))}</div>`;
+    $("wynikPredkosci").innerHTML = `<div class="speed-lead err">${esc(t("speedFail"))}</div><div class="speed-detail">${esc(trM(b.blad) || t("tryAgain"))}</div>`;
   } else if (b.stan === "gotowe" && mp3 && pend && b.folder_mp3 === mp3.sciezka && b.pendrive === pend.sciezka) {
     $("wynikPredkosci").innerHTML = '<div class="speed-lead">' + esc(t("speedModeChanged")) + '</div><div class="speed-detail">' + esc(t("speedModeChangedDesc")) + "</div>";
   } else {
@@ -904,15 +1434,15 @@ async function odswiez() {
   $("bAnuluj").classList.toggle("hidden", !trwa);
   if (j.stan && j.stan !== "brak") {
     $("postep").classList.remove("hidden");
-    $("etap").textContent = (kolejka && kolejka.lista.length > 1 ? t("folderOf", { i: kolejka.i + 1, n: kolejka.lista.length, name: kolejka.lista[kolejka.i].sciezka.replace(/\/+$/, "").split("/").pop() }) + " · " : "") + trEtap(j.etap);
+    $("etap").textContent = (kolejka && kolejka.lista.length > 1 ? t("folderOf", { i: kolejka.i + 1, n: kolejka.lista.length, name: kolejka.lista[kolejka.i].sciezka.replace(/\/+$/, "").split("/").pop() }) + " · " : "") + (j.stan === "blad" ? t("errTitle") : j.stan === "anulowano" ? t("canceledTitle") : trEtap(j.etap));
     $("pasek").style.width = Math.round((j.postep || 0) * 100) + "%";
     $("eta").textContent = j.stan === "trwa" ? opisCzasu(j) : "";
-    let ostrzezenia = (j.bledy || []).map(b => `<span class="warn">${esc(t("skipped", { name: b.nazwa, text: b.tekst }))}</span>`);
+    let ostrzezenia = (j.bledy || []).map(b => `<span class="warn">${esc(t("skipped", { name: b.nazwa, text: trM(b.tekst) }))}</span>`);
     if ((j.bledow_razem || 0) > ostrzezenia.length) ostrzezenia.push(`<span class="warn">${esc(t("skippedTotal", { n: j.bledow_razem, m: ostrzezenia.length }))}</span>`);
-    ostrzezenia = (j.ostrzezenia || []).map(o => `<span class="warn">⚠ ${esc(o)}</span>`).concat(ostrzezenia);
+    ostrzezenia = (j.ostrzezenia || []).map(o => `<span class="warn">⚠ ${esc(trM(o))}</span>`).concat(ostrzezenia);
     $("postepOpis").innerHTML = ostrzezenia.join("<br>");
     { const el = $("log"), dol = el.scrollHeight - el.scrollTop - el.clientHeight < 30;  // przewijaj tylko gdy na dole
-      el.textContent = (j.log || []).join("\n"); if (dol) el.scrollTop = el.scrollHeight; }
+      el.textContent = (j.log || []).map(trM).join("\n"); if (dol) el.scrollTop = el.scrollHeight; }
     const nowe = [];
     (j.utwory || []).forEach(u => { const kl = (kolejka ? kolejka.i : 0) + ":" + u.i; if (!narysowane.has(kl)) { narysowane.add(kl); $("wyniki").classList.remove("hidden"); nowe.push(dodajUtwor(u)); } });
     if (kolejka && !kolejkaBusy && !kolejka.koniec && !kolejka.przerwana) {
@@ -921,6 +1451,7 @@ async function odswiez() {
         try {
           await Promise.all(nowe);
           kolejka.lacznie += (j.sukcesy || j.utwory.length || 0);
+          kolejka.sum = dodajPodsumowanie(kolejka.sum, j.podsumowanie);
           kolejka.kopia = kolejka.kopia || j.kopia;
           if (kolejka.i + 1 < kolejka.lista.length) {
             kolejka.i++;
@@ -946,16 +1477,17 @@ async function odswiez() {
   } else if (j.stan === "gotowe") {
     k.classList.remove("hidden");
     let html = `<h2 class="ok">${esc(t("doneTitle", { n: kolejka && kolejka.lista.length > 1 ? kolejka.lacznie : (j.sukcesy || j.utwory.length) }))}</h2><p style="margin:0 0 8px">${esc(t("doneEject"))}</p>`;
-    const ps = j.podsumowanie;
-    if (ps && !(kolejka && kolejka.lista.length > 1)) {
+    const ps = kolejka && kolejka.lista.length > 1 ? kolejka.sum : j.podsumowanie;
+    if (ps) {
       const min = x => x >= 90 ? Math.round(x / 60) + " min" : Math.round(x) + " s";
       const kaf = [[ps.utwory, t("sumTracks")], [ps.pominiete || 0, t("sumSkipped")],
         [ps.okladki == null ? "–" : ps.okladki + (ps.okladki_z_sieci ? " (" + t("sumNet", { n: ps.okladki_z_sieci }) + ")" : ""), t("sumArt")],
         [ps.tagi_z_nazw || 0, t("sumTags")], [ps.z_pamieci || 0, t("sumCache")],
         [min(ps.czas_s || 0), t("sumTime", { s: ps.s_na_utwor })]];
+      if (kolejka && kolejka.lista.length > 1) kaf.unshift([kolejka.lista.length - (kolejka.pominiete || []).length, t("sumFolders")]);
       if (ps.zapis_mb_s != null) kaf.push([ps.zapis_mb_s + " MB/s", ps.fs ? t("sumDisk", { fs: ps.fs.toUpperCase() }) : t("sumDiskOnly")]);
       html += `<div class="sum">${kaf.map(([w, e]) => `<div><b>${esc(String(w))}</b><span>${esc(e)}</span></div>`).join("")}</div>`;
-      (ps.ostrzezenia || []).forEach(o => { html += `<p class="warn" style="font-size:13px;margin:0 0 8px">⚠ ${esc(o)}</p>`; });
+      (ps.ostrzezenia || []).forEach(o => { html += `<p class="warn" style="font-size:13px;margin:0 0 8px">⚠ ${esc(trM(o))}</p>`; });
     }
     if (kolejka && (kolejka.pominiete || []).length) html += `<p class="warn" style="font-size:13px;margin:0 0 8px">${esc(t("queueSkipped", { list: kolejka.pominiete.join(", ") }))}</p>`;
     if (j.kopia) html += `<p class="m" style="color:var(--muted);font-size:13px;margin:0 0 8px">${esc(t("backupOf"))} ${esc(j.kopia)}</p>`;
@@ -967,7 +1499,7 @@ async function odswiez() {
     html += `<button id="bWysun"${zablokowany ? " disabled" : ""}>${etykieta}</button>`;
     if (wysuwanie) {
       const klasa = wysuwanie.stan === "ok" ? "ok" : wysuwanie.stan === "blad" ? "err" : "wait";
-      html += `<div class="eject-result ${klasa}" role="status" aria-live="polite">${esc(wysuwanie.klucz ? t(wysuwanie.klucz, { e: wysuwanie.e || "" }) : wysuwanie.tekst)}</div>`;
+      html += `<div class="eject-result ${klasa}" role="status" aria-live="polite">${esc(wysuwanie.klucz ? t(wysuwanie.klucz, { e: wysuwanie.e || "" }) : trM(wysuwanie.tekst))}</div>`;
     }
     k.innerHTML = html;
     if (!zablokowany) $("bWysun").onclick = async () => {
@@ -977,14 +1509,14 @@ async function odswiez() {
         const r = await api("/api/wysun", { sciezka: j.pendrive || (pend && pend.sciezka) || "" });
         stanWysuwania = r.ok
           ? { stan: "ok", klucz: "ejectOk" }
-          : { stan: "blad", klucz: "ejectFail", e: r.tekst || r.blad || t("tryAgain") };
+          : { stan: "blad", klucz: "ejectFail", e: trM(r.tekst || r.blad) || t("tryAgain") };
       } catch (e) {
         stanWysuwania = { stan: "blad", klucz: "ejectFail2", e: e.message || "" };
       }
       odswiez();
     };
   } else if (j.stan === "blad") {
-    k.classList.remove("hidden"); k.innerHTML = `<h2 class="err">${esc(t("errTitle"))}</h2><p style="margin:0">${esc(j.blad || "")}</p>` + stopNota();
+    k.classList.remove("hidden"); k.innerHTML = `<h2 class="err">${esc(t("errTitle"))}</h2><p style="margin:0">${esc(trM(j.blad || ""))}</p>` + stopNota();
   } else if (j.stan === "anulowano") {
     k.classList.remove("hidden"); k.innerHTML = `<h2 class="warn">${esc(t("canceledTitle"))}</h2><p style="margin:0">${esc(t("canceledDesc"))}</p>` + stopNota();
   }
@@ -997,12 +1529,12 @@ async function odswiez() {
 }
 // opcje zapamiętywane w tej przeglądarce (bez nich działają wartości domyślne)
 ["cTlo", "cNieUsypiaj", "cTonacja", "cTonTag", "cPlFoldery", "cAutoload", "cTrzyPasma", "cOkladki", "cOkladkiSiec", "cDlugie", "cPelnaMoc", "cTestDysku"].forEach(id => {
-  try { const v = localStorage.getItem("cdj_" + id); if (v !== null) $(id).checked = v === "1"; } catch (e) {}
-  $(id).addEventListener("change", () => { try { localStorage.setItem("cdj_" + id, $(id).checked ? "1" : "0"); } catch (e) {} });
+  try { const v = PAM.getItem("cdj_" + id); if (v !== null) $(id).checked = v === "1"; } catch (e) {}
+  $(id).addEventListener("change", () => { try { PAM.setItem("cdj_" + id, $(id).checked ? "1" : "0"); } catch (e) {} });
 });
-try { const v = localStorage.getItem("cdj_sNotacja"); if (v) $("sNotacja").value = v; } catch (e) {}
+try { const v = PAM.getItem("cdj_sNotacja"); if (v) $("sNotacja").value = v; } catch (e) {}
 const odswiezStatystyki = () => document.querySelectorAll("#lista .tr").forEach(d => { if (d._utwor) d.querySelector(".stats").innerHTML = statystykiUtworu(d._utwor); });
-$("sNotacja").addEventListener("change", () => { try { localStorage.setItem("cdj_sNotacja", $("sNotacja").value); } catch (e) {} odswiezStatystyki(); });
+$("sNotacja").addEventListener("change", () => { try { PAM.setItem("cdj_sNotacja", $("sNotacja").value); } catch (e) {} odswiezStatystyki(); });
 $("cTonacja").addEventListener("change", () => { $("sNotacja").disabled = $("cTonTag").disabled = !$("cTonacja").checked; odswiezStatystyki(); });
 $("sNotacja").disabled = $("cTonTag").disabled = !$("cTonacja").checked;
 // gotowe zestawy opcji: zwykly CDJ-2000 albo CDJ-2000 z modem RaftTone; reczna zmiana tych opcji = "Wlasne"
@@ -1011,7 +1543,7 @@ let zestawUstawiam = false;
 function pokazZestaw(z) {
   document.querySelectorAll("#zestawy button").forEach(b => b.classList.toggle("on", b.dataset.z === z));
   $("zestawOpis").textContent = t(z === "cdj" ? "presetStockHint" : z === "mod" ? "presetModHint" : "presetCustomHint");
-  try { localStorage.setItem("cdj_zestaw", z); } catch (e) {}
+  try { PAM.setItem("cdj_zestaw", z); } catch (e) {}
   if (typeof odswiezPrzycisk === "function" && typeof ostatniStan !== "undefined") odswiezPrzycisk();
 }
 function ustawZestaw(z) {
@@ -1026,13 +1558,15 @@ function zestawZOpcji() {
 }
 document.querySelectorAll("#zestawy button").forEach(b => b.addEventListener("click", () => ustawZestaw(b.dataset.z)));
 ["cAutoload", "cTrzyPasma", "cFlac"].forEach(id => $(id).addEventListener("change", () => { if (!zestawUstawiam) pokazZestaw(zestawZOpcji()); }));
-{ let z = null; try { z = localStorage.getItem("cdj_zestaw"); } catch (e) {}
+{ let z = null; try { z = PAM.getItem("cdj_zestaw"); } catch (e) {}
   pokazZestaw(z === "wlasne" || (ZESTAWY[z] && zestawZOpcji() === z) ? z : zestawZOpcji()); }
 $("cOkladki").addEventListener("change", () => { $("cOkladkiSiec").disabled = !$("cOkladki").checked; });
 $("cOkladkiSiec").disabled = !$("cOkladki").checked;
 const tloDostepne = () => { $("cTlo").disabled = !$("cKopiuj").checked; };
 $("cKopiuj").addEventListener("change", tloDostepne); tloDostepne();
-$("lang").onchange = () => { LANG = $("lang").value; try { localStorage.setItem("cdj_lang", LANG); } catch (e) {} applyLang(); };
+document.querySelectorAll('input[type="text"], input:not([type])').forEach(i => {
+  i.spellcheck = false; i.setAttribute("autocorrect", "off"); i.setAttribute("autocapitalize", "off"); i.setAttribute("autocomplete", "off"); });
+$("lang").onchange = () => { LANG = $("lang").value; try { PAM.setItem("cdj_lang", LANG); } catch (e) {} applyLang(); };
 applyLang();
 setInterval(odswiez, 800); odswiez();
 </script>

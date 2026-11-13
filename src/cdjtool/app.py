@@ -27,6 +27,61 @@ else:
     import fcntl
 
 KAT = os.path.dirname(os.path.abspath(__file__))
+
+
+def wersja_programu():
+    """Wersja do stopki okna: wersja.txt zapisany przy budowaniu paczki, w kodzie zrodlowym pierwszy wpis CHANGELOG."""
+    try:
+        with open(os.path.join(KAT, "wersja.txt"), encoding="utf-8") as fh:
+            w = fh.read().strip()
+        if w:
+            return w
+    except OSError:
+        pass
+    try:
+        with open(os.path.join(KAT, "..", "..", "CHANGELOG.md"), encoding="utf-8") as fh:
+            m = re.search(r"^## *\[?v?([0-9][0-9.]*)", fh.read(), re.M)
+        if m:
+            return m.group(1) + " (dev)"
+    except OSError:
+        pass
+    return "?"
+
+
+WERSJA = wersja_programu()
+
+
+def _plik_ustawien():
+    baza = winplat.support_dir() if sys.platform == "win32" else os.path.expanduser("~/Library/Application Support/CDJ-Tool")
+    return os.environ.get("CDJ_USTAWIENIA") or os.path.join(baza, "ustawienia.json")
+
+
+def wczytaj_ustawienia():
+    """Ustawienia okna (jezyk, opcje). Okno dostaje przy kazdym starcie inny port, a z nim pusty localStorage,
+    wiec trzymamy je w pliku obok korekt edytora."""
+    try:
+        with open(_plik_ustawien(), encoding="utf-8") as fh:
+            d = json.load(fh)
+        return {str(k): str(v) for k, v in d.items()} if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def zapisz_ustawienie(klucz, wartosc):
+    klucz = str(klucz)
+    if not re.fullmatch(r"cdj_[A-Za-z0-9_]{1,40}", klucz):
+        raise ValueError("zly klucz")
+    d = wczytaj_ustawienia()
+    if wartosc is None:
+        d.pop(klucz, None)
+    else:
+        d[klucz] = str(wartosc)[:200]
+    p = _plik_ustawien()
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(d, fh, ensure_ascii=False, indent=0)
+    os.replace(tmp, p)
 sys.dont_write_bytecode = True  # do not modify the (signed) app bundle at run time
 NATIVE = os.environ.get("CDJ_NATIVE") == "1"
 BUNDLED = os.environ.get("CDJ_BUNDLED") == "1"
@@ -299,6 +354,15 @@ def _kopiuj_fragment(wejscie, wyjscie, offset, limit):
 
 
 
+POMIARY_DYSKOW = {}  # ostatni prawdziwy odczyt (MB/s) dla dysku, gdy kolejny pomiar trafi w pamiec systemu
+
+
+def _wolumin_dla(sciezka):
+    """'/Volumes/X' dla dysku zewnetrznego, '/' dla dysku systemowego."""
+    czesci = sciezka.split(os.sep)
+    return os.sep.join(czesci[:3]) if len(czesci) > 2 and czesci[1] == "Volumes" else os.sep
+
+
 MAKS_ZADAN = 256  # twardy sufit liczby rownoleglych zadan (RAM i tak ogranicza bramka pamieci)
 
 
@@ -361,6 +425,14 @@ def zmierz_predkosc(folder_mp3, pendrive, kopiuj_mp3):
         if dt > 4:  # wolne zrodlo: nie meczymy go dluzej
             break
     maks = max(pomiary)
+    # Ponad ok. 6 GB/s to juz pamiec systemu, nie dysk: pliki byly niedawno czytane (np. przez analize), a macOS
+    # trzyma je w pamieci mimo F_NOCACHE. Pokazujemy wtedy poprzedni prawdziwy pomiar tego dysku, jesli byl.
+    urz = os.path.splitdrive(folder_mp3)[0] or _wolumin_dla(folder_real)
+    z_pamieci = maks > 6000
+    if z_pamieci and urz in POMIARY_DYSKOW:
+        maks = POMIARY_DYSKOW[urz]
+    elif not z_pamieci:
+        POMIARY_DYSKOW[urz] = maks
     cel = maks * 0.8
     rdzenie = os.cpu_count() or 4
     mb_s_na_watek = 5.0  # srednio tyle MB MP3 na sekunde zuzywa jedno zadanie (dekodowanie + analiza)
@@ -374,7 +446,7 @@ def zmierz_predkosc(folder_mp3, pendrive, kopiuj_mp3):
             "ram_budzet_mb": round(budzet), "ram_calk_mb": round(ram_calk), "rdzenie": rdzenie,
             "workers": workers, "pomiary": [
                 {"workers": workers, "mb_s": round(maks, 1), "odczyt_mb_s": round(maks, 1), "zapis_mb_s": None}],
-            "przykladowy_plik": os.path.basename(przyklad)}
+            "przykladowy_plik": os.path.basename(przyklad), "z_pamieci": z_pamieci}
 
 
 
@@ -659,8 +731,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._wyslij(403, {"blad": "zabronione"})
         if url.path == "/":
             html = open(os.path.join(KAT, "ui.html"), encoding="utf-8").read().replace("__TOKEN__", TOKEN)
-            html = html.replace("__NATIVE__", "true" if NATIVE else "false")
+            html = html.replace("__NATIVE__", "true" if NATIVE else "false").replace("__WERSJA__", WERSJA)
+            html = html.replace("__USTAWIENIA__", json.dumps(wczytaj_ustawienia()).replace("<", "\\u003c"))
             return self._wyslij(200, html.encode("utf-8"), "text/html; charset=utf-8")
+        if url.path == "/api/edytor/audio":  # odtwarzacz <audio> nie wysle naglowka: token w adresie
+            q = urllib.parse.parse_qs(url.query)
+            if q.get("t", [""])[0] != TOKEN:
+                return self._wyslij(403, {"blad": "brak autoryzacji"})
+            return self._wyslij_audio(q.get("p", [""])[0], q.get("f", [""])[0])
         if not self._auth():
             return self._wyslij(403, {"blad": "brak autoryzacji"})
         STAN["ostatnio"] = time.time()
@@ -691,6 +769,52 @@ class Handler(http.server.BaseHTTPRequestHandler):
             p = PODGLADY.get(i)
             return self._wyslij(200, dict(p, i=i) if p else {})
         return self._wyslij(404, {"blad": "nie znaleziono"})
+
+    def _wyslij_audio(self, pendrive, plik):
+        """Plik audio z pendrive'a dla edytora, z obsluga Range (przewijanie w odtwarzaczu)."""
+        import edytor
+        try:
+            sciezka = edytor.plik_audio(pendrive, plik)
+        except ValueError as e:
+            return self._wyslij(404, {"blad": str(e)})
+        rozmiar = os.path.getsize(sciezka)
+        typ = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", ".wav": "audio/wav",
+               ".aif": "audio/aiff", ".aiff": "audio/aiff", ".flac": "audio/flac"}.get(
+            os.path.splitext(sciezka)[1].lower(), "application/octet-stream")
+        od, do = 0, rozmiar - 1
+        m = re.match(r"bytes=(\d*)-(\d*)", self.headers.get("Range", ""))
+        if m and (m.group(1) or m.group(2)):
+            if m.group(1):
+                od = int(m.group(1))
+                do = min(int(m.group(2)), rozmiar - 1) if m.group(2) else rozmiar - 1
+            else:
+                od = max(0, rozmiar - int(m.group(2)))
+            if od > do:
+                self.send_response(416)
+                self.send_header("Content-Range", "bytes */%d" % rozmiar)
+                self.end_headers()
+                return
+            self.send_response(206)
+            self.send_header("Content-Range", "bytes %d-%d/%d" % (od, do, rozmiar))
+        else:
+            self.send_response(200)
+        self.send_header("Content-Type", typ)
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(do - od + 1))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        try:
+            with open(sciezka, "rb") as fh:
+                fh.seek(od)
+                zostalo = do - od + 1
+                while zostalo > 0:
+                    blok = fh.read(min(1 << 20, zostalo))
+                    if not blok:
+                        break
+                    self.wfile.write(blok)
+                    zostalo -= len(blok)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
 
     def do_POST(self):
         if not self._auth():
@@ -749,6 +873,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if not (os.path.isdir(a["folder_mp3"]) and os.path.isdir(a["pendrive"])):
                     return self._wyslij(400, {"blad": "Nie znaleziono wybranych folderow."})
                 return self._wyslij(200, {"ok": start_zadania(a)})
+            if sciezka.startswith("/api/edytor/"):
+                import edytor
+                with LOCK:
+                    if STAN["job"].get("stan") == "trwa":
+                        return self._wyslij(409, {"blad": "Poczekaj, aż skończy się zapis pendrive'a."})
+                root = os.path.abspath(dane.get("pendrive", ""))
+                if not os.path.isfile(os.path.join(root, "PIONEER", "rekordbox", "export.pdb")):
+                    return self._wyslij(400, {"blad": "Na tym pendrivie nie ma jeszcze biblioteki CDJ Tool."})
+                if sciezka == "/api/edytor/lista":
+                    return self._wyslij(200, {"utwory": edytor.lista(root)})
+                if sciezka == "/api/edytor/utwor":
+                    return self._wyslij(200, edytor.utwor(root, int(dane["id"])))
+                if sciezka == "/api/edytor/zapisz":
+                    return self._wyslij(200, edytor.zapisz(root, int(dane["id"]), dane["edycja"]))
+                if sciezka == "/api/edytor/zapomnij":
+                    f, s = edytor._utwor(root, int(dane["id"]))
+                    edytor.zapisz_korekte(edytor.klucz_korekty(s["file_path"], f["file_size"]), None)
+                    return self._wyslij(200, {"ok": True})
+                return self._wyslij(404, {"blad": "nie znaleziono"})
             if sciezka == "/api/predkosc":
                 folder = os.path.abspath(dane.get("folder_mp3", ""))
                 pendrive = os.path.abspath(dane.get("pendrive", ""))
@@ -782,6 +925,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self._wyslij(400, {"blad": "To nie jest pendrive (%s)." % (p or "brak ścieżki")})
                 ok, tekst = wysun_pendrive(p)
                 return self._wyslij(200, {"ok": ok, "tekst": tekst})
+            if sciezka == "/api/ustawienia":
+                zapisz_ustawienie(dane.get("klucz"), dane.get("wartosc"))
+                return self._wyslij(200, {"ok": True})
             if sciezka == "/api/zakoncz":
                 self._wyslij(200, {"ok": True})
                 threading.Thread(target=lambda: (time.sleep(0.3), os._exit(0)), daemon=True).start()

@@ -320,7 +320,10 @@ def analizuj(y: np.ndarray) -> Dict[str, Any]:
             z_sieci = dict(z_sieci, takt=_takt_heurystyka())
         wynik.update(z_sieci)
         med = wynik.get("siec_przesuniecie_s")
-        if med is not None and abs(med) < 0.45 * okres and wynik.get("siec_zgodnosc", 0.0) >= 0.4:
+        zg = wynik.get("siec_zgodnosc", 0.0)
+        # przesuniecie o prawie pol beatu bierzemy tylko przy pewnej sieci (np. hip-hop liczony w podwojnym
+        # tempie: heurystyka basu stawia siatke miedzy stopami, a siec zgodnie wskazuje ~pol beatu dalej)
+        if med is not None and (abs(med) < 0.45 * okres or zg >= 0.8) and zg >= 0.4:
             # Faza z sieci: na wzorcu rekordboxa mediana bledu 8 ms (heurystyka energii basu: ok. 60 ms, bo stawiala
             # linie na szczycie basu stopy zamiast na jej ataku). Heurystyka zostaje, gdy siec nie dziala.
             pierwszy = faza + med - SIEC_OPOZNIENIE_S + ATAK_PRZED_WZROSTEM_S
@@ -334,9 +337,45 @@ def analizuj(y: np.ndarray) -> Dict[str, Any]:
         wynik["siec_blad"] = "%s: %s" % (type(e).__name__, e)
         if wynik.get("takt_zrodlo") != "siec":
             wynik["takt"] = _takt_heurystyka()
+    try:
+        _polowa_tempa(wynik)
+    except Exception:  # noqa: BLE001  # zostaje tempo z analizy
+        pass
     _profil().update(ref=None, w=None, t=None)  # zwolnij pamiec podreczna filtrow/profilu tego utworu
     _kick120().update(ref=None, e=None, c=None)
     return wynik
+
+
+def _polowa_tempa(wynik):
+    """Podwojne tempo (hip-hop, trap ~70-90 BPM liczone jako 140-180): gdy siec zgodnie widzi beaty co drugi
+    beat naszej siatki, tempo i siatka ida na pol. Beat 'raz' i takt biora sie z beatow i downbeatow sieci."""
+    bt = np.asarray(wynik.get("beaty_sieci", ()), dtype=np.float64)
+    bd = np.asarray(wynik.get("takty_sieci", ()), dtype=np.float64)
+    if wynik.get("faza_zrodlo") != "siec" or len(bt) < 16 or len(bd) < 4:
+        return
+    bpm = wynik["bpm"]
+    odst = np.diff(bt)
+    odst = odst[odst < 2.0]
+    if len(odst) < 12 or bpm < 120:
+        return
+    bpm_sieci = 60.0 / float(np.median(odst))
+    if abs(2 * bpm_sieci / bpm - 1) > 0.03:
+        return
+    okres = 60.0 / bpm
+    kot = wynik["pierwszy"] + SIEC_OPOZNIENIE_S - ATAK_PRZED_WZROSTEM_S  # pierwszy beat w czasie sieci
+    # ktore z dwoch ustawien (parzyste/nieparzyste beaty) trafia w beaty sieci
+    trafia = [np.mean(np.abs(((bt - kot - p * okres + okres) % (2 * okres)) - okres) < 0.03) for p in (0, 1)]
+    p = int(np.argmax(trafia))
+    if trafia[p] < 0.7:
+        return
+    pierwszy = wynik["pierwszy"] + p * okres
+    okres2 = 2 * okres
+    while pierwszy - okres2 >= 0:
+        pierwszy -= okres2
+    kot = pierwszy + SIEC_OPOZNIENIE_S - ATAK_PRZED_WZROSTEM_S
+    glosy = np.bincount(np.round((bd - kot) / okres2).astype(int) % 4, minlength=4)
+    wynik.update(bpm=bpm / 2, pierwszy=float(pierwszy), takt=int(np.argmax(glosy)), takt_glosy=[int(v) for v in glosy],
+                 polowa_tempa=True)
 
 
 NET_OKIEN = int(os.environ.get("CDJ_BT_OKNA", "1"))  # ile ~30 s fragmentow analizuje siec (0 = caly utwor)

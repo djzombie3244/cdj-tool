@@ -7,7 +7,7 @@ CDJ Tool analizuje utwory (BPM, siatka beatów, waveformy, punkty cue) i zapisuj
 wczytuje tak jak eksport z rekordboxa: baza utworów (`export.pdb`), pliki analizy (`ANLZ0000.DAT` / `.EXT`)
 i kopie plików audio. To mała aplikacja na macOS (Apple Silicon i Intel) oraz Windows, która działa całkowicie **offline**.
 
-> **Status:** wersja 1.0.8. Autor testował na prawdziwym sprzęcie: CDJ-2000 (nie NXS) z [modem RaftTone](https://rafttone.com/cdj2000/) v1.1,
+> **Status:** wersja 1.0.9. Autor testował na prawdziwym sprzęcie: CDJ-2000 (nie NXS) z [modem RaftTone](https://rafttone.com/cdj2000/) v1.1,
 > na utworach MP3 (baza, waveformy także w trybie 3BAND, BPM i siatka, tonacja, hot cue A–F, playlisty). Aplikację
 > sprawdzono na Macach z Apple Silicon i z procesorem Intel oraz na Windowsie. Obsługa AAC, WAV, AIFF i FLAC jest nowsza i nadal testowana
 > na sprzęcie; CDJ-2000 z oryginalnym firmware nie był jeszcze testowany przez autora
@@ -43,6 +43,8 @@ powiązany. Budowanie i wgrywanie firmware'u opisuje strona moda; robisz to na w
 - Analiza plików **MP3, AAC (.m4a), WAV i AIFF** (formaty, które gra zwykły CDJ-2000; ALAC nie jest obsługiwany i jest pomijany).
 - **Opcjonalny FLAC** (eksperymentalny): zaznacz *Pliki FLAC (tylko z modem)*, jeśli Twój CDJ-2000 ma mod RaftTone, który gra FLAC (stereo, 16 lub 24 bity, 44,1 lub 48 kHz). Zwykły CDJ-2000 nie odtworzy FLAC. W teście autora na CDJ-2000 z modem pliki FLAC się ładują i grają, ale hot cue wczytują się wolno, a odtwarzacz nie wykorzystuje wyeksportowanego BPM i siatki beatów, więc musi przeanalizować utwór sam. FLAC wypada więc gorzej niż MP3, AAC, WAV i AIFF; używaj go tylko, jeśli go potrzebujesz. Raporty z innego sprzętu są mile widziane.
 - Wykrywanie **BPM i siatki beatów**, **waveform przeglądowy i szczegółowy** (CDJ-2000 potrzebuje pliku `.EXT`, żeby pokazać waveform), automatyczne **hot cue i memory cue**. Na 15 utworach testowych siatka zgadzała się z eksportem rekordboxa co do 9 ms (mediana), a waveformy co do kilku milisekund.
+- **Edytor siatki i cue** dla utworów już zapisanych na pendrive: kolorowy waveform z siatką, odtwarzanie z metronomem, przesuwanie siatki o 1 lub 10 ms, ustawianie „1” taktu, zmiana BPM (±0,01, ×2, ÷2), hot cue A–F i memory cue. Zapis zmienia dane na pendrive, a poprawka zostaje zapamiętana na komputerze, więc przy kolejnym zapisie pendrive'a utwór zachowa Twoją siatkę.
+- **Hip-hop i inne wolne utwory** (ok. 65–90 BPM) dostają prawdziwe tempo zamiast podwójnego, z siatką na stopach.
 - **Tonacja** (wersja testowa): z tagów pliku, gdy są (np. ze sklepu), w przeciwnym razie wykrywana; zapis klasyczny (Am) albo Camelot (8A). CDJ-2000 z firmware 4.33 pokazuje KEY przy przeglądaniu.
 - **Playlisty odwzorowujące Twoje foldery**: podfoldery stają się folderami playlist, więc widok Playlist pokazuje układ Twoich folderów z BPM, tonacją i waveformem od razu.
 - **Dla moda RaftTone v1.1:** każdy utwór dostaje 6 hot cue (banki A–F moda), opcjonalne *Hot Cue Auto Load* „ON” jak w rekordboxie i opcjonalny **waveform 3-pasmowy** (`ANLZ0000.2EX`, jak zapisuje go rekordbox) dla trybu 3BAND moda. Poprawki siatki, które mod zapisuje na pendrive (`MODGRID.BIN`, `MODHCUE.BIN`), nie są nigdy ruszane.
@@ -55,7 +57,7 @@ powiązany. Budowanie i wgrywanie firmware'u opisuje strona moda; robisz to na w
 - Komputer nie usypia się podczas analizy i zapisu (opcja, domyślnie włączona; zamknięcie klapy laptopa nadal go usypia).
 - Opcjonalne **formatowanie pendrive do FAT32 (MBR)** pod CDJ-2000.
 - Niezawodny przycisk **wysuwania**.
-- Interfejs w **6 językach**: Polski, English, Deutsch, Français, Español, Italiano.
+- Interfejs w **6 językach**: Polski, English, Deutsch, Français, Español, Italiano, łącznie z dziennikiem, ostrzeżeniami i komunikatami o błędach. Język i opcje są zapamiętywane między uruchomieniami.
 - **Okładki albumów** na ekranie odtwarzacza: okładka z tagów pliku (MP3, WAV, AIFF, M4A, FLAC), zapisana tak jak przez rekordbox. Opcjonalnie (domyślnie wyłączone) brakujące okładki z sieci: Deezer i Apple iTunes, po wykonawcy i tytule.
 - **Brakujące tagi uzupełniane z nazw**: plik bez wykonawcy/tytułu dostaje je z nazwy („Wykonawca - Tytuł.mp3”), a album i rok z nazwy folderu („Wykonawca - Album 2011”). Istniejące tagi zostają bez zmian.
 - **Długie utwory i sety do 3 godzin**, analizowane odcinkami przy umiarkowanym zużyciu pamięci; siatka może zmieniać tempo w trakcie seta (siatka dynamiczna, jak w rekordboxie).
@@ -78,7 +80,7 @@ Pełna instrukcja, obejście Gatekeepera i odinstalowanie: [docs/INSTALL.pl.md](
 
 ## Użycie
 
-1. Wybierz folder z utworami i pendrive.
+1. Wybierz folder z utworami i pendrive (na Macu możesz też przeciągnąć foldery albo sam pendrive na okno).
 2. Wybierz odtwarzacz (*CDJ-2000* albo *CDJ-2000 z modem RaftTone*), w razie potrzeby wpisz nazwę playlisty.
 3. Kliknij **Analizuj i zapisz na pendrive**, potem **Wysuń** i włóż pendrive do CDJ-2000.
 
@@ -91,7 +93,7 @@ skopiowany do `Dokumenty/CDJ-Tool-kopie`).
 - Siatka beatów ma stałe tempo: tempo pochodzi ze stopy, a położenie beatów i początek taktu z sieci neuronowej
   Beat This!. Pasuje do muzyki four-on-the-floor; w utworach, w których rekordbox robi siatkę dynamiczną (z pływającym
   tempem), różnica może sięgać ok. 80 ms. Sprawdź siatkę na odtwarzaczu, zanim zaufasz SYNC lub beat jump z moda;
-  mod pozwala ją poprawić na decku i zapamiętuje poprawkę.
+  popraw ją w edytorze siatki w aplikacji albo na decku (mod zapamiętuje tę poprawkę).
 - Utwory ze zmiennym tempem i bez wyraźnej stopy nie są obsługiwane dobrze.
 - Zapis bazy obsługuje około 10 000 utworów na pendrive; większe zbiory trzeba podzielić.
 - Testowane tylko na CDJ-2000 z modem RaftTone. Inne odtwarzacze: zobacz tabelę wyżej.

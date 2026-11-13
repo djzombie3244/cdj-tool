@@ -35,5 +35,12 @@ if __name__ == "__main__":
         sys.exit(1)
     
     except Exception as e:
-        emit({"typ": "blad", "tekst": f"Nieoczekiwany błąd: {str(e) or e.__class__.__name__}", "kod": "UNKNOWN"})
+        try:  # pendrive odlaczony albo wadliwy (Errno 5, 14, ...): jasny komunikat zamiast "Nieoczekiwany blad"
+            nosnik = silnik.blad_nosnika(e, args)
+        except Exception:  # noqa: BLE001
+            nosnik = None
+        if nosnik is not None:
+            emit({"typ": "blad", "tekst": nosnik.user_message, "kod": nosnik.code})
+        else:
+            emit({"typ": "blad", "tekst": f"Nieoczekiwany błąd: {str(e) or e.__class__.__name__}", "kod": "UNKNOWN"})
         sys.exit(1)

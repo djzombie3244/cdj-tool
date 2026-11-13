@@ -351,6 +351,13 @@ def z_nazwy_pliku(nazwa):
     n = re.sub(r"^\s*\d{1,3}\s*[\.\-\)]?\s+", "", n)
     if " - " not in n:
         return None
+    # "12A - Artist - Title", "1A - 128 - Artist - Title", "[8A] Artist - Title": klucz (Camelot / Open Key) i tempo
+    # z programow DJ-skich to nie wykonawca
+    n = re.sub(r"^\s*[\[\(]\s*\d{1,2}\s*[ABabdm]\s*[\]\)]\s*", "", n)
+    czesci = [c.strip() for c in n.split(" - ")]
+    while len(czesci) > 2 and re.fullmatch(r"(?i)\d{1,2}\s*[abdm]|\d{1,3}(?:[.,]\d+)?\s*(?:bpm)?|[A-G][#b♯♭]?\s*(?:m|min|maj|major|minor)?", czesci[0]):
+        czesci.pop(0)
+    n = " - ".join(czesci)
     a, t = n.split(" - ", 1)
     a, t = " ".join(a.split()), " ".join(t.split())
     return (a, t) if a and t else None

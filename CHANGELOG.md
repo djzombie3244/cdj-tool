@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.9 - 2026
+- **Beat grid and cue editor** for tracks already on the stick: coloured waveform with grid lines, hot cues A–F and memory cues; playback with an optional metronome; shift the grid by 1 or 10 ms, put the nearest beat on the cursor, set the bar's "1", change BPM (±0.01, ×2, ÷2); set, move or delete hot cues and memory cues (optionally snapped to beats). Saving rewrites the analysis files and the tempo in the database on the stick, and the correction is kept on the computer, so the next time the stick is written the track gets your grid and cues instead of the automatic ones.
+- **Hip-hop and other slow tracks** (about 65–90 BPM) are no longer analysed at double tempo: when the beat-tracking network clearly hears every other beat, BPM and grid are halved and the grid sits on the kicks instead of between them.
+- Editor: ÷2 and ×2 keep the existing beat lines and the bar's "1" in place instead of rebuilding the grid from the beat nearest the cursor.
+- **Messages in your language:** the log, progress steps, warnings and error messages are now translated when the app language is not Polish (also lines already in the log when you switch the language).
+- The app version is shown at the bottom of the window.
+- The summary tiles at the end also appear when several folders are written in one go: totals for all folders (tracks, skipped files, artwork, cache, time) and the number of folders.
+- **Clear message when the USB stick fails or disconnects while writing** (I/O errors such as Errno 5 and 14) instead of "Unexpected error"; the same for the music disk and a full stick. After an error the progress header says so instead of the last step.
+- The progress bar and remaining time now move while the background copy is being finished.
+- Formatting is locked while writing; after formatting, the panel no longer shows the old drive name.
+- The app remembers the language and options between launches (they are now kept in a settings file, not in the window's storage, which was lost on every start).
+- "Prepare formatting" shows right away that the disk is being checked.
+- No autocorrect in text fields (macOS changed e.g. "Doja" to "Doją" in the editor search).
+- File names starting with a key or tempo from DJ software ("12A - Artist - Title", "1A - 128 - …") no longer put the key into the artist field.
+- Speed test: when the files are still in the system's memory (read shortly before), the result is marked as such and the previous real measurement of the disk is used.
+- Finishing the write no longer waits forever when another disk (e.g. a faulty USB stick) hangs the system.
+- **Drag and drop (Mac):** drop a music folder onto the window to add it; dropping the USB stick itself selects it as the target.
+
 ## 1.0.8 - 2026
 - **Simpler window.** Three steps instead of four (Music, USB stick, Options), short option names in two columns with the full explanation behind an *i* button, a player switch (*CDJ-2000* / *CDJ-2000 with RaftTone mod* / *Custom*) that sets the mod-specific options in one click, rarely changed options under *Advanced*, formatting and the speed measurement under *Tools*. The Start button stays visible with one sentence saying what will happen, and the settings fold away while the app works.
 - **Summary at the end**: tracks written, files skipped, artwork (and how many from the internet), tags filled from names, results taken from the cache, total time and time per track, disk write speed and format. Skipped files are now listed by name (before: "unknown").

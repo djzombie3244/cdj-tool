@@ -25,9 +25,10 @@ curl -fL -o "$W/dl/$FF" "$FFURL"
 unzip -q "$W/dl/$FF" -d "$W/dl/ff"
 mkdir -p "$APP/ffmpeg"; cp "$W"/dl/ff/*/bin/ffmpeg.exe "$APP/ffmpeg/"
 cp "$W"/dl/ff/*/LICENSE.txt "$APP/ffmpeg/FFMPEG-LICENSE.txt" 2>/dev/null || true
-for f in app.py audio_stream.py beatthis.py cue.py exceptions.py gen_dat.py logging_config.py pdb_writer.py silnik.py takt.py tonacja.py okladki.py ui.html \
+for f in app.py audio_stream.py beatthis.py cue.py exceptions.py gen_dat.py logging_config.py pdb_writer.py silnik.py takt.py tonacja.py okladki.py edytor.py ui.html \
          winplat.py worker.py config.json; do cp "src/cdjtool/$f" "$APP/src/"; done
 cp -R src/cdjtool/wzorzec "$APP/src/"
+printf '%s\n' "$VER" > "$APP/src/wersja.txt"   # shown in the footer of the window
 bash tools/fetch_models.sh >/dev/null
 mkdir -p "$APP/src/models"; cp build/models/beat_this.onnx build/models/mel-filterbank.bin "$APP/src/models/"
 unzip -q -o build/ort/onnxruntime-1.19.2-cp39-cp39-win_amd64.whl -d "$APP/site-packages"

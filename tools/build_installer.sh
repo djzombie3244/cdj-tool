@@ -46,10 +46,11 @@ echo "==> Copying the app bundle"
 ditto "$APP_IN" "$APP"
 
 echo "==> Installing sources from src/cdjtool"
-for f in app.py silnik.py pdb_writer.py gen_dat.py takt.py beatthis.py cue.py tonacja.py okladki.py audio_stream.py exceptions.py logging_config.py worker.py ui.html config.json AppIcon.png; do
+for f in app.py silnik.py pdb_writer.py gen_dat.py takt.py beatthis.py cue.py tonacja.py okladki.py edytor.py audio_stream.py exceptions.py logging_config.py worker.py ui.html config.json AppIcon.png; do
   [ -f "$SRC/$f" ] || die "Missing source file: $f"
   cp "$SRC/$f" "$RES/$f"
 done
+printf '%s\n' "$VERSION" > "$RES/wersja.txt"   # shown in the footer of the window
 rm -rf "$RES/wzorzec"
 cp -R "$SRC/wzorzec" "$RES/wzorzec"
 

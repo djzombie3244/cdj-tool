@@ -2,6 +2,7 @@
 """Silnik: Analiza MP3 i zapis dla CDJ-2000 — WERSJA NAPRAWIONA."""
 
 import datetime
+import errno
 import concurrent.futures
 import json
 import os
@@ -25,6 +26,7 @@ sys.path.insert(0, KAT)
 
 import gen_dat as g
 import pdb_writer as pw
+import edytor
 import okladki
 import tonacja
 from exceptions import (
@@ -926,6 +928,45 @@ def test_dysku(root, folder, pliki, rozmiar=8 * 1024 * 1024):
     return wynik
 
 
+# bledy systemu przy odlaczonym albo wadliwym nosniku (macOS przy zniknietym FAT32 zwraca tez EFAULT "Bad address")
+BLEDY_NOSNIKA = {errno.EIO, errno.EFAULT, errno.ENXIO, errno.ENODEV, errno.EROFS, errno.ENOSPC}
+
+
+def blad_nosnika(e, a):
+    """Jasny komunikat (CDJError) dla bledu wejscia/wyjscia pendrive'a albo dysku z muzyka; None dla innych bledow."""
+    if not isinstance(e, OSError):
+        return None
+    root = os.path.abspath(a.get("pendrive") or "")
+    folder = os.path.abspath(a.get("folder_mp3") or "")
+    zniknal = _odlaczony(root) if a.get("pendrive") else None
+    zniknal_zrodlo = _odlaczony(folder) if a.get("folder_mp3") else None
+    if e.errno not in BLEDY_NOSNIKA and not zniknal and not zniknal_zrodlo:
+        return None
+    plik = os.path.abspath(str(e.filename)) if e.filename else ""
+    w_zrodle = bool(plik) and plik.startswith(folder + os.sep) and not plik.startswith(root + os.sep)
+    nazwa = os.path.basename(root.rstrip(os.sep)) or root
+    opis = e.strerror or str(e)
+    if zniknal_zrodlo or (w_zrodle and not zniknal):
+        return CDJError("source disk error: %s" % e, code="DYSK_ZRODLO", user_message=(
+            "Błąd odczytu dysku z muzyką (%s). Dysk odłączył się albo jest uszkodzony. Podłącz go ponownie, sprawdź go "
+            "w Narzędziu dyskowym (Pierwsza pomoc) i uruchom zapis jeszcze raz: przeanalizowane utwory wezmę z pamięci "
+            "podręcznej." % opis))
+    if e.errno == errno.ENOSPC and not zniknal:
+        return CDJError("stick full: %s" % e, code="PENDRIVE_PELNY", user_message=(
+            "Na pendrive %s skończyło się miejsce. Zwolnij miejsce albo użyj większego pendrive'a i uruchom zapis "
+            "jeszcze raz." % nazwa))
+    if zniknal:
+        return CDJError("stick gone: %s" % e, code="DYSK_ODLACZONY", user_message=(
+            "Pendrive %s odłączył się w trakcie zapisu. Zapis jest niekompletny. Podłącz go ponownie i uruchom zapis "
+            "jeszcze raz: przeanalizowane utwory wezmę z pamięci podręcznej. Jeśli to się powtarza, podłącz pendrive "
+            "bezpośrednio do komputera (bez rozgałęźnika) albo użyj innego." % nazwa))
+    return CDJError("stick io error: %s" % e, code="PENDRIVE_IO", user_message=(
+        "Błąd zapisu na pendrive %s (%s). Pendrive mógł się na chwilę odłączyć albo jest uszkodzony, a zapis jest "
+        "niekompletny. Wysuń go, podłącz ponownie, sprawdź w Narzędziu dyskowym (Pierwsza pomoc) i uruchom zapis "
+        "jeszcze raz: przeanalizowane utwory wezmę z pamięci podręcznej. Jeśli błąd wróci, użyj innego pendrive'a."
+        % (nazwa, opis)))
+
+
 def _odlaczony(*sciezki):
     """Nazwa dysku (wolumenu), ktory zniknal, gdy ktoras ze sciezek nie istnieje; inaczej None."""
     for p in sciezki:
@@ -934,6 +975,24 @@ def _odlaczony(*sciezki):
                 return p.split("/")[2]
             return p
     return None
+
+
+def _zastosuj_korekte(u, kor):
+    """Siatka i cue z edytora w plikach analizy utworu (w pamieci albo w plikach tymczasowych)."""
+    def czytaj(klucz):
+        if u.get(klucz + "_plik"):
+            with open(u[klucz + "_plik"], "rb") as fh:
+                return fh.read()
+        return u[klucz]
+    dat, ext = edytor.zbuduj_pliki(czytaj("dat"), czytaj("ext"), kor)
+    for klucz, bajty in (("dat", dat), ("ext", ext)):
+        if u.get(klucz + "_plik"):
+            with open(u[klucz + "_plik"], "wb") as fh:
+                fh.write(bajty)
+        else:
+            u[klucz] = bajty
+        u[klucz + "_len"] = len(bajty)
+    u["bpm"] = edytor.bpm_utworu(kor)
 
 
 def _opis_utworu(ev, u):
@@ -1184,11 +1243,14 @@ class KopiarkaTla:
         self.stop = threading.Event()
         self.plikow = 0
         self.bajtow = 0
+        self.w_kolejce = 0   # bajty wszystkich plikow przekazanych do skopiowania
+        self.zapisane = 0    # bajty juz na pendrive (z pominietymi, bo byly na miejscu)
         self.blad = None
         self.watek = threading.Thread(target=self._praca, name="kopiarka-tla", daemon=True)
         self.watek.start()
 
     def dodaj(self, u):
+        self.w_kolejce += u["meta"]["rozmiar"]
         self.kolejka.put(u)
 
     def _praca(self):
@@ -1206,6 +1268,7 @@ class KopiarkaTla:
         cel = os.path.join(self.root, u["pend"].lstrip("/"))
         rozmiar = u["meta"]["rozmiar"]
         if os.path.exists(cel) and os.path.getsize(cel) == rozmiar:
+            self.zapisane += rozmiar
             return
         os.makedirs(os.path.dirname(cel), exist_ok=True)
         tmp = cel + ".cdjpart"
@@ -1218,6 +1281,7 @@ class KopiarkaTla:
                     if not blok:
                         break
                     fout.write(blok)
+                    self.zapisane += len(blok)
             os.replace(tmp, cel)
         except BaseException:
             try:
@@ -1228,11 +1292,14 @@ class KopiarkaTla:
         self.plikow += 1
         self.bajtow += rozmiar
 
-    def zakoncz(self, przerwij=False):
+    def zakoncz(self, przerwij=False, postep=None):
         if przerwij:
             self.stop.set()
         self.kolejka.put(None)
-        self.watek.join()
+        while self.watek.is_alive():
+            self.watek.join(0.4)
+            if postep is not None:
+                postep(self.zapisane, self.w_kolejce)
 
 
 # Pliki, ktore na pendrive zapisuje mod RaftTone v1.1 (siatka poprawiona na decku, bank hot cue D-F).
@@ -1370,6 +1437,9 @@ def _przetworz(a, emit):
         except OSError:
             kopiarka = None
 
+    # poprawki siatki i cue zrobione w edytorze: zastepuja automatyczne przy kazdym kolejnym zapisie
+    korekty = edytor.wczytaj_korekty()
+
     # okladki szukane w tle w trakcie analizy (z tagow i opcjonalnie z sieci), a nie dopiero po niej
     zapisz_okladki = bool(a.get("okladki", True))
     okl_tlo = OkladkiTla(bool(a.get("okladki_siec")), emit) if zapisz_okladki else None
@@ -1419,6 +1489,15 @@ def _przetworz(a, emit):
                         else:
                             ev.pop("tonacja", None)
                         utwory_wg_indeksu[ev["i"]] = utwor
+                        kor = korekty.get(edytor.klucz_korekty(utwor["pend"], utwor["meta"]["rozmiar"])) if korekty else None
+                        if kor:
+                            try:
+                                _zastosuj_korekte(utwor, kor)
+                                ev["bpm"] = utwor["bpm"]
+                                podsum["korekty"] = podsum.get("korekty", 0) + 1
+                                emit({"typ": "log", "tekst": "✎ %s: Twoja poprawka siatki i cue z edytora." % ev["nazwa"]})
+                            except Exception as e:  # noqa: BLE001
+                                emit({"typ": "log", "tekst": "⚠ %s: nie udało się zastosować poprawki z edytora (%s)." % (ev["nazwa"], e)})
                         podsum["z_pamieci"] = podsum.get("z_pamieci", 0) + (1 if ev.get("z_pamieci") else 0)
                         podsum["tagi_z_nazw"] = podsum.get("tagi_z_nazw", 0) + (1 if utwor["meta"].get("z_nazwy") else 0)
                         podsum["dlugie"] = podsum.get("dlugie", 0) + (1 if ev.get("dlugi") else 0)
@@ -1472,7 +1551,11 @@ def _przetworz(a, emit):
     if kopiarka is not None:
         emit({"typ": "etap", "tekst": "Kończę kopiowanie w tle..." + _t()})
         t_k = time.time()
-        kopiarka.zakoncz()
+        # pasek i czas do konca: bajty, ktore zostaly do skopiowania po analizie
+        od, pozostalo = kopiarka.zapisane, max(0, kopiarka.w_kolejce - kopiarka.zapisane)
+        emit({"typ": "kopiuj_start", "razem": pozostalo, "n": kopiarka.plikow})
+        kopiarka.zakoncz(postep=lambda z, r: emit({"typ": "kopiuj_bajty", "zrobione": min(pozostalo, max(0, z - od)),
+                                                    "razem": pozostalo}))
         if kopiarka.bajtow:
             emit({"typ": "log", "tekst": "Po analizie czekanie na kopiowanie: %.1f min." % ((time.time() - t_k) / 60)})
         emit({"typ": "log", "tekst": "W tle skopiowano %d plików (%.0f MB)%s." % (
@@ -1893,10 +1976,12 @@ def _przetworz(a, emit):
     os.replace(tmp_pdb, os.path.join(pioneer, "rekordbox", "export.pdb"))
 
     emit({"typ": "etap", "tekst": "Kończę zapis (opróżniam bufory pendrive'a)..." + _t()})
-    try:
-        os.sync()
-    except AttributeError:
-        pass
+    # os.sync() oproznia bufory WSZYSTKICH dyskow: zawieszony inny nosnik (np. wadliwy pendrive) blokowalby go bez
+    # konca. Baza jest juz zapisana z fsync; na reszte czekamy najwyzej minute i konczymy.
+    if hasattr(os, "sync"):
+        w = threading.Thread(target=os.sync, name="sync", daemon=True)
+        w.start()
+        w.join(60)
 
     stare = [n for n in ("exportExt.pdb", "exportLibrary.db")
              if os.path.exists(os.path.join(pioneer, "rekordbox", n))]
