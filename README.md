@@ -7,7 +7,7 @@ CDJ Tool analyses your tracks (BPM, beat grid, waveforms, cue points) and writes
 loads like a rekordbox export: track database (`export.pdb`), analysis files (`ANLZ0000.DAT` / `.EXT`) and copies of
 your audio files. It is a small app for macOS (Apple Silicon and Intel) and Windows that works completely **offline**.
 
-> **Status:** version 1.0.9. Tested by the author on real hardware: a CDJ-2000 (non-NXS) running the
+> **Status:** version 1.0.10. Tested by the author on real hardware: a CDJ-2000 (non-NXS) running the
 > [RaftTone mod](https://rafttone.com/cdj2000/) v1.1, with MP3 tracks (database, waveforms incl. 3BAND, BPM and beat
 > grid, key, hot cues A–F, playlists). The app was checked on Apple Silicon and Intel Macs and on Windows.
 > AAC, WAV, AIFF and FLAC support is newer and still being tested on hardware; a CDJ-2000 with stock firmware has
@@ -45,6 +45,10 @@ affiliated with it. Follow the mod's own page for building and flashing the firm
 - **BPM and beat grid** detection, **overview and detailed waveforms** (the CDJ-2000 needs the `.EXT` file to show waveforms), automatic **hot cues and memory cues**. On 15 test tracks the beat grid matched a rekordbox export within 9 ms (median) and the waveforms within a few milliseconds.
 - **Beat grid and cue editor** for tracks already on the stick: coloured waveform with the grid, playback with a metronome, shift the grid by 1 or 10 ms, set the bar's "1", change BPM (±0.01, ×2, ÷2), set hot cues A–F and memory cues. Saving updates the stick, and the correction is remembered on the computer, so the track keeps your grid the next time the stick is written.
 - **Hip-hop and other slow tracks** (about 65–90 BPM) get their real tempo instead of double time, with the grid on the kicks.
+- **Import of beat grids and cues** from other DJ software, used instead of the app's own analysis every time the stick is written (*Tools → Import beat grids and cues*): rekordbox (collection exported to XML), Traktor (`collection.nml`) and Serato (test version). Hot cues from the file take their slots; the remaining slots keep the automatic cues.
+- **Re-encode to WAV** in the editor for tracks that stutter or hang on the CDJ: a 16-bit stereo WAV copy takes the track's place on the stick, with the same playlists and artwork.
+- **Dynamic beat grid** for tracks whose tempo changes during the track (for example a transition from 104 to 128 BPM). Ordinary tracks are analysed as before.
+- **Windows:** a folder path can be pasted into the music step.
 - **Musical key** (test version): taken from the file tags when present (e.g. from the store), otherwise detected; classic (Am) or Camelot (8A) notation. A CDJ-2000 with firmware 4.33 shows KEY when browsing.
 - **Playlists that mirror your folders**: subfolders become playlist folders, so the Playlist view shows your folder structure with BPM, key and waveform right away.
 - **For the RaftTone mod v1.1:** every track gets 6 hot cues (the mod's A–F banks), optional *Hot Cue Auto Load* "ON" like rekordbox, and an optional **3-band waveform** (`ANLZ0000.2EX`, as rekordbox writes it) for the mod's 3BAND mode. Beat grid edits the mod saves on the stick (`MODGRID.BIN`, `MODHCUE.BIN`) are never touched.
@@ -80,7 +84,7 @@ Full instructions, Gatekeeper workaround and uninstall: [docs/INSTALL.md](docs/I
 
 ## Use
 
-1. Choose the folder with your tracks and the USB stick (on a Mac you can also drag folders, or the stick itself, onto the window).
+1. Choose the folder with your tracks and the USB stick (on a Mac you can also drag folders, or the stick itself, onto the window; on Windows paste the folder path: Explorer, Shift + right-click, *Copy as path*).
 2. Pick your player (*CDJ-2000* or *CDJ-2000 with RaftTone mod*), optionally name the playlist.
 3. Click **Analyze and write to USB stick**, then **Eject** and put the stick into the CDJ-2000.
 
@@ -93,7 +97,8 @@ from scratch (the old `PIONEER` folder is first copied to `Documents/CDJ-Tool-ko
   from the Beat This! neural network. It suits four-on-the-floor music; tracks where rekordbox makes a dynamic
   (wandering) grid can differ by up to ~80 ms. Check the grid on the player before relying on SYNC or beat jump of
   the mod; fix it in the app's grid editor, or on the deck (the mod keeps that correction).
-- Variable-tempo tracks and tracks without a clear kick are not handled well.
+- Variable-tempo tracks get a dynamic grid only when the network disagrees with a constant grid; tracks without a clear kick are not handled well.
+- Importing grids and cues from Traktor and Serato is a test version: their MP3 time base can differ from the CDJ's by a frame. Check imported tracks on the deck.
 - The database writer supports roughly 10,000 tracks per stick; larger sets must be split.
 - Tested only on a CDJ-2000 with the RaftTone mod. See the table above for other players.
 - The *Folder* browse view of a CDJ-2000 does not use the analysis data (a rekordbox export behaves the same);

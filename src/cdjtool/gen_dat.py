@@ -700,6 +700,166 @@ def siatka_dynamiczna(odcinki, dl, y=None, beaty=None):
             "tempa_serii": [round(60.0 / s_["okres"], 2) for s_ in serie]}
 
 
+# ------------------------------------------------- zmienne tempo w zwyklym utworze ---
+ZMIENNE_MIN_S = 20.0       # najkrotszy fragment o stalym tempie
+ZMIENNE_TOLERANCJA = 0.012  # tempo fragmentu: +-1,2% wokol jego mediany
+
+
+def _fragmenty_stale(bt):
+    """Fragmenty beatow sieci o stalym tempie: [(i0, i1)] (indeksy beatow, i1 wlacznie)."""
+    ibi = np.diff(bt)
+    if len(ibi) < 16:
+        return []
+    # okres wokol beatu: srednia z 8 odstepow (siec podaje czasy co 20 ms, pojedynczy odstep jest za zgrubny),
+    # potem mediana, zeby zgubiony albo dodatkowy beat nie przerywal fragmentu
+    k = 4
+    n = len(bt)
+    sr = np.array([(bt[min(n - 1, i + k)] - bt[max(0, i - k)]) / (min(n - 1, i + k) - max(0, i - k)) for i in range(n)])
+    lok = np.array([np.median(sr[max(0, i - k):i + k + 1]) for i in range(n - 1)])
+    out, i = [], 0
+    while i < len(lok):
+        j, med = i, lok[i]
+        while j + 1 < len(lok) and abs(lok[j + 1] / med - 1) <= ZMIENNE_TOLERANCJA:
+            j += 1
+            med = float(np.median(lok[i:j + 1]))
+        if bt[j + 1] - bt[i] >= ZMIENNE_MIN_S:
+            out.append((i, j + 1))
+        i = j + 1
+    return out
+
+
+def _te_same_tempo(a, b):
+    """Czy okresy a i b to to samo tempo (takze liczone podwojnie, w polowie albo w triolach)."""
+    r = max(a, b) / min(a, b)
+    return any(abs(r / x - 1) <= 0.03 for x in (1.0, 2.0, 1.5, 4.0 / 3.0, 3.0))
+
+
+def _prosta_beatow(t):
+    """Prosta t = t0 + k*okres przez beaty fragmentu (odporna na zgubione i dodatkowe beaty)."""
+    ibi = np.diff(t)
+    med = np.median(ibi)
+    okr, t0 = float(np.mean(ibi[np.abs(ibi / med - 1) < 0.15])), float(t[0])
+    for _ in range(4):
+        ks = np.round((t - t0) / okr)
+        res = t - (t0 + ks * okr)
+        ok = np.abs(res - np.median(res)) < 0.03
+        if ok.sum() < 16:
+            break
+        okr, t0 = (float(v) for v in np.polyfit(ks[ok], t[ok], 1))
+    return t0, okr
+
+
+def _zgodnosc_prostej(t, t0, okr):
+    """(przesuniecie beatow wzgledem siatki t0 + k*okr, ulamek beatow w +-25 ms od niej)."""
+    return _skupienie_beatow(((t - t0 + okr / 2) % okr) - okr / 2, okr)
+
+
+def zmienne_tempo(y, wynik):
+    """Utwor, w ktorym tempo sie zmienia (np. edit przejsciowy 104 -> 128 BPM): siatka dynamiczna z beatow sieci.
+    Fragmenty o stalym tempie dostaja rowna siatke dopasowana do beatow sieci, a przejscia miedzy nimi beaty sieci
+    wprost. Zwraca slownik jak siatka_dynamiczna() albo None, gdy utwor ma jedno tempo (wtedy zostaje zwykla siatka).
+    Sprawdzane tylko, gdy siec nie zgadza sie ze stala siatka (wtedy slucha calego utworu)."""
+    bt = np.asarray(wynik.get("beaty_sieci", ()), dtype=np.float64)
+    bd = np.asarray(wynik.get("takty_sieci", ()), dtype=np.float64)
+    if len(bt) < 64 or wynik.get("siec_zgodnosc", 1.0) >= 0.5 or wynik.get("polowa_tempa"):
+        return None
+    dl = len(y) / SR
+    bt = np.sort(bt)
+    if bt[-1] - bt[0] < 0.6 * dl:  # siec sluchala tylko fragmentow utworu
+        return None
+    fr = _fragmenty_stale(bt)
+    if len(fr) < 2:
+        return None
+    okresy = [float(np.median(np.diff(bt[i0:i1 + 1]))) for i0, i1 in fr]
+    if all(_te_same_tempo(okresy[0], o) for o in okresy[1:]):
+        return None
+    if sum(bt[i1] - bt[i0] for i0, i1 in fr) < 0.6 * (bt[-1] - bt[0]):
+        return None
+    przes = OFFSET_REKORDBOX_S - SIEC_OPOZNIENIE_S  # czas sieci -> wspolrzedne rekordboxa
+    b, d = bt + przes, bd + przes
+    koniec = dl + OFFSET_REKORDBOX_S - 0.05
+    serie = []
+    for (i0, i1), okr0 in zip(fr, okresy):
+        t = b[i0:i1 + 1]
+        t0, okr = _prosta_beatow(t)
+        zg = _zgodnosc_prostej(t, t0, okr)[1]
+        try:  # tempo ze stopy (dokladniejsze niz z beatow sieci co 20 ms), faza z beatow sieci
+            p0, p1 = int(max(0.0, bt[i0]) * SR), int(min(dl, bt[i1]) * SR)
+            on1 = _obwiednia_kicka(y[p0:p1])
+            kand = np.arange(60.0 / okr - 0.4, 60.0 / okr + 0.4, 0.005)
+            sc = np.array([_zlozony_profil(on1, x)[0] for x in kand])
+            bpm = float(kand[int(np.argmax(sc))])
+            for r in (round(bpm), round(bpm * 2) / 2):
+                if abs(r - bpm) <= 0.06 and _zlozony_profil(on1, float(r))[0] >= 0.97 * sc.max():
+                    bpm = float(r)
+                    break
+            o2 = 60.0 / bpm
+            przes, zg2 = _zgodnosc_prostej(t, float(t[0]), o2)
+            if zg2 >= zg - 0.05:
+                t0, okr = float(t[0]) + przes, o2
+        except Exception:  # noqa: BLE001  # zostaje prosta z beatow sieci
+            pass
+        finally:
+            _profil().update(ref=None, w=None, t=None)
+        serie.append({"start": float(b[i0]), "koniec": float(b[i1]), "t0": t0, "okres": okr})
+    serie[0]["start"] = 0.0
+    serie[-1]["koniec"] = koniec
+    czasy, tempa = [], []
+
+    def dodaj(t, tempo):
+        if 0 <= t < koniec and (not czasy or t >= czasy[-1] + 0.6 * 60.0 / tempo):
+            czasy.append(float(t))
+            tempa.append(float(tempo))
+
+    for n, sr_ in enumerate(serie):
+        if n:  # przejscie od poprzedniego fragmentu: beaty sieci (wygladzone), kazdy z wlasnym tempem
+            lo, hi = serie[n - 1]["koniec"], sr_["start"]
+            m = np.nonzero((b > lo + 1e-6) & (b < hi - 1e-6))[0]
+            if len(m):
+                i0, i1 = max(0, m[0] - 3), min(len(b), m[-1] + 4)
+                wyg = np.convolve(b[i0:i1], np.ones(3) / 3, "same")
+                wyg[0], wyg[-1] = b[i0], b[i1 - 1]
+                wyg = wyg[m[0] - i0:m[-1] - i0 + 1]
+                for j, t in enumerate(wyg):
+                    nast = wyg[j + 1] if j + 1 < len(wyg) else hi
+                    dodaj(t, 60.0 / min(2.0, max(0.2, nast - t)))
+        t0, okr = sr_["t0"], sr_["okres"]
+        k = int(np.ceil(((czasy[-1] + 0.6 * okr if czasy else sr_["start"]) - t0) / okr - 1e-9))
+        while t0 + k * okr < (sr_["koniec"] + (1e-6 if n + 1 < len(serie) else 0)):
+            dodaj(t0 + k * okr, 60.0 / okr)
+            k += 1
+    if len(czasy) < 16:
+        return None
+    c = np.array(czasy)
+    # numer beatu w takcie: liczony kolejno, a w kazdym fragmencie ustawiany wg downbeatow sieci, gdy sa zgodne
+    numery = np.zeros(len(c), dtype=int)
+    faza = 0
+    idx_d = np.clip(np.searchsorted(c, d), 1, len(c) - 1)
+    idx_d = np.where(np.abs(c[idx_d - 1] - d) < np.abs(c[idx_d] - d), idx_d - 1, idx_d)
+    blisko = np.abs(c[idx_d] - d) < 0.07
+    for sr_ in serie:
+        w = blisko & (d >= sr_["start"]) & (d < sr_["koniec"])
+        if w.sum() >= 4:
+            glosy = np.bincount(idx_d[w] % 4, minlength=4)
+            if glosy.max() >= 0.6 * glosy.sum():
+                f = int(np.argmax(glosy))
+                od = int(np.searchsorted(c, sr_["start"]))
+                numery[od:] = (np.arange(od, len(c)) - f) % 4 + 1
+                if faza == 0:
+                    numery[:od] = (np.arange(od) - f) % 4 + 1
+                faza = 1
+    if faza == 0:
+        numery = np.arange(len(c)) % 4 + 1
+    wyn = c.view(_Siatka)
+    wyn.numery = numery
+    wyn.tempa = np.array(tempa)
+    dlug = [(s_["koniec"] - s_["start"], 60.0 / s_["okres"]) for s_ in serie]
+    return {"bpm": float(max(dlug)[1]), "czasy": wyn, "pierwszy": float(wyn[0]),
+            "confidence": float(wynik.get("confidence", 0.0)), "reliable": True, "takt": 0,
+            "odcinkow": len(serie), "serii": len(serie), "zmienne_tempo": True,
+            "tempa_serii": [round(60.0 / s_["okres"], 2) for s_ in serie]}
+
+
 class _Siatka(np.ndarray):
     numery = None
     tempa = None  # BPM kazdego beatu (siatka dynamiczna); None = staly bpm

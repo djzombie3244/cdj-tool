@@ -538,12 +538,96 @@ def _cue_od_dzwieku(cue, y, g):
     return cue
 
 
+# ------------------------------------------------- przekodowanie do WAV ---
+# Pliki, ktore zacinaja sie na CDJ (uzytkownik oznacza je w edytorze przyciskiem "Przekoduj"), ida na pendrive jako
+# WAV PCM 16 bit: dekodowanie ffmpeg, zapis wlasny (dolaczony ffmpeg nie ma kodera MP3 ani AAC). Oryginal zostaje.
+PRZEKODUJ = {"klucze": set()}
+
+
+def _przekoduj_do_wav(zrodlo, cel, sr):
+    import wave
+    os.makedirs(os.path.dirname(cel), exist_ok=True)
+    tmp = cel + ".cdjpart"
+    # Dekodowanie do pliku tymczasowego na komputerze, nie przez potok: dolaczony ffmpeg ma tylko protokol "file"
+    # (wyjscie "-" konczy sie bledem), tak samo dekoduje analiza.
+    surowe = tempfile.NamedTemporaryFile(prefix="cdj-wav-", suffix=".f32le", delete=False,
+                                         dir=SPOOL["katalog"] or None)
+    surowe.close()
+    ramek = 0
+    try:
+        r = subprocess.run([FFMPEG, "-v", "error", "-y", "-threads", "1", "-i", zrodlo, "-map", "0:a:0", "-ac", "2",
+                            "-ar", str(sr), "-f", "f32le", surowe.name],
+                           capture_output=True, timeout=CONFIG.get("performance", {}).get("ffmpeg_timeout_sec", 300))
+        if r.returncode != 0 or os.path.getsize(surowe.name) < 8:
+            szczegoly = (r.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+            raise InvalidMP3Error(os.path.basename(zrodlo), "nie udało się przekodować pliku do WAV"
+                                  + (" (%s)" % szczegoly[-1][:160] if szczegoly else ""))
+        with open(surowe.name, "rb") as fin, wave.open(tmp, "wb") as w:
+            w.setnchannels(2)
+            w.setsampwidth(2)
+            w.setframerate(sr)
+            while True:
+                blok = fin.read(8 << 20)  # wielokrotnosc 8 bajtow (ramka stereo float32)
+                n = len(blok) - len(blok) % 8
+                if n == 0:
+                    break
+                x = np.frombuffer(blok[:n], dtype="<f4")
+                w.writeframes(np.round(np.clip(x, -1.0, 1.0) * 32767.0).astype("<i2").tobytes())
+                ramek += n // 8
+        if ramek == 0:
+            raise InvalidMP3Error(os.path.basename(zrodlo), "nie udało się przekodować pliku do WAV")
+        os.replace(tmp, cel)
+    except subprocess.TimeoutExpired:
+        raise InvalidMP3Error(os.path.basename(zrodlo), "nie udało się przekodować pliku do WAV")
+    finally:
+        for p_ in (surowe.name, tmp):
+            try:
+                os.remove(p_)
+            except OSError:
+                pass
+
+
+def _zrodlo_utworu(folder, root, nazwa_wzgledna, kopiuj_mp3):
+    """(sciezka, nazwa, nazwa_wzgledna, meta) pliku do analizy. Plik oznaczony do przekodowania zastepuje jego
+    kopia WAV (w katalogu tymczasowym; bez kopiowania: obok oryginalu na pendrive) z tagami oryginalu."""
+    sciezka = os.path.join(folder, nazwa_wzgledna)
+    nazwa = os.path.basename(nazwa_wzgledna)
+    meta = metadane(sciezka)
+    stem, ext = os.path.splitext(nazwa)
+    if (not PRZEKODUJ["klucze"] or ext.lower() == ".wav"
+            or edytor.klucz_przekoduj(nazwa, meta["rozmiar"]) not in PRZEKODUJ["klucze"]):
+        return sciezka, nazwa, nazwa_wzgledna, meta
+    _limit_dlugosci(nazwa, meta["czas"])
+    if kopiuj_mp3:
+        cel = os.path.join(SPOOL["katalog"] or tempfile.gettempdir(), "przekodowane",
+                           "%08x" % (zlib.crc32(sciezka.encode("utf-8")) & 0xFFFFFFFF), stem + ".wav")
+    else:
+        cel = os.path.splitext(sciezka)[0] + ".wav"
+    swiezy = (os.path.isfile(cel) and os.path.getsize(cel) > 44
+              and os.path.getmtime(cel) >= os.path.getmtime(sciezka))
+    if not swiezy:
+        _przekoduj_do_wav(sciezka, cel, meta["sr"] if meta["sr"] in (44100, 48000) else 44100)
+    m2 = metadane(cel)
+    for k in ("tytul", "artysta", "album", "rok", "nr", "dysk", "tonacja_tag", "z_nazwy"):
+        m2[k] = meta[k]
+    m2.update(src_tagow=sciezka, przekodowany_z=ext, przekodowany_rozmiar=meta["rozmiar"],
+              przekodowany_przes=g.MP3_BEZ_GAPLESS_S if meta.get("mp3_bez_gapless") else 0.0)
+    return cel, stem + ".wav", os.path.splitext(nazwa_wzgledna)[0] + ".wav", m2
+
+
+def _przesun_korekte(kor, d):
+    """Poprawka z edytora zrobiona dla oryginalu, przeniesiona na os czasu jego kopii WAV."""
+    return {"beaty": [[b[0] + d, b[1], b[2]] for b in kor["beaty"]],
+            "hot": [[n, int(round(ms + d * 1000))] for n, ms in kor.get("hot", [])],
+            "pamiec": [int(round(ms + d * 1000)) for ms in kor.get("pamiec", [])]}
+
+
 def _analizuj_jeden(folder, root, nr, nazwa_wzgledna, kopiuj_mp3, dzis, nazwa_folderu=None):
     """Analizuje pojedynczy utwór; uruchamiany równolegle w wątku roboczym."""
     sciezka = os.path.join(folder, nazwa_wzgledna)
     nazwa = os.path.basename(nazwa_wzgledna)
     try:
-        meta = metadane(sciezka)
+        sciezka, nazwa, nazwa_wzgledna, meta = _zrodlo_utworu(folder, root, nazwa_wzgledna, kopiuj_mp3)
         _limit_dlugosci(nazwa, meta["czas"])
         bramka = BRAMKA["obj"]
         szac = szacunek_bajtow(meta["czas"])
@@ -617,7 +701,7 @@ def _analizuj_jeden_proc(pula_proc, folder, root, nr, nazwa_wzgledna, kopiuj_mp3
     sciezka = os.path.join(folder, nazwa_wzgledna)
     nazwa = os.path.basename(nazwa_wzgledna)
     try:
-        meta = metadane(sciezka)
+        sciezka, nazwa, nazwa_wzgledna, meta = _zrodlo_utworu(folder, root, nazwa_wzgledna, kopiuj_mp3)
         _limit_dlugosci(nazwa, meta["czas"])
         bramka = BRAMKA["obj"]
         szac = szacunek_bajtow(meta["czas"])
@@ -795,7 +879,8 @@ def _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3,
             ex2 = _czytaj_2ex(u)
             info = {"pend": u["pend"], "bpm": u["bpm"], "confidence": u["confidence"], "reliable": u["reliable"],
                     "pierwszy_ms": ev["pierwszy_ms"], "beatow": ev["beatow"], "czas": ev["czas"],
-                    "podglad": ev.get("podglad"), "tonacja": u.get("tonacja_analiza"), "dlugi": ev.get("dlugi")}
+                    "podglad": ev.get("podglad"), "tonacja": u.get("tonacja_analiza"), "dlugi": ev.get("dlugi"),
+                    "zmienne": ev.get("zmienne")}
             _cache_zapisz(klucz, info, dat, ext, ex2)
         except Exception:  # noqa: BLE001  # pamiec podreczna jest dodatkiem
             pass
@@ -841,6 +926,8 @@ def _z_cache(traf, sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, n
         ev["podglad"] = info["podglad"]
     if info.get("dlugi"):
         ev["dlugi"] = info["dlugi"]
+    if info.get("zmienne"):
+        ev["zmienne"] = info["zmienne"]
     return u, ev
 
 
@@ -995,6 +1082,15 @@ def _zastosuj_korekte(u, kor):
     u["bpm"] = edytor.bpm_utworu(kor)
 
 
+def _zastosuj_import(u, wpis, sciezka):
+    """Siatka i cue z innego programu DJ-skiego w plikach analizy utworu (jak poprawka z edytora)."""
+    import importcue
+    dat, ext = _czytaj_analize(u)
+    hot, pam, _ = edytor.czytaj_cue(ext)
+    _zastosuj_korekte(u, importcue.edycja(wpis, edytor.czytaj_siatke(dat, ext), hot, pam, float(u["meta"]["czas"]),
+                                          importcue.przesuniecie_s(wpis, sciezka)))
+
+
 def _opis_utworu(ev, u):
     """Jedna linia dziennika o utworze: co znalezlismy i skad."""
     m = u["meta"]
@@ -1008,6 +1104,8 @@ def _opis_utworu(ev, u):
         cz.append("z pamięci podręcznej")
     if ev.get("dlugi"):
         cz.append("długi utwór, %d odcinków" % ev["dlugi"]["odcinkow"])
+    if ev.get("zmienne"):
+        cz.append("zmienne tempo: " + " → ".join("%.2f" % t for t in ev["zmienne"]["tempa"]))
     return "✓ %s — %s: %s" % (m["artysta"], m["tytul"], ", ".join(cz))
 
 
@@ -1029,6 +1127,14 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
         dl = len(y) / g.SR
         dlugi = dl > g.DLUGI_PROG_S
         analysis = g.analizuj_dlugi(y) if dlugi else g.analizuj(y)
+        zmienne = None
+        if not dlugi:  # zwykly utwor, w ktorym tempo sie zmienia (np. edit przejsciowy): siatka dynamiczna
+            try:
+                zmienne = g.zmienne_tempo(y, analysis)
+            except Exception:  # noqa: BLE001  # zostaje zwykla siatka o stalym tempie
+                zmienne = None
+            if zmienne:
+                analysis = zmienne
         
         bpm = analysis["bpm"]
         pierwszy = analysis["pierwszy"]
@@ -1038,7 +1144,7 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
         # Niska pewnosc BPM nie odrzuca utworu (oryginal tez nic nie odrzucal);
         # informacja trafia do zdarzenia w polu "reliable".
         
-        if dlugi:  # set/miks: siatka dynamiczna (tempo moze zmieniac sie miedzy fragmentami)
+        if dlugi or zmienne:  # set/miks albo zmienne tempo: siatka dynamiczna
             czasy = analysis["czasy"]
         else:
             czasy = g.siatka_ms(bpm, pierwszy, dl, analysis.get("takt", 0))
@@ -1130,6 +1236,8 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
         }
         if dlugi:
             ev["dlugi"] = {"odcinkow": analysis["odcinkow"], "tempa": analysis["tempa_serii"][:40]}
+        if zmienne:
+            ev["zmienne"] = {"tempa": analysis["tempa_serii"][:12]}
         
         if pod is not None:
             ev["podglad"] = pod
@@ -1193,12 +1301,13 @@ class OkladkiTla:
         self._lock = threading.Lock()
 
     def _jedna(self, u):
-        ob = okladki.wyciagnij(u["src"])
+        zrodlo = u["meta"].get("src_tagow") or u["src"]  # przekodowany utwor: okladka z oryginalu
+        ob = okladki.wyciagnij(zrodlo)
         if not ob and self.siec is not None:
             m = u["meta"]
             with self._lock:
                 self.szukano += 1
-            ob = self.siec.szukaj(m["artysta"], m["tytul"], m["album"], os.path.basename(u["src"]))
+            ob = self.siec.szukaj(m["artysta"], m["tytul"], m["album"], os.path.basename(zrodlo))
             if ob:
                 with self._lock:
                     self.z_sieci += 1
@@ -1377,6 +1486,19 @@ def _przetworz(a, emit):
             raise ValueError("W trybie bez kopiowania wybierz folder z MP3 poza folderem PIONEER.")
     
     pliki = pliki_mp3(folder)
+    if a.get("tylko_pliki"):  # zadanie dla wybranych plikow (przekodowanie utworu z edytora)
+        pliki = [p for p in a["tylko_pliki"] if os.path.isfile(os.path.join(folder, p))]
+    PRZEKODUJ["klucze"] = set(edytor.wczytaj_przekoduj())
+    if PRZEKODUJ["klucze"]:  # kopia WAV lezaca obok oznaczonego oryginalu (muzyka na pendrive) nie jest osobnym utworem
+        kopie = set()
+        for rel in pliki:
+            try:
+                if (not rel.lower().endswith(".wav") and edytor.klucz_przekoduj(
+                        os.path.basename(rel), os.path.getsize(os.path.join(folder, rel))) in PRZEKODUJ["klucze"]):
+                    kopie.add(os.path.splitext(rel)[0] + ".wav")
+            except OSError:
+                pass
+        pliki = [p for p in pliki if p not in kopie]
     if not pliki:
         tylko_flac = not FLAC["on"] and any(
             n.lower().endswith(ROZSZERZENIE_FLAC) and not n.startswith(".")
@@ -1439,6 +1561,16 @@ def _przetworz(a, emit):
 
     # poprawki siatki i cue zrobione w edytorze: zastepuja automatyczne przy kazdym kolejnym zapisie
     korekty = edytor.wczytaj_korekty()
+    # siatki i cue z innych programow (rekordbox XML, Traktor, Serato): uzywane, gdy utwor nie ma poprawki z edytora
+    imp = None
+    if a.get("import_cue", True):
+        try:
+            import importcue
+            imp = importcue.Import(serato=bool(a.get("import_serato", False)))
+            if not imp:
+                imp = None
+        except Exception:  # noqa: BLE001  # import jest dodatkiem
+            imp = None
 
     # okladki szukane w tle w trakcie analizy (z tagow i opcjonalnie z sieci), a nie dopiero po niej
     zapisz_okladki = bool(a.get("okladki", True))
@@ -1490,6 +1622,27 @@ def _przetworz(a, emit):
                             ev.pop("tonacja", None)
                         utwory_wg_indeksu[ev["i"]] = utwor
                         kor = korekty.get(edytor.klucz_korekty(utwor["pend"], utwor["meta"]["rozmiar"])) if korekty else None
+                        um = utwor["meta"]
+                        if um.get("przekodowany_z"):
+                            emit({"typ": "log", "tekst": "♻ %s: przekodowany do WAV." % ev["nazwa"]})
+                            podsum["przekodowane"] = podsum.get("przekodowane", 0) + 1
+                            if korekty and not kor:  # poprawka zrobiona jeszcze dla oryginalu
+                                kor = korekty.get(edytor.klucz_korekty(
+                                    os.path.splitext(utwor["pend"])[0] + um["przekodowany_z"], um["przekodowany_rozmiar"]))
+                                if kor:
+                                    kor = _przesun_korekte(kor, um.get("przekodowany_przes", 0.0))
+                        if not kor and imp is not None:
+                            try:
+                                zrodlo_imp = um.get("src_tagow") or utwor["src"]
+                                wpis = imp.dla(zrodlo_imp)
+                                if wpis:
+                                    _zastosuj_import(utwor, wpis, zrodlo_imp)
+                                    ev["bpm"] = utwor["bpm"]
+                                    podsum["import"] = podsum.get("import", 0) + 1
+                                    emit({"typ": "log", "tekst": "⇣ %s: siatka i cue z programu %s." % (
+                                        ev["nazwa"], importcue.NAZWY.get(wpis.get("zrodlo"), "?"))})
+                            except Exception as e:  # noqa: BLE001
+                                emit({"typ": "log", "tekst": "⚠ %s: nie udało się zastosować importu (%s)." % (ev["nazwa"], e)})
                         if kor:
                             try:
                                 _zastosuj_korekte(utwor, kor)
@@ -1706,6 +1859,9 @@ def _przetworz(a, emit):
             # "ON" jak w Rekordboksie, gdy odtwarzacz ma w UTILITY ustawienie rekordbox SETTING
             autoload="ON" if a.get("autoload") else "",
         )
+        stara = (os.path.splitext(u["pend"])[0] + m["przekodowany_z"]) if m.get("przekodowany_z") else None
+        if stara and u["pend"] not in wg_sciezki and stara in wg_sciezki:  # kopia WAV zamiast oryginalu
+            wg_sciezki[u["pend"]] = wg_sciezki.pop(stara)
         if u["pend"] in wg_sciezki:  # ten sam plik analizowany ponownie: zachowaj id, gatunek, ocene, odtworzenia
             i = wg_sciezki[u["pend"]]
             f, s = dict(kodowane[i][0]), dict(kodowane[i][1])
@@ -1761,11 +1917,13 @@ def _przetworz(a, emit):
     # podfoldery zrodla -> foldery playlist (widok Playlist odwzorowuje uklad folderow; w widoku Folder
     # CDJ-2000 nie pokazuje BPM z bazy, a w widoku Playlist tak)
     def katalog(u):
-        rel = os.path.relpath(u["src"], folder).replace(os.sep, "/")
+        rel = os.path.relpath(u["meta"].get("src_tagow") or u["src"], folder).replace(os.sep, "/")
         return tuple(unicodedata.normalize("NFC", c)[:60] for c in rel.split("/")[:-1])
 
     kat_utworow = [katalog(u) for u in utwory]
-    if a.get("playlisty_z_folderow", True) and any(kat_utworow):
+    if a.get("bez_playlisty"):  # przekodowanie utworu z edytora: zostaje w swoich playlistach
+        pass
+    elif a.get("playlisty_z_folderow", True) and any(kat_utworow):
         z_podfolderami = {p[:k] for p in kat_utworow for k in range(len(p))}
 
         def folder_id(prefix):

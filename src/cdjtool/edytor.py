@@ -242,6 +242,57 @@ def zapisz_korekte(klucz, edycja):
         os.replace(tmp, p)
 
 
+# ------------------------------------------- utwory do przekodowania --
+def plik_przekoduj():
+    return os.environ.get("CDJ_PRZEKODUJ") or os.path.join(os.path.dirname(plik_korekt()), "przekoduj.json")
+
+
+def klucz_przekoduj(nazwa_pliku, rozmiar):
+    """Klucz pliku zrodlowego: nazwa (jak na pendrive: NFC, rdzen do 44 znakow) i rozmiar oryginalu."""
+    stem, ext = os.path.splitext(unicodedata.normalize("NFC", os.path.basename(nazwa_pliku)))
+    return "%s%s|%d" % (stem[:44], ext.lower(), int(rozmiar))
+
+
+def wczytaj_przekoduj():
+    try:
+        with open(plik_przekoduj(), encoding="utf-8") as fh:
+            d = json.load(fh)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def ustaw_przekoduj(klucz, opis):
+    """opis: tekst do pokazania (wykonawca i tytul) albo None, zeby zdjac oznaczenie; klucz None czysci liste."""
+    with _LOCK:
+        d = wczytaj_przekoduj() if klucz is not None else {}
+        if klucz is not None:
+            if opis is None:
+                d.pop(klucz, None)
+            else:
+                d[klucz] = str(opis)[:200]
+        p = plik_przekoduj()
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        tmp = p + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(d, fh, ensure_ascii=False)
+        os.replace(tmp, p)
+    return d
+
+
+def do_przekodowania(root, track_id):
+    """Oznacza utwor z pendrive'a do przekodowania i zwraca dane zadania: (folder na pendrive, nazwa pliku)."""
+    f, s = _utwor(root, track_id)
+    sciezka = s["file_path"]
+    if sciezka.lower().endswith(".wav"):
+        raise ValueError("Ten utwór jest już w formacie WAV.")
+    plik_audio(root, sciezka)
+    art = dict(pw.czytaj_biblioteke(_baza(root)[1])["artysci"])
+    ustaw_przekoduj(klucz_przekoduj(sciezka, f["file_size"]), "%s — %s" % (art.get(f["artist"], ""), s["title"]))
+    katalog, nazwa = os.path.split(sciezka.lstrip("/"))
+    return os.path.join(root, katalog), nazwa
+
+
 # ------------------------------------------------------------ pendrive --
 def _baza(root):
     p = os.path.join(root, "PIONEER", "rekordbox", "export.pdb")

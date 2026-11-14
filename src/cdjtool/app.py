@@ -829,6 +829,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             if sciezka == "/api/wybierz":
                 if dane.get("co") == "mp3":
+                    wklejona = str(dane.get("sciezka") or "").strip().strip('"')
+                    if dane.get("bez_dialogu"):  # sciezka wklejona w oknie (Windows: bez okna wyboru)
+                        if not os.path.isdir(wklejona):
+                            return self._wyslij(400, {"blad": "Nie ma takiego folderu: %s" % wklejona[:200]})
+                        return self._wyslij(200, info_mp3(os.path.abspath(wklejona)))
                     p = dane.get("sciezka") if NATIVE else wybierz_folder(
                         "Wybierz folder z utworami MP3", os.path.expanduser("~/Music"))
                     return self._wyslij(200, {"sciezka": None} if not p else info_mp3(p))
@@ -858,6 +863,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                      "dlugie": bool(dane.get("dlugie", True)),
                      "pelna_moc": bool(dane.get("pelna_moc", True)),
                      "test_dysku": bool(dane.get("test_dysku", True)),
+                     "import_cue": bool(dane.get("import_cue", True)),
+                     "import_serato": bool(dane.get("import_serato", False)),
                      "nazwa_folderu": str(dane.get("nazwa_folderu") or "")[:60]}
                 benchmark = STAN["benchmark"]
                 if (benchmark.get("stan") != "gotowe" or
@@ -887,11 +894,53 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self._wyslij(200, edytor.utwor(root, int(dane["id"])))
                 if sciezka == "/api/edytor/zapisz":
                     return self._wyslij(200, edytor.zapisz(root, int(dane["id"]), dane["edycja"]))
+                if sciezka == "/api/edytor/przekoduj":
+                    # utwor, ktory zacina sie na CDJ: kopia WAV obok oryginalu na pendrive, wpis w bazie podmieniony
+                    if STAN["setup"]["stan"] != "gotowe":
+                        return self._wyslij(409, {"blad": "Składniki aplikacji nie są jeszcze gotowe."})
+                    folder, nazwa = edytor.do_przekodowania(root, int(dane["id"]))
+                    o = dane.get("opcje") or {}
+                    a = {"folder_mp3": folder, "pendrive": root, "playlista": "Tracks", "kopiuj_mp3": False,
+                         "zastap_pioneer": False, "tylko_pliki": [nazwa], "bez_playlisty": True,
+                         "kopiuj_w_tle": False, "test_dysku": False, "workers": 1, "pelna_moc": False,
+                         "flac": True, "dlugie": True,
+                         "nie_usypiaj": bool(o.get("nie_usypiaj", True)),
+                         "tonacja": bool(o.get("tonacja", False)),
+                         "notacja": "camelot" if o.get("notacja") == "camelot" else "klasyczna",
+                         "tonacja_z_tagu": bool(o.get("tonacja_z_tagu", True)),
+                         "autoload": bool(o.get("autoload", False)),
+                         "trzy_pasma": bool(o.get("trzy_pasma", False)),
+                         "okladki": bool(o.get("okladki", True)), "okladki_siec": False,
+                         "import_cue": bool(o.get("import_cue", True)),
+                         "import_serato": bool(o.get("import_serato", False))}
+                    return self._wyslij(200, {"ok": start_zadania(a)})
                 if sciezka == "/api/edytor/zapomnij":
                     f, s = edytor._utwor(root, int(dane["id"]))
                     edytor.zapisz_korekte(edytor.klucz_korekty(s["file_path"], f["file_size"]), None)
                     return self._wyslij(200, {"ok": True})
                 return self._wyslij(404, {"blad": "nie znaleziono"})
+            if sciezka == "/api/przekodowane":
+                import edytor
+                if dane.get("wyczysc"):
+                    edytor.ustaw_przekoduj(None, None)
+                return self._wyslij(200, {"utwory": sorted(edytor.wczytaj_przekoduj().values())})
+            if sciezka.startswith("/api/import/"):
+                import importcue
+                if sciezka == "/api/import/plik":
+                    import io
+                    tresc = dane.get("tresc") or ""
+                    wynik = importcue.dodaj(io.BytesIO(tresc.encode("utf-8")), str(dane.get("nazwa") or ""))
+                elif sciezka == "/api/import/traktor":
+                    znalezione = importcue.kolekcje_traktora()
+                    if not znalezione:
+                        return self._wyslij(404, {"blad": "Nie znaleziono kolekcji Traktora na tym komputerze."})
+                    wynik = importcue.dodaj(znalezione[0], znalezione[0])
+                elif sciezka == "/api/import/usun":
+                    importcue.usun()
+                    wynik = {}
+                else:
+                    wynik = {}
+                return self._wyslij(200, dict(wynik, zrodla=importcue.stan()))
             if sciezka == "/api/predkosc":
                 folder = os.path.abspath(dane.get("folder_mp3", ""))
                 pendrive = os.path.abspath(dane.get("pendrive", ""))

@@ -37,7 +37,7 @@ final class DropWebView: WKWebView {
     }
 }
 
-final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate, NSWindowDelegate {
+final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate, NSWindowDelegate {
     private var window: NSWindow!
     private var webView: DropWebView!
     private var backend: Process?
@@ -57,6 +57,7 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
         configuration.userContentController = controller
         webView = DropWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = self
+        webView.uiDelegate = self
         webView.onFolders = { [weak self] urls in self?.foldersDropped(urls) }
 
         window = NSWindow(
@@ -227,6 +228,18 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
             guard let json = try? JSONSerialization.data(withJSONObject: [kind, paths] as [Any]),
                   let args = String(data: json, encoding: .utf8) else { return }
             self.webView.evaluateJavaScript("window.cdjFoldersSelected(\(args)[0], \(args)[1])")
+        }
+    }
+
+    /// Pole <input type="file"> na stronie (import kolekcji rekordboxa lub Traktora): systemowe okno wyboru pliku.
+    func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        panel.begin { response in
+            completionHandler(response == .OK ? panel.urls : nil)
         }
     }
 

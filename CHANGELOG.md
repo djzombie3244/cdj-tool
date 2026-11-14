@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.10 - 2026
+- **Import of beat grids and cues** from other DJ software, used instead of the app's own analysis every time the stick is written (*Tools → Import beat grids and cues*): **rekordbox** (collection exported to XML: tempo changes, hot cues, memory cues), **Traktor** (`collection.nml`, found automatically or loaded as a file: grid markers, hot cues) and **Serato** (data stored in MP3, WAV and AIFF files, optional). Imported hot cues take their slots and the remaining slots keep the automatic cues, so the RaftTone mod still gets a full A–F bank. A correction made in the editor takes priority. Traktor and Serato import is a test version (their MP3 time base can differ by a frame from the CDJ's).
+- **Re-encode to WAV** button in the editor for tracks that stutter or hang on the CDJ: a WAV copy (16 bit, stereo) is made on the stick and takes the track's place in the library, with the same playlists and artwork; the original file stays on the stick. The track is remembered and goes as WAV on later writes from the music folder too. The list can be cleared in the editor card.
+- **Tracks whose tempo changes** (for example transition edits going from 104 to 128 BPM) get a dynamic beat grid: even sections have a straight grid, the transition follows the beats found by the network. Checked only when the network disagrees with a constant grid, so ordinary tracks are analysed exactly as before.
+- **Windows:** a folder path can be pasted into the music step (the browser cannot pass the path of a dragged folder; Explorer: Shift + right-click → Copy as path).
+- A file dropped onto the window can no longer replace the app's page; a dropped rekordbox or Traktor collection file is imported.
+
 ## 1.0.9 - 2026
 - **Beat grid and cue editor** for tracks already on the stick: coloured waveform with grid lines, hot cues A–F and memory cues; playback with an optional metronome; shift the grid by 1 or 10 ms, put the nearest beat on the cursor, set the bar's "1", change BPM (±0.01, ×2, ÷2); set, move or delete hot cues and memory cues (optionally snapped to beats). Saving rewrites the analysis files and the tempo in the database on the stick, and the correction is kept on the computer, so the next time the stick is written the track gets your grid and cues instead of the automatic ones.
 - **Hip-hop and other slow tracks** (about 65–90 BPM) are no longer analysed at double tempo: when the beat-tracking network clearly hears every other beat, BPM and grid are halved and the grid sits on the kicks instead of between them.
