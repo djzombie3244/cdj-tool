@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CDJ Tool - pendrive dla CDJ-2000 bez rekordboxa</title>
+<meta name="description" content="CDJ Tool przygotowuje pendrive dla Pioneer CDJ-2000 na Macu i Windowsie bez rekordboxa. Siatka, waveformy, hot cue, playlisty. Darmowy, offline.">
+<meta property="og:title" content="CDJ Tool">
+<meta property="og:description" content="Pendrive dla CDJ-2000 bez rekordboxa. Darmowy, offline, dla Maca i Windowsa.">
+<meta property="og:image" content="screenshots/pl-main.jpg">
+<meta name="theme-color" content="#0d0d10">
+<style>
+  :root { --bg:#0d0d10; --panel:#17171d; --text:#f2f2f5; --muted:#a3a3b0; --accent:#ff7a1a; --line:#2a2a33; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f7f7fa; --panel:#ffffff; --text:#16161c; --muted:#5b5b68; --accent:#d9620c; --line:#e2e2ea; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+  header { display:flex; justify-content:space-between; align-items:center; padding: 18px 0; }
+  .brand { font-weight: 700; letter-spacing: .02em; font-size: 18px; }
+  .lang button { background:none; border:1px solid var(--line); color:var(--muted); padding:6px 10px; border-radius:8px; cursor:pointer; font:inherit; font-size:14px; margin-left:4px; }
+  .lang button.on { color:var(--text); border-color:var(--accent); }
+  .hero { display:grid; gap:32px; padding: 24px 0 48px; }
+  @media (min-width: 800px) { .hero { grid-template-columns: 1.1fr 1fr; align-items:center; padding-top: 48px; } }
+  h1 { font-size: clamp(32px, 6vw, 52px); line-height:1.1; margin:0 0 16px; }
+  .lead { color: var(--muted); font-size: 19px; margin: 0 0 24px; }
+  .btn { display:inline-block; background:var(--accent); color:#fff; text-decoration:none; font-weight:600; padding: 14px 22px; border-radius: 12px; }
+  .btn.ghost { background:none; color:var(--text); border:1px solid var(--line); margin-left:8px; }
+  .small { color: var(--muted); font-size: 14px; margin-top: 14px; }
+  .shot { border-radius: 14px; border:1px solid var(--line); width:100%; height:auto; display:block; box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+  section { padding: 32px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 26px; margin: 0 0 16px; }
+  .grid { display:grid; gap:16px; grid-template-columns: 1fr; }
+  @media (min-width: 700px) { .grid { grid-template-columns: 1fr 1fr; } }
+  .card { background: var(--panel); border:1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .card h3 { margin: 0 0 8px; font-size: 18px; }
+  .card p { margin: 0; color: var(--muted); }
+  .shots { display:grid; gap:16px; grid-template-columns: 1fr 1fr; }
+  .shots figure { margin:0; }
+  .shots figcaption { color: var(--muted); font-size: 14px; margin-top: 8px; }
+  details { border-bottom:1px solid var(--line); padding: 14px 0; }
+  summary { cursor:pointer; font-weight:600; }
+  details p { color: var(--muted); margin: 10px 0 0; }
+  footer { color: var(--muted); font-size: 14px; padding: 32px 0 48px; border-top:1px solid var(--line); }
+  footer a { color: var(--muted); }
+  .en { display:none; }
+  body.lang-en .en { display:revert; }
+  body.lang-en .pl { display:none; }
+  body.lang-en .en.block { display:block; }
+  body:not(.lang-en) .pl.block { display:block; }
+  body.lang-en .en.inline { display:inline; }
+  body:not(.lang-en) .pl.inline { display:inline; }
+  .pl.inline, .en.inline { display:none; }
+  body:not(.lang-en) .pl.inline { display:inline; }
+  body.lang-en .en.inline { display:inline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">CDJ Tool</div>
+    <div class="lang">
+      <button type="button" data-lang="pl">PL</button>
+      <button type="button" data-lang="en">EN</button>
+    </div>
+  </header>
+
+  <div class="hero">
+    <div>
+      <h1><span class="pl block">Pendrive dla CDJ-2000 bez rekordboxa</span><span class="en block">A USB stick for the CDJ-2000, without rekordbox</span></h1>
+      <p class="lead">
+        <span class="pl block">CDJ Tool analizuje Twoje utwory (BPM, siatkę beatów, waveformy, cue) i zapisuje pendrive, który CDJ-2000 wczytuje jak eksport z rekordboxa. Działa offline, na Macu i w Windowsie.</span>
+        <span class="en block">CDJ Tool analyses your tracks (BPM, beat grid, waveforms, cue points) and writes a stick that the CDJ-2000 loads like a rekordbox export. It works offline, on a Mac and on Windows.</span>
+      </p>
+      <a class="btn" href="https://github.com/djzombie3244/cdj-tool/releases/latest"><span class="pl inline">Pobierz najnowszą wersję</span><span class="en inline">Download the latest version</span></a>
+      <a class="btn ghost" href="https://github.com/djzombie3244/cdj-tool"><span class="pl inline">Kod źródłowy</span><span class="en inline">Source code</span></a>
+      <p class="small">
+        <span class="pl block">Darmowy, bez konta i telemetrii. Wersja 1.0.10. Mac z Apple Silicon, Mac z Intelem, Windows 10/11 (64-bit).</span>
+        <span class="en block">Free, no account, no telemetry. Version 1.0.10. Apple Silicon Mac, Intel Mac, Windows 10/11 (64-bit).</span>
+      </p>
+    </div>
+    <img class="shot" src="screenshots/en-results.jpg" alt="" data-alt-pl="Wyniki analizy: BPM, siatka beatów i waveformy" data-alt-en="Analysis results: BPM, beat grid and waveforms">
+  </div>
+
+  <section>
+    <h2><span class="pl inline">Dla kogo?</span><span class="en inline">Who is it for?</span></h2>
+    <div class="grid">
+      <div class="card">
+        <h3><span class="pl block">Właściciele CDJ-2000 z modem RaftTone</span><span class="en block">CDJ-2000 owners with the RaftTone mod</span></h3>
+        <p><span class="pl block">Aplikacja została napisana razem z tym modem: sześć hot cue (banki A–F), waveform 3-pasmowy i siatka, którą mod szanuje.</span><span class="en block">The app was built with this mod in mind: six hot cues (banks A–F), the 3-band waveform and a grid the mod respects.</span></p>
+      </div>
+      <div class="card">
+        <h3><span class="pl block">Zwykły CDJ-2000 (firmware fabryczny)</span><span class="en block">Stock CDJ-2000 (factory firmware)</span></h3>
+        <p><span class="pl block">Obsługuje MP3, AAC, WAV i AIFF. Na zwykłym firmware autor nie testował jeszcze wszystkich funkcji. Raporty z Twojego sprzętu są mile widziane.</span><span class="en block">Supports MP3, AAC, WAV and AIFF. The author has not yet tested every feature on stock firmware. Reports from your hardware are welcome.</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="pl inline">Co potrafi</span><span class="en inline">What it does</span></h2>
+    <div class="grid">
+      <div class="card"><h3><span class="pl block">Analiza</span><span class="en block">Analysis</span></h3><p><span class="pl block">BPM, siatka beatów, waveformy, tonacja i cue. Długie sety do 3 godzin, z siatką dynamiczną.</span><span class="en block">BPM, beat grid, waveforms, key and cues. Long sets up to 3 hours, with a dynamic grid.</span></p></div>
+      <div class="card"><h3><span class="pl block">Edytor siatki i cue</span><span class="en block">Grid and cue editor</span></h3><p><span class="pl block">Przesuwasz siatkę, ustawiasz „1” taktu i hot cue, a poprawka zostaje na komputerze przy kolejnych zapisach.</span><span class="en block">Shift the grid, set the bar's "1" and hot cues. Your correction stays on the computer for the next writes.</span></p></div>
+      <div class="card"><h3><span class="pl block">Import z innego softu</span><span class="en block">Import from other software</span></h3><p><span class="pl block">Siatki i cue z rekordboxa (XML), Traktora i Serato zamiast własnej analizy. Traktor i Serato to wersja testowa.</span><span class="en block">Grids and cues from rekordbox (XML), Traktor and Serato instead of the app's own analysis. Traktor and Serato are a test version.</span></p></div>
+      <div class="card"><h3><span class="pl block">Okładki i playlisty</span><span class="en block">Artwork and playlists</span></h3><p><span class="pl block">Okładki z tagów, playlisty odwzorowujące Twoje foldery, uzupełnianie tagów z nazw plików.</span><span class="en block">Artwork from the tags, playlists that mirror your folders, tags filled from file names.</span></p></div>
+      <div class="card"><h3><span class="pl block">Bezpieczny zapis</span><span class="en block">Safe writing</span></h3><p><span class="pl block">Test dysku przed startem, jasny komunikat, gdy pendrive się odłączy, i kopia poprzedniej biblioteki przy zastępowaniu.</span><span class="en block">A disk test before the run, a clear message if the stick disconnects, and a backup of the old library when replacing it.</span></p></div>
+      <div class="card"><h3><span class="pl block">6 języków</span><span class="en block">6 languages</span></h3><p><span class="pl block">Polski, English, Deutsch, Français, Español, Italiano. Interfejs, dziennik i komunikaty o błędach.</span><span class="en block">Polish, English, German, French, Spanish, Italian. Interface, log and error messages.</span></p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="pl inline">Zrzuty ekranu</span><span class="en inline">Screenshots</span></h2>
+    <div class="shots">
+      <figure><img class="shot" src="screenshots/en-main.jpg" alt="" data-alt-pl="Ekran główny: wybór folderu i pendrive" data-alt-en="Main screen: choose folder and stick"><figcaption><span class="pl block">Wybór folderu i pendrive</span><span class="en block">Choose folder and stick</span></figcaption></figure>
+      <figure><img class="shot" src="screenshots/en-progress.jpg" alt="" data-alt-pl="Analiza i kopiowanie" data-alt-en="Analysis and copying"><figcaption><span class="pl block">Analiza i kopiowanie</span><span class="en block">Analysis and copying</span></figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>FAQ</h2>
+    <details>
+      <summary><span class="pl inline">Mac pokazuje „nieznany deweloper”. Co zrobić?</span><span class="en inline">My Mac says "unidentified developer". What now?</span></summary>
+      <p><span class="pl block">Aplikacja nie jest notaryzowana przez Apple. Przy pierwszym uruchomieniu kliknij prawym przyciskiem, wybierz Otwórz i potwierdź, albo użyj instrukcji w repozytorium (docs/INSTALL.pl.md).</span><span class="en block">The app is not notarized by Apple. On the first start, right-click it, choose Open and confirm, or follow the guide in the repository (docs/INSTALL.md).</span></p>
+    </details>
+    <details>
+      <summary><span class="pl inline">Czy moje pliki i dane wychodzą z komputera?</span><span class="en inline">Do my files or data leave my computer?</span></summary>
+      <p><span class="pl block">Nie. Aplikacja działa offline. Sieć jest używana tylko wtedy, gdy włączysz opcję wyszukiwania okładek; wysyłane są wtedy wyłącznie wykonawca, tytuł i album.</span><span class="en block">No. The app works offline. The network is used only if you turn on online artwork lookup; then only artist, title and album are sent.</span></p>
+    </details>
+    <details>
+      <summary><span class="pl inline">Czy to zastępuje rekordbox?</span><span class="en inline">Does it replace rekordbox?</span></summary>
+      <p><span class="pl block">Do przygotowania pendrive'a dla CDJ-2000 tak, z zastrzeżeniami opisanymi w README. Nie jest to program do miksowania ani do zarządzania całą kolekcją.</span><span class="en block">For preparing a stick for the CDJ-2000, yes, with the limits described in the README. It is not a mixing or full library management program.</span></p>
+    </details>
+    <details>
+      <summary><span class="pl inline">Czy jest za darmo?</span><span class="en inline">Is it free?</span></summary>
+      <p><span class="pl block">Tak. Kod jest na licencji MIT, a aplikację możesz pobrać z GitHuba.</span><span class="en block">Yes. The code is MIT licensed and the app can be downloaded from GitHub.</span></p>
+    </details>
+  </section>
+
+  <footer>
+    <span class="pl block">Autor: Wiktor Bakowicz. Nie jest to produkt Pioneer DJ ani RaftTone. <a href="https://github.com/djzombie3244/cdj-tool">GitHub</a></span>
+    <span class="en block">Author: Wiktor Bakowicz. Not a Pioneer DJ or RaftTone product. <a href="https://github.com/djzombie3244/cdj-tool">GitHub</a></span>
+  </footer>
+</div>
+<script>
+(function () {
+  var body = document.body;
+  function setLang(l) {
+    body.classList.toggle('lang-en', l === 'en');
+    document.documentElement.lang = l;
+    document.querySelectorAll('[data-lang]').forEach(function (b) { b.classList.toggle('on', b.dataset.lang === l); });
+    document.querySelectorAll('img[data-alt-pl]').forEach(function (img) {
+      img.alt = l === 'en' ? img.dataset.altEn : img.dataset.altPl;
+    });
+    try { localStorage.setItem('cdj-lang', l); } catch (e) {}
+  }
+  var saved = null;
+  try { saved = localStorage.getItem('cdj-lang'); } catch (e) {}
+  var start = saved || ((navigator.language || 'pl').slice(0, 2) === 'pl' ? 'pl' : 'en');
+  document.querySelectorAll('[data-lang]').forEach(function (b) {
+    b.addEventListener('click', function () { setLang(b.dataset.lang); });
+  });
+  setLang(start);
+})();
+</script>
+</body>
+</html>
