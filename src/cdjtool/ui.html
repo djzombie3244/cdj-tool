@@ -768,7 +768,7 @@ function applyLang() {
   rysujFoldery();
   if (typeof impRysuj === "function") { impRysuj(); reencRysuj(); }
   document.querySelectorAll(".infobox:not(.hidden)").forEach(box => { box.innerHTML = t(box.dataset.info); });
-  if (typeof pokazZestaw === "function" && document.querySelector("#zestawy button.on")) pokazZestaw(document.querySelector("#zestawy button.on").dataset.z);
+  if (typeof pokazZestaw === "function" && document.querySelector("#zestawy button.on")) pokazZestaw(document.querySelector("#zestawy button.on").dataset.z, false);
   if (pend) ustawPendrive(pend);
   if (formatInfo) opisFormatu();
   const fw = $("formatWynik");
@@ -1332,7 +1332,7 @@ async function impWyslij(plik) {
 }
 $("bImpPlik").onclick = () => $("impPlik").click();
 $("impPlik").onchange = () => { const f = $("impPlik").files[0]; if (f) impWyslij(f); $("impPlik").value = ""; };
-$("bImpTraktor").onclick = async () => { $("impStan").textContent = t("impWorking"); impWynik(await api("/api/import/traktor", {})); };
+$("bImpTraktor").onclick = async () => { const start = Date.now(); const licznik = () => { $("impStan").textContent = t("impWorking") + " " + Math.round((Date.now() - start) / 1000) + " s"; }; licznik(); const tik = setInterval(licznik, 1000); try { impWynik(await api("/api/import/traktor", {})); } finally { clearInterval(tik); } };
 $("bImpUsun").onclick = async () => impWynik(await api("/api/import/usun", {}));
 api("/api/import/stan", {}).then(impWynik).catch(() => {});
 // ---- utwory oznaczone do przekodowania (przycisk w edytorze)
@@ -1638,10 +1638,10 @@ $("sNotacja").disabled = $("cTonTag").disabled = !$("cTonacja").checked;
 // gotowe zestawy opcji: zwykly CDJ-2000 albo CDJ-2000 z modem RaftTone; reczna zmiana tych opcji = "Wlasne"
 const ZESTAWY = { cdj: { cAutoload: false, cTrzyPasma: false, cFlac: false }, mod: { cAutoload: true, cTrzyPasma: true } };
 let zestawUstawiam = false;
-function pokazZestaw(z) {
+function pokazZestaw(z, zapisz = true) {
   document.querySelectorAll("#zestawy button").forEach(b => b.classList.toggle("on", b.dataset.z === z));
   $("zestawOpis").textContent = t(z === "cdj" ? "presetStockHint" : z === "mod" ? "presetModHint" : "presetCustomHint");
-  try { PAM.setItem("cdj_zestaw", z); } catch (e) {}
+  if (zapisz) try { PAM.setItem("cdj_zestaw", z); } catch (e) {}
   if (typeof odswiezPrzycisk === "function" && typeof ostatniStan !== "undefined") odswiezPrzycisk();
 }
 function ustawZestaw(z) {
