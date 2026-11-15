@@ -67,21 +67,28 @@ def wczytaj_ustawienia():
         return {}
 
 
+_ustawienia_blokada = threading.Lock()
+
+
 def zapisz_ustawienie(klucz, wartosc):
+    """Zapis jednego ustawienia. Przegladarka wysyla kilka zapisow naraz, a serwer obsluguje je rownolegle:
+    bez blokady i osobnego pliku tymczasowego zapisy nakladaly sie w jednym pliku i JSON sie psul
+    (wtedy przy starcie wszystkie ustawienia byly tracone)."""
     klucz = str(klucz)
     if not re.fullmatch(r"cdj_[A-Za-z0-9_]{1,40}", klucz):
         raise ValueError("zly klucz")
-    d = wczytaj_ustawienia()
-    if wartosc is None:
-        d.pop(klucz, None)
-    else:
-        d[klucz] = str(wartosc)[:200]
     p = _plik_ustawien()
-    os.makedirs(os.path.dirname(p), exist_ok=True)
-    tmp = p + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(d, fh, ensure_ascii=False, indent=0)
-    os.replace(tmp, p)
+    with _ustawienia_blokada:
+        d = wczytaj_ustawienia()
+        if wartosc is None:
+            d.pop(klucz, None)
+        else:
+            d[klucz] = str(wartosc)[:200]
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(p), prefix="ustawienia-", suffix=".tmp")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(d, fh, ensure_ascii=False, indent=0)
+        os.replace(tmp, p)
 sys.dont_write_bytecode = True  # do not modify the (signed) app bundle at run time
 NATIVE = os.environ.get("CDJ_NATIVE") == "1"
 BUNDLED = os.environ.get("CDJ_BUNDLED") == "1"
