@@ -3,6 +3,7 @@
 
 import json
 import os
+import re
 import struct
 import subprocess
 import sys
@@ -44,16 +45,29 @@ FFMPEG = os.environ.get("CDJ_FFMPEG", "ffmpeg")
 
 
 # ================================================================ Dekodowanie ---
+BLEDY_DEKODOWANIA = 0  # ile uszkodzonych miejsc zglosil ffmpeg w ostatnio wczytanym pliku
+
+
+def _licz_bledy_dekodowania(stderr: bytes) -> int:
+    """Uszkodzone ramki w pliku: ffmpeg dekoduje dalej i konczy kodem 0, ale CDJ potrafi sie na nich zaciac."""
+    linie = (stderr or b"").decode("utf-8", "replace").splitlines()
+    n = sum(1 for l in linie if "Error while decoding" in l)
+    return n or sum(1 for l in linie if re.search(r"Header missing|Invalid data|corrupt|overread", l))
+
+
 def wczytaj(sciezka: str) -> np.ndarray:
     """Załaduj MP3 - dekoduj do RAM."""
+    global BLEDY_DEKODOWANIA
+    BLEDY_DEKODOWANIA = 0
     with tempfile.TemporaryDirectory(prefix="cdj-audio-") as temp_dir:
         decoded = os.path.join(temp_dir, "samples.f32le")
         try:
-            subprocess.run(
+            r = subprocess.run(
                 [FFMPEG, "-v", "error", "-threads", "1", "-i", sciezka, "-ac", "1", "-ar", str(SR),
                  "-f", "f32le", decoded],
                 capture_output=True, check=True, timeout=FFMPEG_TIMEOUT
             )
+            BLEDY_DEKODOWANIA = _licz_bledy_dekodowania(r.stderr)
         except subprocess.TimeoutExpired:
             raise RuntimeError(f"FFmpeg timeout (>{FFMPEG_TIMEOUT}s)")
         except subprocess.CalledProcessError as e:

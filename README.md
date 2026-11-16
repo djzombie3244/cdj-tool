@@ -7,7 +7,7 @@ CDJ Tool analyses your tracks (BPM, beat grid, waveforms, cue points) and writes
 loads like a rekordbox export: track database (`export.pdb`), analysis files (`ANLZ0000.DAT` / `.EXT`) and copies of
 your audio files. It is a small app for macOS (Apple Silicon and Intel) and Windows that works completely **offline**.
 
-> **Status:** version 1.0.10. Tested by the author on real hardware: a CDJ-2000 (non-NXS) running the
+> **Status:** version 1.0.11. Tested by the author on real hardware: a CDJ-2000 (non-NXS) running the
 > [RaftTone mod](https://rafttone.com/cdj2000/) v1.1, with MP3 tracks (database, waveforms incl. 3BAND, BPM and beat
 > grid, key, hot cues A–F, playlists). The app was checked on Apple Silicon and Intel Macs and on Windows.
 > AAC, WAV, AIFF and FLAC support is newer and still being tested on hardware; a CDJ-2000 with stock firmware has
@@ -47,6 +47,7 @@ affiliated with it. Follow the mod's own page for building and flashing the firm
 - **Hip-hop and other slow tracks** (about 65–90 BPM) get their real tempo instead of double time, with the grid on the kicks.
 - **Import of beat grids and cues** from other DJ software, used instead of the app's own analysis every time the stick is written (*Tools → Import beat grids and cues*): rekordbox (collection exported to XML), Traktor (`collection.nml`) and Serato (test version). Hot cues from the file take their slots; the remaining slots keep the automatic cues.
 - **Re-encode to WAV** in the editor for tracks that stutter or hang on the CDJ: a 16-bit stereo WAV copy takes the track's place on the stick, with the same playlists and artwork.
+- **Damaged files are flagged**: a file with broken frames, which can stutter on the CDJ, gets a warning in the log and in the summary.
 - **Dynamic beat grid** for tracks whose tempo changes during the track (for example a transition from 104 to 128 BPM). Ordinary tracks are analysed as before.
 - **Windows:** a folder path can be pasted into the music step.
 - **Musical key** (test version): taken from the file tags when present (e.g. from the store), otherwise detected; classic (Am) or Camelot (8A) notation. A CDJ-2000 with firmware 4.33 shows KEY when browsing.

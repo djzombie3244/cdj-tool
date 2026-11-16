@@ -880,7 +880,7 @@ def _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3,
             info = {"pend": u["pend"], "bpm": u["bpm"], "confidence": u["confidence"], "reliable": u["reliable"],
                     "pierwszy_ms": ev["pierwszy_ms"], "beatow": ev["beatow"], "czas": ev["czas"],
                     "podglad": ev.get("podglad"), "tonacja": u.get("tonacja_analiza"), "dlugi": ev.get("dlugi"),
-                    "zmienne": ev.get("zmienne")}
+                    "zmienne": ev.get("zmienne"), "uszkodzony": ev.get("uszkodzony")}
             _cache_zapisz(klucz, info, dat, ext, ex2)
         except Exception:  # noqa: BLE001  # pamiec podreczna jest dodatkiem
             pass
@@ -928,6 +928,8 @@ def _z_cache(traf, sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, n
         ev["dlugi"] = info["dlugi"]
     if info.get("zmienne"):
         ev["zmienne"] = info["zmienne"]
+    if info.get("uszkodzony"):
+        ev["uszkodzony"] = info["uszkodzony"]
     return u, ev
 
 
@@ -1106,6 +1108,8 @@ def _opis_utworu(ev, u):
         cz.append("długi utwór, %d odcinków" % ev["dlugi"]["odcinkow"])
     if ev.get("zmienne"):
         cz.append("zmienne tempo: " + " → ".join("%.2f" % t for t in ev["zmienne"]["tempa"]))
+    if ev.get("uszkodzony"):
+        cz.append("⚠ uszkodzony plik (błędy dekodowania: %d), może zacinać się na CDJ" % ev["uszkodzony"])
     return "✓ %s — %s: %s" % (m["artysta"], m["tytul"], ", ".join(cz))
 
 
@@ -1119,6 +1123,7 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
     """Wlasciwa analiza utworu; wywolywana po zajeciu miejsca w bramce pamieci."""
     try:
         y = g.wczytaj(sciezka)
+        uszkodzony = int(getattr(g, "BLEDY_DEKODOWANIA", 0) or 0)
         if meta.get("mp3_bez_gapless"):
             # Na wzorcu rekordboxa (10 plikow MP3 z naglowkiem Info bez LAME) cala os czasu CDJ jest o ok. 46,7 ms
             # wczesniej niz dzwiek z ffmpeg; pliki z naglowkiem LAME zgadzaja sie co do 1-2 ms. Przycinamy poczatek,
@@ -1238,6 +1243,8 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
             ev["dlugi"] = {"odcinkow": analysis["odcinkow"], "tempa": analysis["tempa_serii"][:40]}
         if zmienne:
             ev["zmienne"] = {"tempa": analysis["tempa_serii"][:12]}
+        if uszkodzony:
+            ev["uszkodzony"] = uszkodzony
         
         if pod is not None:
             ev["podglad"] = pod
@@ -1654,6 +1661,10 @@ def _przetworz(a, emit):
                         podsum["z_pamieci"] = podsum.get("z_pamieci", 0) + (1 if ev.get("z_pamieci") else 0)
                         podsum["tagi_z_nazw"] = podsum.get("tagi_z_nazw", 0) + (1 if utwor["meta"].get("z_nazwy") else 0)
                         podsum["dlugie"] = podsum.get("dlugie", 0) + (1 if ev.get("dlugi") else 0)
+                        if ev.get("uszkodzony"):
+                            podsum["uszkodzone"] = podsum.get("uszkodzone", 0) + 1
+                            podsum["ostrzezenia"] = [o for o in podsum["ostrzezenia"] if not o.startswith("Uszkodzone pliki audio")] + [
+                                "Uszkodzone pliki audio: %d. Mogą zacinać się na CDJ. Lista jest w dzienniku; naprawa: „Przekoduj do WAV” w edytorze." % podsum["uszkodzone"]]
                         if kopiarka is not None:
                             kopiarka.dodaj(utwor)
                         if okl_tlo is not None:

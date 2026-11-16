@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.11 - 2026
+- **Damaged audio files are flagged.** A file with broken frames (the decoder reports errors) can stutter or hang on the CDJ even though the analysis looks fine. Such tracks now get a warning in the log and the summary says how many there are; the fix is *Re-encode to WAV* in the editor or a clean copy of the file.
+- **The player preset and options are remembered again.** Several settings saved at the same moment could corrupt the settings file, and the app then started with the defaults (stock CDJ-2000, default language). Saving is now serialized, and the preset saved earlier is no longer overwritten at startup.
+- Loading a large Traktor collection shows the elapsed time instead of a static "Loading…".
+
 ## 1.0.10 - 2026
 - **Import of beat grids and cues** from other DJ software, used instead of the app's own analysis every time the stick is written (*Tools → Import beat grids and cues*): **rekordbox** (collection exported to XML: tempo changes, hot cues, memory cues), **Traktor** (`collection.nml`, found automatically or loaded as a file: grid markers, hot cues) and **Serato** (data stored in MP3, WAV and AIFF files, optional). Imported hot cues take their slots and the remaining slots keep the automatic cues, so the RaftTone mod still gets a full A–F bank. A correction made in the editor takes priority. Traktor and Serato import is a test version (their MP3 time base can differ by a frame from the CDJ's).
 - **Re-encode to WAV** button in the editor for tracks that stutter or hang on the CDJ: a WAV copy (16 bit, stereo) is made on the stick and takes the track's place in the library, with the same playlists and artwork; the original file stays on the stick. The track is remembered and goes as WAV on later writes from the music folder too. The list can be cleared in the editor card.

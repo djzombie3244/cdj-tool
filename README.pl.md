@@ -7,7 +7,7 @@ CDJ Tool analizuje utwory (BPM, siatka beatów, waveformy, punkty cue) i zapisuj
 wczytuje tak jak eksport z rekordboxa: baza utworów (`export.pdb`), pliki analizy (`ANLZ0000.DAT` / `.EXT`)
 i kopie plików audio. To mała aplikacja na macOS (Apple Silicon i Intel) oraz Windows, która działa całkowicie **offline**.
 
-> **Status:** wersja 1.0.10. Autor testował na prawdziwym sprzęcie: CDJ-2000 (nie NXS) z [modem RaftTone](https://rafttone.com/cdj2000/) v1.1,
+> **Status:** wersja 1.0.11. Autor testował na prawdziwym sprzęcie: CDJ-2000 (nie NXS) z [modem RaftTone](https://rafttone.com/cdj2000/) v1.1,
 > na utworach MP3 (baza, waveformy także w trybie 3BAND, BPM i siatka, tonacja, hot cue A–F, playlisty). Aplikację
 > sprawdzono na Macach z Apple Silicon i z procesorem Intel oraz na Windowsie. Obsługa AAC, WAV, AIFF i FLAC jest nowsza i nadal testowana
 > na sprzęcie; CDJ-2000 z oryginalnym firmware nie był jeszcze testowany przez autora
@@ -47,6 +47,7 @@ powiązany. Budowanie i wgrywanie firmware'u opisuje strona moda; robisz to na w
 - **Hip-hop i inne wolne utwory** (ok. 65–90 BPM) dostają prawdziwe tempo zamiast podwójnego, z siatką na stopach.
 - **Import siatek i cue** z innego oprogramowania DJ, używany zamiast własnej analizy przy każdym zapisie pendrive'a (w oknie *Narzędzia*): rekordbox (kolekcja wyeksportowana do XML), Traktor (`collection.nml`) i Serato (wersja testowa). Hot cue z pliku zajmują swoje sloty, a pozostałe zostają automatyczne.
 - **Przekoduj do WAV** w edytorze dla utworów, które zacinają się lub zawieszają na CDJ-cie: kopia 16-bit stereo WAV zajmuje miejsce utworu na pendrive, z tymi samymi playlistami i okładką.
+- **Uszkodzone pliki są oznaczane**: plik z uszkodzonymi ramkami, który może zacinać się na CDJ-cie, dostaje ostrzeżenie w dzienniku i w podsumowaniu.
 - **Siatka dynamiczna** dla utworów, których tempo zmienia się w trakcie (np. przejście z 104 na 128 BPM). Zwykłe utwory są analizowane jak dotąd.
 - **Windows:** ścieżkę folderu z muzyką można wkleić w kroku z muzyką.
 - **Tonacja** (wersja testowa): z tagów pliku, gdy są (np. ze sklepu), w przeciwnym razie wykrywana; zapis klasyczny (Am) albo Camelot (8A). CDJ-2000 z firmware 4.33 pokazuje KEY przy przeglądaniu.
