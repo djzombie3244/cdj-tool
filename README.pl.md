@@ -7,7 +7,7 @@ CDJ Tool analizuje utwory (BPM, siatka beatów, waveformy, punkty cue) i zapisuj
 wczytuje tak jak eksport z rekordboxa: baza utworów (`export.pdb`), pliki analizy (`ANLZ0000.DAT` / `.EXT`)
 i kopie plików audio. To mała aplikacja na macOS (Apple Silicon i Intel) oraz Windows, która działa całkowicie **offline**.
 
-> **Status:** wersja 1.0.11. Autor testował na prawdziwym sprzęcie: CDJ-2000 (nie NXS) z [modem RaftTone](https://rafttone.com/cdj2000/) v1.1,
+> **Status:** wersja 1.0.12. Autor testował na prawdziwym sprzęcie: CDJ-2000 (nie NXS) z [modem RaftTone](https://rafttone.com/cdj2000/) v1.1,
 > na utworach MP3 (baza, waveformy także w trybie 3BAND, BPM i siatka, tonacja, hot cue A–F, playlisty). Aplikację
 > sprawdzono na Macach z Apple Silicon i z procesorem Intel oraz na Windowsie. Obsługa AAC, WAV, AIFF i FLAC jest nowsza i nadal testowana
 > na sprzęcie; CDJ-2000 z oryginalnym firmware nie był jeszcze testowany przez autora
