@@ -46,6 +46,7 @@ FFMPEG = os.environ.get("CDJ_FFMPEG", "ffmpeg")
 
 # ================================================================ Dekodowanie ---
 BLEDY_DEKODOWANIA = 0  # ile uszkodzonych miejsc zglosil ffmpeg w ostatnio wczytanym pliku
+OGON_S = 15  # ostatnie sekundy pliku, w ktorych blad dekodowania jest normalny i nieszkodliwy
 
 
 def _licz_bledy_dekodowania(stderr: bytes) -> int:
@@ -53,6 +54,20 @@ def _licz_bledy_dekodowania(stderr: bytes) -> int:
     linie = (stderr or b"").decode("utf-8", "replace").splitlines()
     n = sum(1 for l in linie if "Error while decoding" in l)
     return n or sum(1 for l in linie if re.search(r"Header missing|Invalid data|corrupt|overread", l))
+
+
+def _bledy_w_ogonie(sciezka: str) -> int:
+    """Bledy w ostatnich OGON_S sekundach. Bardzo wiele normalnych MP3 ma obeta ostatnia ramke i ffmpeg
+    zglasza tam blad - odtwarzacz tego nie slyszy, wiec takie pliki nie moga trafiac do ostrzezenia."""
+    try:
+        r = subprocess.run(
+            [FFMPEG, "-v", "error", "-threads", "1", "-sseof", "-%d" % OGON_S, "-i", sciezka,
+             "-map", "0:a:0", "-f", "null", "-"],
+            capture_output=True, timeout=min(FFMPEG_TIMEOUT, 60)
+        )
+        return _licz_bledy_dekodowania(r.stderr)
+    except (subprocess.SubprocessError, OSError):
+        return 0
 
 
 def wczytaj(sciezka: str) -> np.ndarray:
@@ -67,7 +82,10 @@ def wczytaj(sciezka: str) -> np.ndarray:
                  "-f", "f32le", decoded],
                 capture_output=True, check=True, timeout=FFMPEG_TIMEOUT
             )
-            BLEDY_DEKODOWANIA = _licz_bledy_dekodowania(r.stderr)
+            bledy = _licz_bledy_dekodowania(r.stderr)
+            # Liczymy tylko uszkodzenia w srodku utworu: blad na samym koncu pliku ma u wielu
+            # zwyklych MP3 i nie slychac go przy odtwarzaniu.
+            BLEDY_DEKODOWANIA = max(0, bledy - _bledy_w_ogonie(sciezka)) if bledy else 0
         except subprocess.TimeoutExpired:
             raise RuntimeError(f"FFmpeg timeout (>{FFMPEG_TIMEOUT}s)")
         except subprocess.CalledProcessError as e:

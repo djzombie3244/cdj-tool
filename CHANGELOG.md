@@ -1,7 +1,7 @@
 # Changelog
 
 ## 1.0.11 - 2026
-- **Damaged audio files are flagged.** A file with broken frames (the decoder reports errors) can stutter or hang on the CDJ even though the analysis looks fine. Such tracks now get a warning in the log and the summary says how many there are; the fix is *Re-encode to WAV* in the editor or a clean copy of the file.
+- **Damaged audio files are flagged.** A file with broken frames inside the track (the decoder reports errors) can stutter or hang on the CDJ even though the analysis looks fine. Such tracks now get a warning in the log and the summary says how many there are; the fix is *Re-encode to WAV* in the editor or a clean copy of the file. A broken frame in the last seconds of a file is ignored, because very many ordinary MP3s have one and it cannot be heard.
 - **The player preset and options are remembered again.** Several settings saved at the same moment could corrupt the settings file, and the app then started with the defaults (stock CDJ-2000, default language). Saving is now serialized, and the preset saved earlier is no longer overwritten at startup.
 - Loading a large Traktor collection shows the elapsed time instead of a static "Loading…".
 
