@@ -1916,7 +1916,10 @@ def _przetworz(a, emit):
         drzewo.append((rodzic, srt, pid, folder, nazwa))
         return pid
 
+    dotkniete = set()  # playlisty, do ktorych cos dopisano (do ewentualnego sortowania)
+
     def dodaj_do(pl_id, tidy):
+        dotkniete.add(pl_id)
         juz = {tid for _, tid, pid in wpisy if pid == pl_id}
         idx = max([e for e, _, pid in wpisy if pid == pl_id] + [0])
         for tid in tidy:
@@ -1954,6 +1957,24 @@ def _przetworz(a, emit):
             dodaj_do(pl, tidy)
     else:
         dodaj_do(wezel(0, nazwa_pl, False), id_nowych)
+
+    # sortowanie playlist: CDJ pokazuje utwory w kolejnosci wpisow, wiec przestawiamy wpisy w bazie
+    # (stare i nowe razem); BPM i tonacja z analizy nowych utworow, a z bazy dla tych, ktore juz tam sa
+    tryb_sort = a.get("sortuj_playlisty")
+    if tryb_sort in ("bpm", "klucz") and dotkniete:
+        nazwy_kluczy = {kid: n for kid, n in lib.get("klucze", [])}
+        pozycje = {}  # id utworu -> (pozycja tonacji albo None, BPM)
+        for f, _s in lib["utwory"]:
+            nazwa_k = nazwy_kluczy.get(f.get("key"))
+            pozycje[f["id"]] = (tonacja.pozycja_nazwy(nazwa_k), f["tempo"] / 100.0)
+        for u, tid in zip(utwory, id_nowych):
+            poz = tonacja.pozycja_tonacji(u["tonacja"][0], u["tonacja"][1]) if u.get("tonacja") else None
+            pozycje[tid] = (poz, u["bpm"])
+        for pl_id in dotkniete:
+            czesc = [w for w in wpisy if w[2] == pl_id]
+            reszta = [w for w in wpisy if w[2] != pl_id]
+            czesc.sort(key=lambda w: tonacja.klucz_kolejnosci(tryb_sort, *pozycje.get(w[1], (None, 0.0))))
+            wpisy[:] = reszta + [(i + 1, tid, pl_id) for i, (_, tid, _) in enumerate(czesc)]
 
     tabele = {
         0: zgrupowane([(lambda sh, f=f, s=s: pw.track_row(sh, f, s)) for f, s in kodowane]),

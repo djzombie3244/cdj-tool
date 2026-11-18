@@ -7,7 +7,7 @@ CDJ Tool analyses your tracks (BPM, beat grid, waveforms, cue points) and writes
 loads like a rekordbox export: track database (`export.pdb`), analysis files (`ANLZ0000.DAT` / `.EXT`) and copies of
 your audio files. It is a small app for macOS (Apple Silicon and Intel) and Windows that works completely **offline**.
 
-> **Status:** version 1.0.12. Tested by the author on real hardware: a CDJ-2000 (non-NXS) running the
+> **Status:** version 1.1.0. Tested by the author on real hardware: a CDJ-2000 (non-NXS) running the
 > [RaftTone mod](https://rafttone.com/cdj2000/) v1.1, with MP3 tracks (database, waveforms incl. 3BAND, BPM and beat
 > grid, key, hot cues A–F, playlists). The app was checked on Apple Silicon and Intel Macs and on Windows.
 > AAC, WAV, AIFF and FLAC support is newer and still being tested on hardware; a CDJ-2000 with stock firmware has

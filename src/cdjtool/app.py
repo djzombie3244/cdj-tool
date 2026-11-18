@@ -863,6 +863,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                      "notacja": "camelot" if dane.get("notacja") == "camelot" else "klasyczna",
                      "tonacja_z_tagu": bool(dane.get("tonacja_z_tagu", True)),
                      "playlisty_z_folderow": bool(dane.get("playlisty_z_folderow", True)),
+                     "sortuj_playlisty": dane.get("sortuj_playlisty") if dane.get("sortuj_playlisty") in ("bpm", "klucz") else None,
                      "autoload": bool(dane.get("autoload", False)),
                      "trzy_pasma": bool(dane.get("trzy_pasma", False)),
                      "okladki": bool(dane.get("okladki", True)),

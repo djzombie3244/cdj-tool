@@ -7,6 +7,8 @@ Bez nowych zaleznosci: tylko numpy i scipy, ktore aplikacja juz ma.
 Zwraca (klasa_wysokosci 0..11 od C, czy_molowa, pewnosc 0..1) albo None, gdy utwor
 jest za krotki lub zbyt cichy, zeby cos powiedziec.
 """
+import re
+
 import numpy as np
 from scipy.ndimage import uniform_filter1d
 from scipy.signal import resample_poly
@@ -120,6 +122,35 @@ def nazwa(tonika, molowa, notacja="klasyczna"):
         numer = (7 * dur % 12 + 7) % 12 + 1                # C = 8, G = 9, F = 7 ...
         return "%d%s" % (numer, "A" if molowa else "B")
     return (MOL_KLASYCZNE if molowa else DUR_KLASYCZNE)[tonika % 12]
+
+
+def pozycja_tonacji(tonika, molowa):
+    """Pozycja w kole Camelot do sortowania: (numer 1..12, 0 dla A / 1 dla B)."""
+    m = re.match(r"^(\d{1,2})([AB])$", nazwa(tonika, molowa, "camelot"))
+    return (int(m.group(1)), 0 if m.group(2) == "A" else 1)
+
+
+def pozycja_nazwy(nazwa_tonacji):
+    """Pozycja Camelot z nazwy zapisanej w bazie (Camelot "8A" albo klasyczna "Am", "F#").
+    None, gdy nazwy nie da sie rozpoznac."""
+    m = re.match(r"^(\d{1,2})([AB])$", nazwa_tonacji or "")
+    if m:
+        return (int(m.group(1)), 0 if m.group(2) == "A" else 1)
+    for molowa, lista in ((False, DUR_KLASYCZNE), (True, MOL_KLASYCZNE)):
+        if nazwa_tonacji in lista:
+            return pozycja_tonacji(lista.index(nazwa_tonacji), molowa)
+    return None
+
+
+def klucz_kolejnosci(tryb, poz, bpm):
+    """Klucz sortowania utworu w playliscie. tryb: "bpm" (samo BPM) albo "klucz" (tonacja, potem BPM).
+    Utwory bez tonacji laduja na koncu w tryb "klucz"; brak BPM tez na koncu."""
+    bpm_v = bpm if bpm else 9999.0
+    if tryb == "bpm":
+        return (bpm_v,)
+    if poz is None:
+        return (1, 0, 0, bpm_v)
+    return (0, poz[0], poz[1], bpm_v)
 
 
 # ---------------------------------------------------------------- tonacja z tagu pliku
