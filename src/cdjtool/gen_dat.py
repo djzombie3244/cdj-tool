@@ -56,18 +56,23 @@ def _licz_bledy_dekodowania(stderr: bytes) -> int:
     return n or sum(1 for l in linie if re.search(r"Header missing|Invalid data|corrupt|overread", l))
 
 
-def _bledy_w_ogonie(sciezka: str) -> int:
-    """Bledy w ostatnich OGON_S sekundach. Bardzo wiele normalnych MP3 ma obeta ostatnia ramke i ffmpeg
-    zglasza tam blad - odtwarzacz tego nie slyszy, wiec takie pliki nie moga trafiac do ostrzezenia."""
+def _bledy_w_ogonie(sciezka: str):
+    """Bledy w ostatnich OGON_S sekundach. Bardzo wiele normalnych MP3 ma uszkodzona ostatnia ramke i ffmpeg
+    zglasza tam blad - odtwarzacz tego nie slyszy, wiec takie pliki nie moga trafiac do ostrzezenia.
+    Zwraca None, gdy przewijania do konca nie dalo sie wykonac; wtedy wolimy nie ostrzegac wcale,
+    niz pokazac ostrzezenie przy kazdym zwyklym pliku."""
     try:
         r = subprocess.run(
             [FFMPEG, "-v", "error", "-threads", "1", "-sseof", "-%d" % OGON_S, "-i", sciezka,
              "-map", "0:a:0", "-f", "null", "-"],
             capture_output=True, timeout=min(FFMPEG_TIMEOUT, 60)
         )
-        return _licz_bledy_dekodowania(r.stderr)
     except (subprocess.SubprocessError, OSError):
-        return 0
+        return None
+    bledy = _licz_bledy_dekodowania(r.stderr)
+    if r.returncode != 0 and not bledy:
+        return None
+    return bledy
 
 
 def wczytaj(sciezka: str) -> np.ndarray:
@@ -85,7 +90,11 @@ def wczytaj(sciezka: str) -> np.ndarray:
             bledy = _licz_bledy_dekodowania(r.stderr)
             # Liczymy tylko uszkodzenia w srodku utworu: blad na samym koncu pliku ma u wielu
             # zwyklych MP3 i nie slychac go przy odtwarzaniu.
-            BLEDY_DEKODOWANIA = max(0, bledy - _bledy_w_ogonie(sciezka)) if bledy else 0
+            if bledy:
+                ogon = _bledy_w_ogonie(sciezka)
+                BLEDY_DEKODOWANIA = 0 if ogon is None else max(0, bledy - ogon)
+            else:
+                BLEDY_DEKODOWANIA = 0
         except subprocess.TimeoutExpired:
             raise RuntimeError(f"FFmpeg timeout (>{FFMPEG_TIMEOUT}s)")
         except subprocess.CalledProcessError as e:
