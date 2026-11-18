@@ -62,9 +62,11 @@ def _bledy_w_ogonie(sciezka: str):
     Zwraca None, gdy przewijania do konca nie dalo sie wykonac; wtedy wolimy nie ostrzegac wcale,
     niz pokazac ostrzezenie przy kazdym zwyklym pliku."""
     try:
+        # Wyjscie f32le do /dev/null, bo ffmpeg w aplikacji jest zbudowany bez muxera "null",
+        # a bez -y pytalby o nadpisanie pliku i czekal na odpowiedz, ktorej nie ma kto dac.
         r = subprocess.run(
-            [FFMPEG, "-v", "error", "-threads", "1", "-sseof", "-%d" % OGON_S, "-i", sciezka,
-             "-map", "0:a:0", "-f", "null", "-"],
+            [FFMPEG, "-v", "error", "-y", "-threads", "1", "-sseof", "-%d" % OGON_S, "-i", sciezka,
+             "-map", "0:a:0", "-ac", "1", "-ar", "8000", "-f", "f32le", os.devnull],
             capture_output=True, timeout=min(FFMPEG_TIMEOUT, 60)
         )
     except (subprocess.SubprocessError, OSError):
