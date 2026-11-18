@@ -29,6 +29,7 @@ import pdb_writer as pw
 import edytor
 import okladki
 import tonacja
+import playlisty
 from exceptions import (
     CDJError, FFmpegError, InvalidMP3Error, DiskSpaceError, PathTooLongError,
     ProcessTimeoutError, BPMConfidenceError, NoAudioFilesError
@@ -390,6 +391,9 @@ def metadane(sciezka: str) -> Dict[str, any]:
             "z_nazwy": [k for k, tag in (("wykonawca", "artist"), ("tytuł", "title"), ("album", "album"))
                         if not tagi.get(tag) and uzup[{"wykonawca": "artysta", "tytuł": "tytul", "album": "album"}[k]]],
             "nr": liczba("track"),
+            "gatunek": unicodedata.normalize("NFC", tagi.get("genre", "").strip()),
+            "komentarz": unicodedata.normalize("NFC", tagi.get("comment", "").strip()),
+            "data_pliku": int(os.path.getmtime(sciezka)),
             "dysk": liczba("disc"),
             "sr": sr,
             "bitrate": br,
@@ -1727,6 +1731,12 @@ def _przetworz(a, emit):
             "; reszta zostanie skopiowana teraz (%s)" % kopiarka.blad if kopiarka.blad else "")})
     
     utwory = [utwory_wg_indeksu[i] for i in sorted(utwory_wg_indeksu)]
+    if a.get("filtr"):  # filtr kolekcji: tylko utwory spelniajace kryteria trafia na pendrive
+        przed = len(utwory)
+        utwory = playlisty.filtr_kolekcji(utwory, a["filtr"])
+        emit({"typ": "log", "tekst": "Filtr kolekcji: %d z %d utworów." % (len(utwory), przed)})
+        if not utwory:
+            raise ValueError("Filtr kolekcji nie zostawił żadnego utworu.")
     if not utwory:
         msg = "Żaden utwór nie został przeanalizowany."
         if errors:
@@ -1865,6 +1875,7 @@ def _przetworz(a, emit):
         napisy = dict(
             title=m["tytul"], filename=os.path.basename(u["pend"]), file_path=u["pend"],
             analyze_path=u["analiza"], analyze_date=dzis,
+            comment=m.get("komentarz", ""),
             s4="",  # jak w eksporcie Rekordboxa (szablon mial "1")
             # Hot Cue Auto Load: domyslnie wylaczone (hot cue tylko zaznaczone, ladowane recznie przez CALL);
             # "ON" jak w Rekordboksie, gdy odtwarzacz ma w UTILITY ustawienie rekordbox SETTING
@@ -1883,10 +1894,10 @@ def _przetworz(a, emit):
             f = dict(f_szablon)
             f.update(key=0)
             f.update(artwork=0)
-            f.update(pola, id=nast_id, label=0, genre=0, composer=0, orig_artist=0,
+            f.update(pola, id=nast_id, label=0, composer=0, orig_artist=0,
                      remixer=0, plays=0)
             s = dict(s_szablon)
-            s.update(napisy, date_added=dzis, lyricist="", release_date="", mix_name="", comment="")
+            s.update(napisy, date_added=dzis, lyricist="", release_date="", mix_name="")
             wg_sciezki[u["pend"]] = len(kodowane)
             kodowane.append((f, s))
             id_nowych.append(nast_id)
@@ -1957,6 +1968,28 @@ def _przetworz(a, emit):
             dodaj_do(pl, tidy)
     else:
         dodaj_do(wezel(0, nazwa_pl, False), id_nowych)
+
+    # inteligentne playlisty (reguly BPM / Camelot / gatunek / artysta / komentarz) i podobne utwory:
+    # dzialaja na utworach z tej analizy (te, ktore juz sa na pendrive, nie biora udzialu)
+    for regula in a.get("inteligentne_playlisty") or []:
+        tidy = [tid for u, tid in zip(utwory, id_nowych) if playlisty.pasuje(u, regula)]
+        nazwa_r = regula.get("nazwa") or "Inteligentna"
+        if tidy:
+            dodaj_do(wezel(0, nazwa_r, False), tidy)
+        emit({"typ": "log", "tekst": "Playlista „%s”: %d utworów." % (nazwa_r, len(tidy))})
+    if a.get("podobne"):
+        p = a["podobne"]
+        szukaj = (p.get("szukaj") or "").strip().lower()
+        seedy = [u for u in utwory if szukaj and szukaj in os.path.basename(u["pend"]).lower()]
+        if not seedy:
+            emit({"typ": "log", "tekst": "Podobne utwory: nie znaleziono utworu „%s”." % p.get("szukaj", "")})
+        else:
+            seed = seedy[0]
+            tidy = [tid for u, tid in zip(utwory, id_nowych) if u is seed or playlisty.podobne(seed, u, float(p.get("procent", 3)))]
+            nazwa_p = p.get("nazwa") or "Podobne"
+            if tidy:
+                dodaj_do(wezel(0, nazwa_p, False), tidy)
+            emit({"typ": "log", "tekst": "Playlista „%s” (od: %s): %d utworów." % (nazwa_p, os.path.basename(seed["pend"]), len(tidy))})
 
     # sortowanie playlist: CDJ pokazuje utwory w kolejnosci wpisow, wiec przestawiamy wpisy w bazie
     # (stare i nowe razem); BPM i tonacja z analizy nowych utworow, a z bazy dla tych, ktore juz tam sa

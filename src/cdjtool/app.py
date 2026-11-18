@@ -864,6 +864,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                      "tonacja_z_tagu": bool(dane.get("tonacja_z_tagu", True)),
                      "playlisty_z_folderow": bool(dane.get("playlisty_z_folderow", True)),
                      "sortuj_playlisty": dane.get("sortuj_playlisty") if dane.get("sortuj_playlisty") in ("bpm", "klucz") else None,
+                     **_opcje_playlist(dane),
                      "autoload": bool(dane.get("autoload", False)),
                      "trzy_pasma": bool(dane.get("trzy_pasma", False)),
                      "okladki": bool(dane.get("okladki", True)),
@@ -1055,3 +1056,51 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def _liczba_lub_none(x):
+    try:
+        return None if x in (None, "") else float(x)
+    except (TypeError, ValueError):
+        return None
+
+
+def _tekst(x, n=80):
+    return str(x or "").strip()[:n]
+
+
+def _opcje_playlist(dane):
+    """Inteligentne playlisty, podobne utwory i filtr kolekcji z UI (sprawdzone i ograniczone)."""
+    reguly = []
+    for r in (dane.get("inteligentne_playlisty") or [])[:20]:
+        if not isinstance(r, dict):
+            continue
+        t = r.get("tonacja")
+        tonacja_ok = (isinstance(t, (list, tuple)) and len(t) == 2 and isinstance(t[0], int)
+                      and 1 <= t[0] <= 12 and t[1] in (0, 1))
+        reguly.append({
+            "nazwa": _tekst(r.get("nazwa"), 60) or "Inteligentna",
+            "bpm_min": _liczba_lub_none(r.get("bpm_min")),
+            "bpm_max": _liczba_lub_none(r.get("bpm_max")),
+            "tonacja": (t[0], t[1]) if tonacja_ok else None,
+            "sasiednie": bool(r.get("sasiednie")),
+            "gatunek": _tekst(r.get("gatunek")),
+            "artysta": _tekst(r.get("artysta")),
+            "komentarz": _tekst(r.get("komentarz")),
+        })
+    p = dane.get("podobne") if isinstance(dane.get("podobne"), dict) else None
+    podobne = None
+    if p and _tekst(p.get("szukaj")):
+        podobne = {"szukaj": _tekst(p.get("szukaj")), "nazwa": _tekst(p.get("nazwa"), 60) or "Podobne",
+                   "procent": min(max(_liczba_lub_none(p.get("procent")) or 3.0, 0.5), 10.0)}
+    f = dane.get("filtr") if isinstance(dane.get("filtr"), dict) else None
+    filtr = None
+    if f:
+        filtr = {"data_od": int(_liczba_lub_none(f.get("data_od")) or 0) or None,
+                 "data_do": int(_liczba_lub_none(f.get("data_do")) or 0) or None,
+                 "bpm_min": _liczba_lub_none(f.get("bpm_min")), "bpm_max": _liczba_lub_none(f.get("bpm_max")),
+                 "gatunek": _tekst(f.get("gatunek"))}
+        if not any(v not in (None, "") for v in filtr.values()):
+            filtr = None
+    return {"inteligentne_playlisty": reguly, "podobne": podobne, "filtr": filtr}
+

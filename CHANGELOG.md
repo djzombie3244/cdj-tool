@@ -1,6 +1,10 @@
 # Changelog
 
 ## 1.1.0 - 2026
+- **Smart playlists** (*Playlists and filter*): rules by BPM range, Camelot key (exact or neighbouring keys), genre, artist and comment. Each rule becomes a normal playlist on the stick, so the CDJ-2000 needs no change.
+- **Similar tracks**: a playlist of tracks whose BPM is within a chosen percentage of a seed track and whose key is a Camelot neighbour. The seed is chosen by part of its file name.
+- **Collection filter** before saving: genre, BPM range and date added. Empty filter = all tracks, as before.
+- **Genre and comment from tags** are read. The comment is written to the stick; genre is used for filtering and rules in the app.
 - **Playlists can be sorted** by BPM, or by key and then BPM (Camelot order: 1A, 1B, 2A, 2B ...). The CDJ plays tracks in the order of the playlist, so the order is written to the stick, including tracks that were already on it. Off by default; choose it next to *Subfolders as playlists*.
 - **Warning for large collections:** above about 9,000 tracks the window says that the CDJ-2000 database may not fit. Measured limit with typical names: about 11,000 tracks.
 
