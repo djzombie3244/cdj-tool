@@ -2,6 +2,7 @@
 
 ## 1.1.0 - 2026
 - **Playlists can be sorted** by BPM, or by key and then BPM (Camelot order: 1A, 1B, 2A, 2B ...). The CDJ plays tracks in the order of the playlist, so the order is written to the stick, including tracks that were already on it. Off by default; choose it next to *Subfolders as playlists*.
+- **Warning for large collections:** above about 9,000 tracks the window says that the CDJ-2000 database may not fit. Measured limit with typical names: about 11,000 tracks.
 
 ## 1.0.12 - 2026
 - **Damaged audio files are flagged.** A file with broken frames inside the track (the decoder reports errors) can stutter or hang on the CDJ even though the analysis looks fine. Such tracks now get a warning in the log and the summary says how many there are; the fix is *Re-encode to WAV* in the editor or a clean copy of the file. A broken frame in the last seconds of a file is ignored, because very many ordinary MP3s have one and it cannot be heard.
