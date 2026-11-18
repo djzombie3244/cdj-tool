@@ -835,6 +835,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         sciezka = urllib.parse.urlparse(self.path).path
         try:
             if sciezka == "/api/wybierz":
+                if dane.get("co") == "kopia":  # folder na kopie utworow z edytora
+                    p = dane.get("sciezka") if NATIVE else wybierz_folder(
+                        "Wybierz folder na kopię utworu", os.path.expanduser("~/Desktop"))
+                    return self._wyslij(200, {"sciezka": p or None})
                 if dane.get("co") == "mp3":
                     wklejona = str(dane.get("sciezka") or "").strip().strip('"')
                     if dane.get("bez_dialogu"):  # sciezka wklejona w oknie (Windows: bez okna wyboru)
@@ -903,6 +907,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self._wyslij(200, edytor.utwor(root, int(dane["id"])))
                 if sciezka == "/api/edytor/zapisz":
                     return self._wyslij(200, edytor.zapisz(root, int(dane["id"]), dane["edycja"]))
+                if sciezka == "/api/edytor/propozycje":
+                    return self._wyslij(200, {"kandydaci": edytor.propozycje(root, int(dane["id"]))})
+                if sciezka == "/api/edytor/kopia":
+                    if not str(dane.get("cel") or "").strip():
+                        return self._wyslij(400, {"blad": "Nie wybrano folderu kopii."})
+                    return self._wyslij(200, edytor.kopia(root, int(dane["id"]), dane["edycja"], str(dane["cel"]).strip()))
                 if sciezka == "/api/edytor/przekoduj":
                     # utwor, ktory zacina sie na CDJ: kopia WAV obok oryginalu na pendrive, wpis w bazie podmieniony
                     if STAN["setup"]["stan"] != "gotowe":

@@ -213,10 +213,12 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = (kind == "mp3")
         panel.prompt = "Wybierz"
-        panel.message = kind == "mp3" ? "Wskaż jeden lub kilka folderów z plikami audio (Cmd lub Shift)" : "Wskaż cały pendrive"
+        panel.message = kind == "mp3" ? "Wskaż jeden lub kilka folderów z plikami audio (Cmd lub Shift)" : (kind == "kopia" ? "Wskaż folder, w którym ma powstać kopia utworu" : "Wskaż cały pendrive")
         let start = kind == "mp3"
             ? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Music")
-            : URL(fileURLWithPath: "/Volumes", isDirectory: true)
+            : (kind == "kopia"
+                ? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop")
+                : URL(fileURLWithPath: "/Volumes", isDirectory: true))
         if FileManager.default.fileExists(atPath: start.path) { panel.directoryURL = start }
         panel.begin { [weak self] response in
             guard let self else { return }

@@ -9,6 +9,7 @@ poprawiona siatke i cue zamiast automatycznych.
 """
 import base64
 import json
+import shutil
 import math
 import os
 import struct
@@ -338,7 +339,7 @@ def utwor(root, track_id):
             "korekta": klucz_korekty(s["file_path"], f["file_size"]) in wczytaj_korekty()}
 
 
-def zapisz(root, track_id, edycja):
+def zapisz(root, track_id, edycja, korekta=True):
     """Zapis poprawionej siatki i cue na pendrive (DAT, EXT, tempo w bazie) i w korektach na komputerze."""
     f, s = _utwor(root, track_id)
     dat_p, ext_p, dat, ext = _pliki_analizy(root, s)
@@ -353,7 +354,8 @@ def zapisz(root, track_id, edycja):
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp, sciezka)
-    zapisz_korekte(klucz_korekty(s["file_path"], f["file_size"]), edycja)
+    if korekta:
+        zapisz_korekte(klucz_korekty(s["file_path"], f["file_size"]), edycja)
     return {"ok": True, "bpm": bpm}
 
 
@@ -364,3 +366,45 @@ def plik_audio(root, sciezka_na_pendrive):
     if os.path.commonpath([root, p]) != root or not p.lower().endswith(ROZSZERZENIA) or not os.path.isfile(p):
         raise ValueError("Nie ma takiego pliku na pendrive.")
     return p
+
+
+def propozycje(root, track_id):
+    """Propozycje memory cue z fraz (intro, drop, outro...) z tego samego algorytmu co przy analizie (cue.wyznacz)."""
+    import gen_dat as g
+    import cue as cue_mod
+    f, s = _utwor(root, track_id)
+    _, _, dat, ext = _pliki_analizy(root, s)
+    beaty = czytaj_siatke(dat, ext)
+    if len(beaty) < 16:
+        return []
+    czasy = [b[0] for b in beaty]
+    numery = [b[1] for b in beaty]
+    y = g.wczytaj(plik_audio(root, s["file_path"]))
+    cechy = g._cechy_koloru(y, float(f["duration"]))
+    wyn = cue_mod.wyznacz(cechy, czasy, numery, float(f["duration"]))
+    import silnik  # ten sam krok po wyznaczeniu co przy analizie (poprawka z dźwięku)
+    wyn = silnik._cue_od_dzwieku(wyn, y, g)
+    return [{"ms": int(ms), "nazwa": nazwa} for ms, nazwa in wyn.get("pamiec", [])]
+
+
+def kopia(root, track_id, edycja, cel):
+    """Kopia utworu z poprawkami na inny folder: audio, pliki analizy i baza z pendrive'a; poprawki zapisane w kopii.
+    Oryginal i korekty na komputerze bez zmian. Baza (export.pdb) kopiowana cala, wiec widac inne utwory tego
+    pendrive'a, ktorych audio nie ma w kopii."""
+    root_r = os.path.realpath(root)
+    cel_r = os.path.realpath(cel)
+    if cel_r == root_r or cel_r.startswith(root_r + os.sep):
+        raise ValueError("Folder kopii nie może być na pendrive'ie ani w jego środku.")
+    f, s = _utwor(root, track_id)
+    dat_p, ext_p, _, _ = _pliki_analizy(root, s)
+    zrodla = [plik_audio(root, s["file_path"]), dat_p, ext_p, _baza(root)[0]]
+    ex2 = os.path.splitext(dat_p)[0] + ".2EX"
+    if os.path.isfile(ex2):
+        zrodla.append(ex2)
+    for zrodlo in zrodla:
+        dst = os.path.join(cel_r, os.path.relpath(zrodlo, root_r))
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copyfile(zrodlo, dst)
+    wynik = zapisz(cel_r, track_id, edycja, korekta=False)
+    return {"ok": True, "folder": cel_r, "plik": s["file_path"], "bpm": wynik["bpm"]}
+
