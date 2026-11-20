@@ -2,7 +2,7 @@
   "audio": {
     "sample_rate": 22050,
     "hop_length": 64,
-    "rekordbox_offset_ms": 51.2,
+    "rekordbox_offset_ms": 4.2,
     "beat_attack_offset_ms": 8.4
   },
   "analysis": {

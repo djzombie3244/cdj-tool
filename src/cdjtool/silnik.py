@@ -1154,6 +1154,9 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
             # wczesniej niz dzwiek z ffmpeg; pliki z naglowkiem LAME zgadzaja sie co do 1-2 ms. Przycinamy poczatek,
             # wiec siatka, waveformy i cue przesuwaja sie razem.
             y = y[int(round(g.MP3_BEZ_GAPLESS_S * g.SR)):]
+        elif meta.get("typ_pliku") == 1:
+            # MP3 z naglowkiem: CDJ dekoduje ok. 20 ms pozniej niz ffmpeg, wiec cala os czasu przesuwamy o tyle w prawo
+            y = np.concatenate([np.zeros(int(round(g.MP3_DEKODER_S * g.SR)), dtype=y.dtype), y])
         dl = len(y) / g.SR
         dlugi = dl > g.DLUGI_PROG_S
         analysis = g.analizuj_dlugi(y) if dlugi else g.analizuj(y)

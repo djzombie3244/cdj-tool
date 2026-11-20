@@ -35,7 +35,10 @@ ATAK_PRZED_WZROSTEM_S = CONFIG["audio"]["beat_attack_offset_ms"] / 1000.0
 # Kalibracja na eksporcie rekordboxa (15 utworow, 2026-11-04): beaty sieci Beat This! leza srednio 12,2 ms
 # za linia siatki rekordboxa; MP3 bez danych gapless sa w osi CDJ o 46,7 ms wczesniej niz dzwiek z ffmpeg.
 SIEC_OPOZNIENIE_S = 0.0122
-MP3_BEZ_GAPLESS_S = 0.0467
+# Pomiar na CDJ-2000 (pendrive testowy 2026-11-20, offset 4,2 ms): dzwiek MP3 jest ok. 20 ms za siatka dla plikow z
+# naglowkiem LAME, a MP3 bez naglowka po przycieciu 46,7 ms mialy siatke 40 ms za wczesnie => przycinamy tylko 6,7 ms.
+MP3_DEKODER_S = 0.020
+MP3_BEZ_GAPLESS_S = 0.0067
 BPM_MIN = CONFIG["analysis"]["bpm_min"]
 BPM_MAX = CONFIG["analysis"]["bpm_max"]
 CONFIDENCE_THRESHOLD = CONFIG["analysis"]["confidence_threshold"]
