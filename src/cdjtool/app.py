@@ -1064,10 +1064,6 @@ def main():
     srv.serve_forever()
 
 
-if __name__ == "__main__":
-    main()
-
-
 def _liczba_lub_none(x):
     try:
         return None if x in (None, "") else float(x)
@@ -1114,3 +1110,7 @@ def _opcje_playlist(dane):
             filtr = None
     return {"inteligentne_playlisty": reguly, "podobne": podobne, "filtr": filtr}
 
+
+
+if __name__ == "__main__":
+    main()

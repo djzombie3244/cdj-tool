@@ -245,6 +245,18 @@ final class CDJToolApp: NSObject, NSApplicationDelegate, WKScriptMessageHandler,
         }
     }
 
+    /// alert() z JavaScriptu (np. błąd startu zapisu): bez tej metody WKWebView po cichu go ignoruje,
+    /// więc użytkownik nie widzi, dlaczego analiza się nie uruchomiła.
+    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+        let alert = NSAlert()
+        alert.messageText = "CDJ Tool"
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+        completionHandler()
+    }
+
     /// Upuszczone foldery: katalog glowny dysku w /Volumes to pendrive, pozostale to foldery z muzyka.
     private func foldersDropped(_ urls: [URL]) {
         var music: [String] = []
