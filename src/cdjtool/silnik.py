@@ -591,6 +591,27 @@ def _przekoduj_do_wav(zrodlo, cel, sr):
                 pass
 
 
+def _filtr_przed_analiza(folder, pliki, filtr):
+    """Wstepny filtr kolekcji: data pliku i gatunek (tagi) sprawdzane przed analiza. BPM zostaje po analizie.
+    Plik, ktorego tagow nie da sie odczytac, zostaje, zeby analiza zglosila blad tak jak dotad."""
+    wynik = []
+    for rel in pliki:
+        sciezka = os.path.join(folder, rel)
+        try:
+            data = int(os.path.getmtime(sciezka))
+            if filtr.get("data_od") and data < filtr["data_od"]:
+                continue
+            if filtr.get("data_do") and data > filtr["data_do"]:
+                continue
+            if filtr.get("gatunek") and not playlisty._tekst_pasuje(
+                    filtr.get("gatunek"), metadane(sciezka).get("gatunek", "")):
+                continue
+        except Exception:  # noqa: BLE001  # nieczytelny plik zostaje dla analizy (zglosi blad)
+            pass
+        wynik.append(rel)
+    return wynik
+
+
 def _zrodlo_utworu(folder, root, nazwa_wzgledna, kopiuj_mp3):
     """(sciezka, nazwa, nazwa_wzgledna, meta) pliku do analizy. Plik oznaczony do przekodowania zastepuje jego
     kopia WAV (w katalogu tymczasowym; bez kopiowania: obok oryginalu na pendrive) z tagami oryginalu."""
@@ -1510,6 +1531,14 @@ def _przetworz(a, emit):
             except OSError:
                 pass
         pliki = [p for p in pliki if p not in kopie]
+    filtr = a.get("filtr") or {}
+    if filtr and (filtr.get("data_od") or filtr.get("data_do") or filtr.get("gatunek")):
+        # filtr kolekcji przed analiza: utwory, ktore odpadna, nie sa analizowane
+        przed = len(pliki)
+        pliki = _filtr_przed_analiza(folder, pliki, filtr)
+        emit({"typ": "log", "tekst": "Filtr kolekcji (przed analizą): %d z %d plików." % (len(pliki), przed)})
+        if not pliki:
+            raise ValueError("Filtr kolekcji nie zostawił żadnego utworu.")
     if not pliki:
         tylko_flac = not FLAC["on"] and any(
             n.lower().endswith(ROZSZERZENIE_FLAC) and not n.startswith(".")

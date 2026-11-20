@@ -36,6 +36,7 @@ def _flac_off():
 
 
 def test_flac_is_rejected_unless_enabled(tmp_path):
+    silnik.FLAC["on"] = False  # stan z poprzednich testow nie moze tu przeciekac
     _click_track(str(tmp_path / "a.wav"), 128.0, seconds=10)
     _to_flac(str(tmp_path / "a.wav"), str(tmp_path / "a.flac"))
     assert silnik.rozszerzenia() == silnik.ROZSZERZENIA_AUDIO
@@ -80,6 +81,7 @@ def test_flac_end_to_end(tmp_path):
 
 
 def test_folder_scan_ignores_flac_when_disabled(tmp_path):
+    silnik.FLAC["on"] = False  # stan z poprzednich testow nie moze tu przeciekac
     (tmp_path / "x.flac").write_bytes(b"fLaC")
     (tmp_path / "y.mp3").write_bytes(b"x")
     assert silnik.pliki_mp3(str(tmp_path)) == ["y.mp3"]

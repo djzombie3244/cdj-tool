@@ -60,6 +60,17 @@ canvas.ov { height: 14px; margin-top: 3px; }
 .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
 @media (max-width: 640px) { .opts { grid-template-columns: 1fr; } }
 .opt { display: flex; align-items: center; gap: 6px; min-height: 34px; }
+/* sekcja playlist: obie kolumny maja te same wysokosci wierszy i pola */
+.pl-opts { align-items: start; }
+.pl-opts .legend { min-height: 2.5em; margin-top: 0; }
+.pl-opts .row { margin-top: 8px; gap: 8px; flex-wrap: nowrap; align-items: center; }
+.pl-opts input[type=text], .pl-opts input[type=number], .pl-opts input[type=date] {
+  height: 36px; box-sizing: border-box; padding: 0 10px; font: inherit; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--bg); color: var(--txt); }
+.pl-opts input[type=text] { width: 100%; max-width: none; flex: 1; min-width: 0; }
+.pl-opts input[type=number] { width: 84px; flex: 0 0 84px; }
+.pl-opts input[type=date] { width: 150px; flex: 0 0 150px; }
+.pl-opts .pl-lab { font-size: 13px; color: var(--muted); white-space: nowrap; }
 .opt label.chk { margin-top: 0; align-items: center; flex: 0 1 auto; }
 .opt select { margin-left: 6px; }
 .inf { width: 20px; height: 20px; padding: 0; border-radius: 50%; font-size: 12px; line-height: 1; color: var(--muted); flex: none; }
@@ -190,16 +201,17 @@ canvas.ov { height: 14px; }
     </div>
     <details id="playlisty"><summary data-i18n="plTitle"></summary>
       <div class="legend" data-i18n="plIntro"></div>
-      <div class="opts">
+      <div class="opts pl-opts">
         <div>
           <div class="legend" data-i18n="plFiltr"></div>
-          <div class="row"><input id="fGatunek" type="text" data-i18n-ph="plGenre" style="flex:1"></div>
-          <div class="row"><span data-i18n="plBpmOd"></span> <input id="fBpmMin" type="number" step="0.1" style="width:80px"> <span data-i18n="plBpmDo"></span> <input id="fBpmMax" type="number" step="0.1" style="width:80px"></div>
-          <div class="row"><span data-i18n="plDataOd"></span> <input id="fDataOd" type="date"></div>
+          <div class="row"><input id="fGatunek" type="text" data-i18n-ph="plGenre"></div>
+          <div class="row"><span class="pl-lab" data-i18n="plBpmOd"></span><input id="fBpmMin" type="number" step="0.1"><span class="pl-lab" data-i18n="plBpmDo"></span><input id="fBpmMax" type="number" step="0.1"></div>
+          <div class="row"><span class="pl-lab" data-i18n="plDataOd"></span><input id="fDataOd" type="date"></div>
         </div>
         <div>
           <div class="legend" data-i18n="plPodobne"></div>
-          <div class="row"><input id="pSzukaj" type="text" data-i18n-ph="plSeedPh" style="flex:1"> <input id="pProcent" type="number" value="3" step="0.5" min="0.5" max="10" style="width:70px"> <span data-i18n="plPercent"></span></div>
+          <div class="row"><input id="pSzukaj" type="text" data-i18n-ph="plSeedPh"></div>
+          <div class="row"><span class="pl-lab" data-i18n="plPercent"></span><input id="pProcent" type="number" value="3" step="0.5" min="0.5" max="10"></div>
         </div>
       </div>
       <div class="legend" data-i18n="plRegulyTitle"></div>
