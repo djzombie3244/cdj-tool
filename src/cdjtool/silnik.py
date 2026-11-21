@@ -2114,6 +2114,13 @@ def _przetworz(a, emit):
             (wolne + odzysk) / 1e6
         )
     
+    # Podsumowanie przed zapisem: ile utworow dojdzie, ile zostanie zaktualizowanych, ile zostanie bez zmian.
+    if not a.get("zastap_pioneer", False):
+        do_dopisania = sum(1 for u in utwory if u["pend"] not in wg_sciezki)
+        zaktualizowane = len(utwory) - do_dopisania
+        bez_zmian = len(kodowane) - zaktualizowane
+        emit({"typ": "log", "tekst": "Plan zapisu: dodam %d nowych, zaktualizuję %d, zostawię %d bez zmian." % (
+            do_dopisania, zaktualizowane, bez_zmian)})
     emit({
         "typ": "etap",
         "tekst": f"Waveformy i baza CDJ: {dane_bajty/1e6:.2f} MB"
