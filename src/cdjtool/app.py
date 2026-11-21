@@ -931,6 +931,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                      "okladki": bool(dane.get("okladki", True)),
                      "okladki_siec": bool(dane.get("okladki_siec", False)),
                      "dlugie": bool(dane.get("dlugie", True)),
+                     "naprawa_tytulow": bool(dane.get("naprawa_tytulow", False)),
                      "pelna_moc": bool(dane.get("pelna_moc", True)),
                      "test_dysku": bool(dane.get("test_dysku", True)),
                      "import_cue": bool(dane.get("import_cue", True)),

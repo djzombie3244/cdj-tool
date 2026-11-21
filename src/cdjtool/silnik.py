@@ -28,6 +28,7 @@ import gen_dat as g
 import pdb_writer as pw
 import edytor
 import okladki
+import naprawa
 import tonacja
 import playlisty
 from exceptions import (
@@ -141,6 +142,7 @@ BRAMKA = {"obj": None}
 MAKS_MIN_UTWORU = 45          # bez opcji dlugich utworow dluzsze pomijamy
 MAKS_MIN_DLUGIEGO = 180       # z opcja: sety i miksy do 3 h, analizowane odcinkami (gen_dat.analizuj_dlugi)
 DLUGIE = {"on": True}         # ustawiane z opcji w interfejsie (przetworz)
+NAPRAWA = {"on": False}       # naprawa tytulow/artystow w bazie na pendrive (naprawa.py), opcja w interfejsie
 BAJTOW_NA_PROBKE = 4 * 16     # float32 x ~16 (zmierzony szczyt analizy ~14.7x dlugosci audio)
 
 
@@ -382,10 +384,16 @@ def metadane(sciezka: str) -> Dict[str, any]:
         
         ton_tag = tonacja.z_tagu(tagi.get("tkey") or tagi.get("initialkey") or tagi.get("key"))
         uzup = _uzupelnij_z_nazw(sciezka, tagi.get("title"), tagi.get("artist"), tagi.get("album"))
+        tytul_b = uzup["tytul"] or os.path.splitext(os.path.basename(sciezka))[0]
+        artysta_b = uzup["artysta"] or "Unknown Artist"
+        zmiany_naprawy = []
+        if NAPRAWA["on"]:  # tylko baza na pendrive; tagi pliku zostaja
+            tytul_b, artysta_b, zmiany_naprawy = naprawa.napraw(tytul_b, artysta_b)
         return {
+            "naprawa": zmiany_naprawy,
             "tonacja_tag": [ton_tag[0], ton_tag[1]] if ton_tag else None,
-            "tytul": uzup["tytul"] or os.path.splitext(os.path.basename(sciezka))[0],
-            "artysta": uzup["artysta"] or "Unknown Artist",
+            "tytul": tytul_b,
+            "artysta": artysta_b,
             "album": uzup["album"] or "Unknown Album",
             "rok": liczba("date") or liczba("year") or uzup["rok"],
             "z_nazwy": [k for k, tag in (("wykonawca", "artist"), ("tytuł", "title"), ("album", "album"))
@@ -1498,6 +1506,7 @@ def _przetworz(a, emit):
     _T0 = time.time()  # znaczniki [+N s] i czasy w dzienniku od startu tego zadania
     FLAC["on"] = bool(a.get("flac"))
     DLUGIE["on"] = bool(a.get("dlugie", True))
+    NAPRAWA["on"] = bool(a.get("naprawa_tytulow", False))
     os.environ["CDJ_FLAC"] = "1" if FLAC["on"] else "0"  # dziedziczone przez procesy robocze
     folder = os.path.realpath(a["folder_mp3"])
     nazwa_folderu = str(a.get("nazwa_folderu") or os.path.basename(folder.rstrip("/")) or "Tracks")[:60]
