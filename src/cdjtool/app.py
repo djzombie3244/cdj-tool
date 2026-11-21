@@ -113,6 +113,8 @@ STAN = {
     "setup": {"stan": "sprawdzam", "log": []},
     "job": {"stan": "brak"},
     "benchmark": {"stan": "brak"},
+    "klon": {"stan": "brak"},
+    "raport": {"stan": "brak"},
     "ostatnio": time.time(),
     "widziano": False,
 }
@@ -570,10 +572,65 @@ def start_pomiaru(folder_mp3, pendrive, kopiuj_mp3):
     return True
 
 
+def start_klonu(zrodlo, cel, wyczysc_cel):
+    """Kopia pendrive'a na drugi pendrive w tle (stan w STAN['klon'], odpytywany przez /api/status)."""
+    with LOCK:
+        if STAN["klon"].get("stan") == "trwa" or STAN["job"].get("stan") == "trwa" \
+                or STAN["benchmark"].get("stan") == "trwa":
+            return False
+        STAN["klon"] = {"stan": "trwa", "faza": "przygotowanie", "zrobione": 0, "razem": 1, "plik": "",
+                        "zrodlo": zrodlo, "cel": cel, "t0": time.time()}
+
+    def postep(faza, zrobione, razem, plik):
+        with LOCK:
+            STAN["klon"].update(faza=faza, zrobione=zrobione, razem=max(1, razem), plik=plik)
+
+    def rob():
+        try:
+            import klon
+            if wyczysc_cel:
+                with LOCK:
+                    STAN["klon"]["faza"] = "czyszczenie"
+                klon.wyczysc(cel)
+            w = klon.kopiuj(zrodlo, cel, postep)
+            with LOCK:
+                STAN["klon"] = {"stan": "gotowe" if w["ok"] else "blad", "zrodlo": zrodlo, "cel": cel, **w}
+        except Exception as e:  # noqa: BLE001
+            with LOCK:
+                STAN["klon"] = {"stan": "blad", "zrodlo": zrodlo, "cel": cel, "bledy": [], "blad": str(e)}
+    threading.Thread(target=rob, daemon=True).start()
+    return True
+
+
+def start_raportu(pendrive):
+    """Raport "przed graniem" w tle (stan w STAN['raport'], odpytywany przez /api/status)."""
+    with LOCK:
+        if STAN["raport"].get("stan") == "trwa" or STAN["job"].get("stan") == "trwa" \
+                or STAN["klon"].get("stan") == "trwa":
+            return False
+        STAN["raport"] = {"stan": "trwa", "zrobione": 0, "razem": 1, "pendrive": pendrive}
+
+    def postep(n, razem, nazwa):
+        with LOCK:
+            STAN["raport"].update(zrobione=n, razem=max(1, razem))
+
+    def rob():
+        try:
+            import raport
+            w = raport.sprawdz(pendrive, postep)
+            with LOCK:
+                STAN["raport"] = {"stan": "gotowe", "pendrive": pendrive, **w}
+        except Exception as e:  # noqa: BLE001
+            with LOCK:
+                STAN["raport"] = {"stan": "blad", "pendrive": pendrive, "blad": str(e)}
+    threading.Thread(target=rob, daemon=True).start()
+    return True
+
+
 # ------------------------------------------------------------ zadanie ------
 def start_zadania(a):
     with LOCK:
-        if STAN["job"].get("stan") == "trwa":
+        if STAN["job"].get("stan") == "trwa" or STAN["klon"].get("stan") == "trwa" or STAN["raport"].get("stan") == "trwa":
             return False
         PODGLADY.clear()
         STAN["job"] = {"stan": "trwa", "etap": "Start...", "postep": 0.0, "n": 0, "utwory": [], "sukcesy": 0,
@@ -760,7 +817,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if "utwory" in job:
                     job["utwory"] = list(job["utwory"])
                     job["log"] = list(job.get("log", []))[-200:]
-                return self._wyslij(200, {"setup": STAN["setup"], "job": job, "benchmark": benchmark})
+                return self._wyslij(200, {"setup": STAN["setup"], "job": job, "benchmark": benchmark, "klon": dict(STAN["klon"]), "raport": dict(STAN["raport"])})
         if url.path == "/api/podglad":
             raw = urllib.parse.parse_qs(url.query).get("i", ["0"])[0]
             # Obsługa batch: "i=1,2,3" zwraca listę podglądów
@@ -987,6 +1044,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if str(dane.get("potwierdzenie", "")).strip() != opis["nazwa"]:
                     return self._wyslij(400, {"blad": "Wpisana nazwa nie zgadza się z nazwą pendrive'a."})
                 return self._wyslij(200, formatuj_pendrive(p, dane.get("nowa_nazwa", "CDJ")))
+            if sciezka == "/api/klonuj":
+                import klon
+                zr, cel = os.path.abspath(dane.get("zrodlo", "")), os.path.abspath(dane.get("cel", ""))
+                if not (jest_wolumin(zr) and jest_wolumin(cel)):
+                    return self._wyslij(400, {"blad": "Wybierz dwa pendrive'y."})
+                try:
+                    klon.sprawdz(zr, cel)
+                except ValueError as e:
+                    return self._wyslij(400, {"blad": str(e)})
+                niepusty = not klon.cel_pusty(cel)
+                if niepusty and str(dane.get("potwierdzenie", "")).strip() != os.path.basename(cel):
+                    return self._wyslij(400, {"blad": "Pendrive docelowy nie jest pusty. Wpisz jego nazwę, aby go nadpisać.",
+                                              "wymaga_potwierdzenia": True})
+                if not start_klonu(zr, cel, niepusty):
+                    return self._wyslij(409, {"blad": "Trwa inne zadanie. Poczekaj na koniec."})
+                return self._wyslij(200, {"ok": True})
+            if sciezka == "/api/raport":
+                p = os.path.abspath(dane.get("pendrive", ""))
+                if not jest_wolumin(p) or not os.path.isdir(p):
+                    return self._wyslij(400, {"blad": "Wybierz pendrive."})
+                if not start_raportu(p):
+                    return self._wyslij(409, {"blad": "Trwa inne zadanie. Poczekaj na koniec."})
+                return self._wyslij(200, {"ok": True})
             if sciezka == "/api/wysun":
                 p = os.path.abspath(dane.get("sciezka", ""))
                 if not jest_wolumin(p) or not os.path.isdir(p):

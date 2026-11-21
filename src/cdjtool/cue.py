@@ -91,6 +91,14 @@ def _wyznacz(cechy, czasy_s, numery, dlugosc_s):
     pn = np.array([nisko[j:j + FRAZA].mean() for j in frazy])
     pc = np.array([calosc[j:j + FRAZA].mean() for j in frazy])
     kick = pn >= 0.45 * ref_n
+    # profil pasm fraz (nisko/srednio/wysoko wzgledem P75 tego pasma): zmiana skladu aranzacji nawet bez zmiany glosnosci
+    rms3 = np.zeros((nb, 3))
+    for k, t0 in enumerate(poczatki):
+        t1 = poczatki[k + 1] if k + 1 < nb else len(cechy) / OKNA_NA_S
+        a, b = max(0, int(round(t0 * OKNA_NA_S))), min(len(cechy), max(int(round(t1 * OKNA_NA_S)), int(round(t0 * OKNA_NA_S)) + 1))
+        rms3[k] = cechy[a:b, :3].mean(0) if b > a else 0.0
+    ref3 = np.maximum(np.percentile(rms3, 75, axis=0), 1e-6)
+    prof = np.array([(rms3[j:j + FRAZA].mean(0) / ref3) for j in frazy])
     zdarzenia = []  # (indeks frazy, typ)
     for i in range(1, len(frazy)):
         if kick[i] and not kick[i - 1]:
@@ -99,6 +107,16 @@ def _wyznacz(cechy, czasy_s, numery, dlugosc_s):
             zdarzenia.append((i, "Break"))
         elif kick[i] and kick[i - 1] and pc[i] >= 1.3 * pc[i - 1] and pc[i] >= 0.9 * ref_c:
             zdarzenia.append((i, "Lift"))
+    # zmiana skladu pasm (np. wchodza hihaty i bas, albo znikaja): kick sie nie zmienia, wiec poprzednie reguly jej nie widza
+    obecne = {i for i, _ in zdarzenia}
+    zmiana_skladu = []
+    for i in range(1, len(frazy)):
+        d = prof[i] - prof[i - 1]
+        if i in obecne or float(np.abs(d).sum()) < 0.5:
+            continue
+        zmiana_skladu.append((i, float(d.sum())))
+        if d.sum() > 0 and kick[i] and kick[i - 1]:
+            zdarzenia.append((i, "Lift"))
     # outro: ostatnia fraza po ktorej energia zostaje niska do konca
     outro = None
     for i in range(len(frazy) - 1, 0, -1):
@@ -106,8 +124,14 @@ def _wyznacz(cechy, czasy_s, numery, dlugosc_s):
             outro = i
         else:
             break
-    if outro is not None and outro >= len(frazy) - 1 and len(frazy) > 4:
-        outro = None  # pojedyncza koncowa fraza to jeszcze nie outro
+    if outro is None:
+        # spadek skladu (hihaty/bas znikaja) po ostatniej sekcji glownej i nic mocniejszego juz nie wraca
+        for i, ds in reversed(zmiana_skladu):
+            if ds < 0 and i >= len(frazy) - 2 and prof[i:].sum(1).max() <= 0.85 * prof[:i].sum(1).max():
+                outro = i
+                break
+    elif outro >= len(frazy) - 1 and len(frazy) > 4 and not any(i == outro for i, _ in zmiana_skladu):
+        outro = None  # pojedyncza koncowa fraza bez zmiany skladu to jeszcze nie outro
     if outro is not None:
         zdarzenia.append((outro, "Outro"))
     # wybierz: zachowaj minimalny odstep, sortuj po czasie
@@ -124,20 +148,29 @@ def _wyznacz(cechy, czasy_s, numery, dlugosc_s):
     pam = [(pierwszy_ms, "Start")]
     if abs(start_g - pierwszy_ms) > 0:
         pam.append((start_g, "Groove"))
-    for i, typ in wybrane[:5]:
+    # priorytet gdy zabraknie miejsc (<= 8): pierwszy Drop, pierwszy Break, Outro, reszta; wszystko i tak sortowane po czasie
+    kolejnosc = {"Drop": 0, "Break": 1, "Outro": 2, "Lift": 3}
+    for i, typ in sorted(wybrane, key=lambda e: (kolejnosc.get(e[1], 9), e[0]))[:5]:
         pam.append((ms(i), typ))
     # wejscie miksu: 16 taktow przed pierwszym dropem (zasada DJ: wchodzisz tak, by drop trafil w drop)
+    pierwszy_drop = [e for e in wybrane if e[1] == "Drop"] or [e for e in wybrane if e[1] == "Lift"]
+    if pierwszy_drop:
+        m = frazy[pierwszy_drop[0][0]] - 16
+        if m > G and all(abs(m - frazy[j]) >= MIN_ODSTEP for j, _ in wybrane):
+            pam.append((int(round(poczatki[m] * 1000)), "Mix in"))
+    # ostrzezenie przed outro: 32 takty wczesniej (zasada DJ: memory cue jako odliczanie, hot cue na samym outro)
     for i, typ in wybrane:
-        if typ in ("Drop", "Lift"):
-            m = frazy[i] - 16
-            if m > G and all(abs(m - frazy[j]) >= MIN_ODSTEP for j, _ in wybrane):
-                pam.append((int(round(poczatki[m] * 1000)), "Mix in"))
+        if typ == "Outro":
+            w = frazy[i] - 32
+            wms = int(round(poczatki[w] * 1000))
+            if w > G and all(abs(w - frazy[j]) >= MIN_ODSTEP for j, _ in wybrane) and all(abs(wms - t) > 1000 for t, _ in pam):
+                pam.append((wms, "Warn"))
             break
     # hot (najwyzej 6: A-F, tyle pokazuje mod RaftTone v1.1; zwykly CDJ-2000 ma 3 pady A-C):
     # A = zawsze pierwszy beat siatki (glowny punkt CUE: CDJ ustawia sie tam po zaladowaniu, jak w Rekordboksie);
     # dalej po kolei w czasie: groove (wejscie miksu), pierwszy drop, pierwszy break, outro, ostatni drop, ostatni break.
     # Kandydaci wg waznosci; drugie wystapienia sa zawsze pozniejsze, wiec A-C sa takie jak wczesniej.
-    drops = [(i, t) for i, t in wybrane if t in ("Drop", "Lift")]
+    drops = [(i, t) for i, t in wybrane if t == "Drop"] or [(i, t) for i, t in wybrane if t == "Lift"]
     brks = [(i, t) for i, t in wybrane if t == "Break"]
     outros = [(i, t) for i, t in wybrane if t == "Outro"]
     kandydaci = []
