@@ -76,7 +76,8 @@ def sprawdz(root, postep=None, czytaj_probki=True):
         hot_a = [ms for nr, ms in hot if nr == 1]
         if not hot_a:
             _p(problemy, "uwaga", nazwa, "brak_hot_a")
-        elif abs(hot_a[0] / 1000.0 - beaty[0][0]) > TOLERANCJA_HOT_A_S:
+        elif hot_a[0] / 1000.0 > beaty[0][0] + TOLERANCJA_HOT_A_S:
+            # hot A moze lezec przed pierwszym beatem (start dzwieku, jak Auto Cue CDJ), ale nie po nim
             _p(problemy, "uwaga", nazwa, "hot_a_nie_na_beacie",
                "hot A %.3f s, pierwszy beat %.3f s" % (hot_a[0] / 1000.0, beaty[0][0]))
     smieci = 0

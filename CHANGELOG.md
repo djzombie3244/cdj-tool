@@ -1,7 +1,7 @@
 # Changelog
 
 ## 1.1.0 - 2026
-- **Pre-gig check** (*Tools*): reads the stick after writing and reports errors that can stop a track from loading (unreadable database or analysis files, a missing audio file, a size that differs from the database, a stick that does not return the file data) and notes (BPM outside 60–200, hot cue A not on the first beat, very long paths, `._*` files). It changes nothing on the stick.
+- **Pre-gig check** (*Tools*): reads the stick after writing and reports errors that can stop a track from loading (unreadable database or analysis files, a missing audio file, a size that differs from the database, a stick that does not return the file data) and notes (BPM outside 60–200, hot cue A after the first beat, very long paths, `._*` files). It changes nothing on the stick.
 - **Smart playlists** (*Playlists and filter*): rules by BPM range, Camelot key (exact or neighbouring keys), genre, artist and comment. Each rule becomes a normal playlist on the stick, so the CDJ-2000 needs no change.
 - **Similar tracks**: a playlist of tracks whose BPM is within a chosen percentage of a seed track and whose key is a Camelot neighbour. The seed is chosen by part of its file name.
 - **Collection filter** before saving: genre, BPM range and date added. Empty filter = all tracks, as before.
