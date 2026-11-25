@@ -59,3 +59,13 @@ def test_brak_analizy_i_smieci(tmp_path):
 def test_brak_bazy(tmp_path):
     w = raport.sprawdz(str(tmp_path))
     assert not w["ok"] and w["problemy"][0]["kod"] == "baza"
+
+
+def test_playlisty_puste_i_zepsute_wpisy():
+    lib = {"utwory": [({"id": 1}, {})],
+           "drzewo": [(0, 0, 10, False, "Set"), (0, 0, 11, False, ""), (0, 0, 12, True, "Folder")],
+           "wpisy": [(0, 1, 10), (1, 99, 10), (0, 1, 77)]}
+    p = []
+    raport._sprawdz_playlisty(lib, p)
+    assert {x["kod"] for x in p} == {"wpis_bez_utworu", "wpis_bez_playlisty", "brak_nazwy_playlisty", "pusta_playlista"}
+    assert [x["poziom"] for x in p if x["kod"] == "wpis_bez_utworu"] == ["blad"]

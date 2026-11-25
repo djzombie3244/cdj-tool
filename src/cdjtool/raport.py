@@ -25,6 +25,26 @@ def _p(lista, poziom, utwor, kod, szczegol=""):
     lista.append({"poziom": poziom, "utwor": utwor, "kod": kod, "szczegol": szczegol})
 
 
+def _sprawdz_playlisty(lib, problemy):
+    """Playlisty: CDJ pokazuje tylko poprawne drzewo. Wpis na brakujacy utwor to blad, reszta to uwagi."""
+    id_utworow = {f["id"] for f, _ in lib["utwory"]}
+    playlisty = {pid: nazwa for _, _, pid, folder, nazwa in lib["drzewo"] if not folder}
+    liczba = {pid: 0 for pid in playlisty}
+    for pid, nazwa in playlisty.items():
+        if not nazwa.strip():
+            _p(problemy, "uwaga", "", "brak_nazwy_playlisty", "playlista id %d" % pid)
+    for _, tid, pid in lib["wpisy"]:
+        if pid not in playlisty:
+            _p(problemy, "uwaga", "", "wpis_bez_playlisty", "playlista id %d" % pid)
+            continue
+        liczba[pid] += 1
+        if tid not in id_utworow:
+            _p(problemy, "blad", playlisty[pid] or "playlista", "wpis_bez_utworu", "utwor id %d" % tid)
+    for pid, n in liczba.items():
+        if n == 0:
+            _p(problemy, "uwaga", playlisty[pid] or "", "pusta_playlista")
+
+
 def sprawdz(root, postep=None, czytaj_probki=True):
     problemy = []
     try:
@@ -80,6 +100,7 @@ def sprawdz(root, postep=None, czytaj_probki=True):
             # hot A moze lezec przed pierwszym beatem (start dzwieku, jak Auto Cue CDJ), ale nie po nim
             _p(problemy, "uwaga", nazwa, "hot_a_nie_na_beacie",
                "hot A %.3f s, pierwszy beat %.3f s" % (hot_a[0] / 1000.0, beaty[0][0]))
+    _sprawdz_playlisty(lib, problemy)
     smieci = 0
     for dir_, _, pliki in os.walk(root):
         smieci += sum(1 for p in pliki if p.startswith("._"))
