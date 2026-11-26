@@ -792,6 +792,8 @@ const KOM_UTWOR = [
  [/tytuł/g, {en:"title", de:"Titel", fr:"titre", es:"título", it:"titolo"}],
  [/⚠ uszkodzony plik \(błędy dekodowania: (\d+)\), może zacinać się na CDJ/g, {en:"⚠ damaged file (decoding errors: $1), may stutter on the CDJ", de:"⚠ beschädigte Datei (Dekodierfehler: $1), kann auf dem CDJ stottern", fr:"⚠ fichier endommagé (erreurs de décodage : $1), peut saccader sur le CDJ", es:"⚠ archivo dañado (errores de decodificación: $1), puede entrecortarse en el CDJ", it:"⚠ file danneggiato (errori di decodifica: $1), può andare a scatti sul CDJ"}],
  [/z pamięci podręcznej/g, {en:"from cache", de:"aus dem Cache", fr:"depuis le cache", es:"de la caché", it:"dalla cache"}],
+ [/^Playlista „(.+)”: (\d+) utworów\.$/, {en:"Playlist “{1}”: {2} tracks.", de:"Playlist „{1}“: {2} Titel.", fr:"Playlist « {1} » : {2} morceaux.", es:"Lista «{1}»: {2} pistas.", it:"Playlist «{1}»: {2} brani."}, "nazwy"],
+ [/^Playlista „(.+)” \(od: (.+)\): (\d+) utworów\.$/, {en:"Playlist “{1}” (from: {2}): {3} tracks.", de:"Playlist „{1}“ (von: {2}): {3} Titel.", fr:"Playlist « {1} » (depuis : {2}) : {3} morceaux.", es:"Lista «{1}» (de: {2}): {3} pistas.", it:"Playlist «{1}» (da: {2}): {3} brani."}, "nazwy"],
  [/zmienne tempo: /g, {en:"variable tempo: ", de:"variables Tempo: ", fr:"tempo variable : ", es:"tempo variable: ", it:"tempo variabile: "}],
  [/długi utwór, (\d+) odcinków/g, {en:"long track, $1 sections", de:"langer Titel, $1 Abschnitte", fr:"morceau long, $1 sections", es:"pista larga, $1 secciones", it:"brano lungo, $1 sezioni"}],
 ];
@@ -1323,7 +1325,8 @@ function paramyPlaylist() {
   const dataOd = $("fDataOd").value ? Math.floor(new Date($("fDataOd").value + "T00:00:00").getTime() / 1000) : null;
   const filtr = { gatunek: $("fGatunek").value.trim(), bpm_min: liczbaLubNull($("fBpmMin").value), bpm_max: liczbaLubNull($("fBpmMax").value), data_od: dataOd };
   const pusty = !filtr.gatunek && filtr.bpm_min == null && filtr.bpm_max == null && !filtr.data_od;
-  return { inteligentne_playlisty: zbierzReguly().map(r => { delete r.tonacja_txt; return r; }),
+  const pustaRegula = r => !r.nazwa.trim() && r.bpm_min == null && r.bpm_max == null && !r.tonacja && !r.gatunek.trim() && !r.artysta.trim() && !r.komentarz.trim();
+  return { inteligentne_playlisty: zbierzReguly().filter(r => !pustaRegula(r)).map(r => { delete r.tonacja_txt; return r; }),
     podobne: szukaj ? { szukaj, procent: Number($("pProcent").value) || 3, nazwa: t("plPodobne").split(" (")[0] } : null,
     filtr: pusty ? null : filtr };
 }

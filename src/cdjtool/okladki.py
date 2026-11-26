@@ -348,6 +348,7 @@ def z_nazwy_pliku(nazwa):
     """(wykonawca, tytul) z nazwy pliku w stylu "12. Artist - Title (Mix).mp3"; None gdy nie pasuje."""
     # "_" w nazwach plikow zastepuje znaki niedozwolone (":" , "/"): "ft. Kali_ Marta" -> "ft. Kali, Marta"
     n = os.path.splitext(os.path.basename(nazwa))[0].replace("_ ", ", ").replace("_", " ")
+    n = re.sub(r"\s[\u2013\u2014]\s", " - ", n)  # "Artysta – Tytul" (polpauza / pauza) jak zwykly myslnik
     n = re.sub(r"^\s*\d{1,3}\s*[\.\-\)]?\s+", "", n)
     if " - " not in n:
         return None
