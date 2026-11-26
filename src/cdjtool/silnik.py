@@ -59,7 +59,28 @@ def bezpieczna_nazwa(s: str) -> str:
     return s or "Unknown"
 
 
-def sciezka_na_pendrive(meta: Dict, nazwa_pliku: str) -> str:
+def _stem_pend(stem, ext, zrodlo=None):
+    """Nazwa pliku na pendrive jest ucieta do 44 znakow. Gdy w tym samym folderze zrodlowym jest drugi plik
+    o tym samym poczatku (np. "... (Remix)" i "... (Dub Remix)"), same uciecie dalo by jedna sciezke i drugi
+    utwor nadpisalby pierwszy. Wtedy koncowke zastepuje krotki skrot calej nazwy (nadal 44 znaki)."""
+    if len(stem) <= 44:
+        return stem
+    krotka = stem[:44]
+    if zrodlo:
+        try:
+            katalog = os.path.dirname(os.path.abspath(zrodlo))
+            wlasna = unicodedata.normalize("NFC", os.path.basename(zrodlo))
+            for f in os.listdir(katalog):
+                f = unicodedata.normalize("NFC", f)
+                s2, e2 = os.path.splitext(f)
+                if f != wlasna and e2.lower() == ext.lower() and s2[:44] == krotka:
+                    return "%s~%04x" % (stem[:39], zlib.crc32(stem.encode("utf-8")) & 0xFFFF)
+        except OSError:
+            pass
+    return krotka
+
+
+def sciezka_na_pendrive(meta: Dict, nazwa_pliku: str, zrodlo=None) -> str:
     """Sciezka MP3 na pendrive - dokladnie jak w oryginale (nazwa pliku ucieta do 44 ZNAKOW)."""
     # macOS zwraca nazwy plikow rozlozone (NFD: "n" + akcent), rekordbox zapisuje
     # zlozone (NFC). Bez normalizacji ucinanie do 44 znakow i hash sciezki sie rozjezdzaja.
@@ -67,13 +88,13 @@ def sciezka_na_pendrive(meta: Dict, nazwa_pliku: str) -> str:
     stem, ext = os.path.splitext(nazwa_pliku)
     artysta = unicodedata.normalize("NFC", meta["artysta"])
     album = unicodedata.normalize("NFC", meta["album"])
-    return "/Contents/%s/%s/%s%s" % (bezpieczna_nazwa(artysta), bezpieczna_nazwa(album), stem[:44], ext)
+    return "/Contents/%s/%s/%s%s" % (bezpieczna_nazwa(artysta), bezpieczna_nazwa(album), _stem_pend(stem, ext, zrodlo), ext)
 
 
 ZAREZERWOWANE_FOLDERY = {"contents", "pioneer", "system volume information", ".trashes", ".spotlight-v100", ".fseventsd"}
 
 
-def sciezka_wg_folderow(nazwa_folderu: str, nazwa_wzgledna: str) -> str:
+def sciezka_wg_folderow(nazwa_folderu: str, nazwa_wzgledna: str, zrodlo=None) -> str:
     """Sciezka na pendrive odwzorowujaca uklad folderow zrodlowych: /<folder>/<podfoldery>/<plik>.
 
     Folder jest na glownym poziomie pendrive'a, wiec CDJ pokazuje go w widoku FOLDER
@@ -85,7 +106,7 @@ def sciezka_wg_folderow(nazwa_folderu: str, nazwa_wzgledna: str) -> str:
     if glowny.lower() in ZAREZERWOWANE_FOLDERY:
         glowny += " (muzyka)"
     katalogi = [glowny] + [bezpieczna_nazwa(c) for c in czesci[:-1]]
-    return "/%s/%s%s" % ("/".join(katalogi), stem[:44], ext)
+    return "/%s/%s%s" % ("/".join(katalogi), _stem_pend(stem, ext, zrodlo), ext)
 
 
 def sciezka_analizy(sciezka_utworu: str, przesuniecie: int = 0) -> str:
@@ -923,7 +944,7 @@ def _analizuj_zajety(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3,
 def _z_cache(traf, sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, nazwa_folderu):
     info, dat, ext, ex2 = traf
     if kopiuj_mp3:
-        pend = sciezka_wg_folderow(nazwa_folderu, nazwa_wzgledna) if nazwa_folderu else sciezka_na_pendrive(meta, nazwa)
+        pend = sciezka_wg_folderow(nazwa_folderu, nazwa_wzgledna, sciezka) if nazwa_folderu else sciezka_na_pendrive(meta, nazwa, sciezka)
     else:
         rel = os.path.relpath(sciezka, root).replace(os.sep, "/")
         pend = "/" + rel
@@ -1191,7 +1212,7 @@ def _analizuj_licz(sciezka, nazwa, nazwa_wzgledna, meta, root, nr, kopiuj_mp3, d
             czasy = g.siatka_ms(bpm, pierwszy, dl, analysis.get("takt", 0))
         
         if kopiuj_mp3:
-            pend = sciezka_wg_folderow(nazwa_folderu, nazwa_wzgledna) if nazwa_folderu else sciezka_na_pendrive(meta, nazwa)
+            pend = sciezka_wg_folderow(nazwa_folderu, nazwa_wzgledna, sciezka) if nazwa_folderu else sciezka_na_pendrive(meta, nazwa, sciezka)
         else:
             rel = os.path.relpath(sciezka, root).replace(os.sep, "/")
             pend = "/" + rel
