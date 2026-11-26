@@ -32,14 +32,14 @@ def _sprawdz_playlisty(lib, problemy):
     liczba = {pid: 0 for pid in playlisty}
     for pid, nazwa in playlisty.items():
         if not nazwa.strip():
-            _p(problemy, "uwaga", "", "brak_nazwy_playlisty", "playlista id %d" % pid)
+            _p(problemy, "uwaga", "", "brak_nazwy_playlisty", "id %d" % pid)
     for _, tid, pid in lib["wpisy"]:
         if pid not in playlisty:
-            _p(problemy, "uwaga", "", "wpis_bez_playlisty", "playlista id %d" % pid)
+            _p(problemy, "uwaga", "", "wpis_bez_playlisty", "id %d" % pid)
             continue
         liczba[pid] += 1
         if tid not in id_utworow:
-            _p(problemy, "blad", playlisty[pid] or "playlista", "wpis_bez_utworu", "utwor id %d" % tid)
+            _p(problemy, "blad", playlisty[pid] or "playlista", "wpis_bez_utworu", "id %d" % tid)
     for pid, n in liczba.items():
         if n == 0:
             _p(problemy, "uwaga", playlisty[pid] or "", "pusta_playlista")
@@ -60,17 +60,17 @@ def sprawdz(root, postep=None, czytaj_probki=True):
             postep(n + 1, len(utwory), nazwa)
         sc = s["file_path"]
         if sc in sciezki:
-            _p(problemy, "blad", nazwa, "duplikat", "ta sama sciezka co " + sciezki[sc])
+            _p(problemy, "blad", nazwa, "duplikat", "= " + sciezki[sc])
         sciezki[sc] = nazwa
         if len(sc) > MAX_SCIEZKA:
-            _p(problemy, "uwaga", nazwa, "sciezka", "%d znakow" % len(sc))
+            _p(problemy, "uwaga", nazwa, "sciezka", "%d chars" % len(sc))
         audio = os.path.join(root, sc.lstrip("/"))
         if not os.path.isfile(audio):
             _p(problemy, "blad", nazwa, "brak_audio", sc)
         else:
             rozm = os.path.getsize(audio)
             if f.get("file_size") and rozm != f["file_size"]:
-                _p(problemy, "blad", nazwa, "rozmiar", "w bazie %d B, na pendrive %d B" % (f["file_size"], rozm))
+                _p(problemy, "blad", nazwa, "rozmiar", "DB %d B / stick %d B" % (f["file_size"], rozm))
             if czytaj_probki:
                 try:
                     _probka(audio, rozm)
@@ -99,11 +99,11 @@ def sprawdz(root, postep=None, czytaj_probki=True):
         elif hot_a[0] / 1000.0 > beaty[0][0] + TOLERANCJA_HOT_A_S:
             # hot A moze lezec przed pierwszym beatem (start dzwieku, jak Auto Cue CDJ), ale nie po nim
             _p(problemy, "uwaga", nazwa, "hot_a_nie_na_beacie",
-               "hot A %.3f s, pierwszy beat %.3f s" % (hot_a[0] / 1000.0, beaty[0][0]))
+               "hot A %.3f s, beat 1 %.3f s" % (hot_a[0] / 1000.0, beaty[0][0]))
     _sprawdz_playlisty(lib, problemy)
     smieci = 0
     for dir_, _, pliki in os.walk(root):
         smieci += sum(1 for p in pliki if p.startswith("._"))
     if smieci:
-        _p(problemy, "uwaga", "", "apple_double", "%d plikow ._*" % smieci)
+        _p(problemy, "uwaga", "", "apple_double", "%d × ._*" % smieci)
     return {"ok": not any(p["poziom"] == "blad" for p in problemy), "utworow": len(utwory), "problemy": problemy}
