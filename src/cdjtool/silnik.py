@@ -63,6 +63,9 @@ def _stem_pend(stem, ext, zrodlo=None):
     """Nazwa pliku na pendrive jest ucieta do 44 znakow. Gdy w tym samym folderze zrodlowym jest drugi plik
     o tym samym poczatku (np. "... (Remix)" i "... (Dub Remix)"), same uciecie dalo by jedna sciezke i drugi
     utwor nadpisalby pierwszy. Wtedy koncowke zastepuje krotki skrot calej nazwy (nadal 44 znaki)."""
+    # znaki zakazane w nazwach FAT/exFAT (macOS zapisuje je w zastepczej postaci, a CDJ i baza moga ich nie zgadzac)
+    czysty = lambda x: re.sub(r'[\\/:*?"<>|]', "_", x)  # noqa: E731
+    stem = czysty(stem)
     if len(stem) <= 44:
         return stem
     krotka = stem[:44]
@@ -73,7 +76,7 @@ def _stem_pend(stem, ext, zrodlo=None):
             for f in os.listdir(katalog):
                 f = unicodedata.normalize("NFC", f)
                 s2, e2 = os.path.splitext(f)
-                if f != wlasna and e2.lower() == ext.lower() and s2[:44] == krotka:
+                if f != wlasna and e2.lower() == ext.lower() and czysty(s2)[:44] == krotka:
                     return "%s~%04x" % (stem[:39], zlib.crc32(stem.encode("utf-8")) & 0xFFFF)
         except OSError:
             pass
