@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.1 - 2026
+- **Fixed: tracks overwriting each other on the stick.** File names on the stick are cut to 44 characters. Two files in the same folder that start with the same 44 characters (for example `... (Remix)` and `... (Dub Remix)`) got one path, so the second copy replaced the first and the Pre-gig check only showed a size error. Such files now get a short checksum at the end of the name; other names are unchanged, so older sticks are not affected.
+- **Characters forbidden on FAT/exFAT** (`\ / : * ? " < > |`) in file names are replaced with `_` on the stick, as was already done for folder names.
+- **Artist and title from `Artist – Title` names:** an en dash or em dash with spaces is read like a normal hyphen, so such files no longer end up as "Unknown Artist".
+- **Pre-gig check:** the detail texts no longer contain Polish words in other languages (size comparison, `._*` files and so on).
+- **Smart playlist rows** with no name and no criteria are ignored; the playlist messages in the log are translated into all six languages.
+- **Backup of the previous library** shows how many files are done (for example 120/340) while it runs.
+
 ## 1.1.0 - 2026
 - **Fix titles in the library** (option *Fix titles in the library*, off by default): changes only the database on the stick, not the files. Removes web addresses and bracketed domains (e.g. `[EdmPacks.com]`), leading track numbers, takes the artist from a "Artist - Title" title when the artist is empty, and turns ALL-CAPS titles into normal capitals. Artist capitalisation is left alone (acronyms like VERO or ABBA are often intentional).
 - **Pre-gig check** (*Tools*): reads the stick after writing and reports errors that can stop a track from loading (unreadable database or analysis files, a missing audio file, a size that differs from the database, a stick that does not return the file data) and notes (BPM outside 60–200, hot cue A after the first beat, very long paths, `._*` files). It changes nothing on the stick.

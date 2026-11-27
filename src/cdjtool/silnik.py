@@ -487,7 +487,7 @@ def kopia_zapasowa_pdb(sciezka_pdb, korzen):
     return cel
 
 
-def kopia_zapasowa(pioneer, korzen, pominiete=None):
+def kopia_zapasowa(pioneer, korzen, pominiete=None, postep=None):
     """Kopia zapasowa starego folderu PIONEER (w Dokumenty/CDJ-Tool-kopie). Pojedyncze pliki, ktorych nie da sie
     odczytac (np. uszkodzony plik analizy), sa pomijane i dopisywane do listy `pominiete`; przerywa tylko wtedy,
     gdy nie da sie skopiowac samej bazy (export.pdb) albo zapisac kopii na komputerze."""
@@ -503,7 +503,16 @@ def kopia_zapasowa(pioneer, korzen, pominiete=None):
             "i czy aplikacja ma dostęp do folderu Dokumenty (Ustawienia systemowe → Prywatność i ochrona → Pliki "
             "i foldery). Nic nie zostało zmienione na pendrivie." % (e.strerror or e))) from e
 
+    razem = 0
+    if postep:
+        for _k, _d, pliki_k in os.walk(pioneer):
+            razem += sum(1 for f in pliki_k if not f.startswith("._") and f != ".DS_Store")
+    licznik = [0]
+
     def kopiuj(src, dst):
+        licznik[0] += 1
+        if postep and razem and (licznik[0] % 25 == 0 or licznik[0] == razem):
+            postep(licznik[0], razem)
         try:
             return shutil.copy2(src, dst)
         except OSError as e:
@@ -2157,7 +2166,8 @@ def _przetworz(a, emit):
         if na_dysku:
             emit({"typ": "etap", "tekst": "Robię kopię zapasową dotychczasowego folderu PIONEER..."})
             pominiete = []
-            cel = kopia_zapasowa(pioneer, root, pominiete)
+            cel = kopia_zapasowa(pioneer, root, pominiete, lambda i, n: emit(
+                {"typ": "etap", "tekst": "Robię kopię zapasową dotychczasowego folderu PIONEER... (%d/%d)" % (i, n)}))
             emit({"typ": "kopia", "sciezka": cel})
             if pominiete:
                 emit({"typ": "log", "tekst": "Kopia zapasowa: pominięto %d nieczytelnych plików (zostaną zapisane od "

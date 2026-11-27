@@ -655,7 +655,7 @@ function trEtap(x) {
   if ((m = x.match(/^Kopiuję plik (?:MP3 )?(\d+) z (\d+)/))) return t("e_copy", { i: m[1], n: m[2] });
   if ((m = x.match(/^Analizuję (\d+) utworów równolegle \(do (\d+) naraz, limit pamięci RAM ok\. (\d+) MB\)/))) return t("e_parallel", { n: m[1], w: m[2], ram: m[3] });
   if (x.startsWith("Przygotowuję bazę")) return t("e_db");
-  if (x.startsWith("Robię kopię zapasową")) return t("e_backup");
+  if (x.startsWith("Robię kopię zapasową")) return t("e_backup") + ((x.match(/ \(\d+\/\d+\)$/) || [""])[0]);
   if (x.startsWith("Zapisuję pliki na pendrive")) return t("e_write");
   if (x.startsWith("Kończę zapis")) return t("e_flush");
   return trM(x);
